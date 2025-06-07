@@ -1,0 +1,3 @@
+Fuzzy threshold: 100%
+
+Tagged 80 notes as DUPE_Tagging_matchf100

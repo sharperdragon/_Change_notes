@@ -1,0 +1,109 @@
+cns => central nervous system
+mi => myocardial infarction
+htn => hypertension
+cad => coronary artery disease
+
+afib => atrial fibrillation
+copd => chronic obstructive pulmonary disease
+dm => diabetes mellitus
+ra => rheumatoid arthritis
+tb => tuberculosis
+uri => upper respiratory infection
+uti => urinary tract infection
+ckd => chronic kidney disease
+pad => peripheral artery disease
+pna => pneumonia
+
+
+↑ =>
+increase => increas
+increasing => increas
+increases => increas
+increased => increas
+high => increas
+
+↓ => decreas
+low => decreas
+decrease => decreas
+decreasing => decreas
+decreases => decreas
+decreased => decreas
+
+
+↔ => normal 
+
+t1dm => type 1 diabetes mellitus
+t2dm => type 2 diabetes mellitus
+hld => hyperlipidemia
+gi => gastrointestinal
+cvd => cardiovascular disease
+ms => multiple sclerosis
+ck => creatine kinase
+lfts => liver function tests
+cva => cerebrovascular accident
+dvt => deep vein thrombosis
+pe => pulmonary embolism
+
+
+
+
+a baumannii => acinetobacter baumannii
+a israelii => actinomyces israelii
+b anthracis => bacillus anthracis
+b burgdorferi => borrelia burgdorferi
+b fragilis => bacteroides fragilis
+b pertussis => bordetella pertussis
+c botulinum => clostridium botulinum
+c difficile => clostridium difficile
+c perfringens => clostridium perfringens
+c psittaci => chlamydia psittaci
+c tetani => clostridium tetani
+c trachomatis => chlamydia trachomatis
+e coli => escherichia coli
+e faecalis => enterococcus faecalis
+e faecium => enterococcus faecium
+h influenzae => haemophilus influenzae
+h pylori => helicobacter pylori
+k pneumoniae => klebsiella pneumoniae
+l interrogans => leptospira interrogans
+l monocytogenes => listeria monocytogenes
+m catarrhalis => moraxella catarrhalis
+m tuberculosis => mycobacterium tuberculosis
+n gonorrhoeae => neisseria gonorrhoeae
+n meningitidis => neisseria meningitidis
+p aeruginosa => pseudomonas aeruginosa
+r rickettsii => rickettsia rickettsii
+s aureus => staphylococcus aureus
+s epidermidis => staphylococcus epidermidis
+s pneumoniae => streptococcus pneumoniae
+s pyogenes => streptococcus pyogenes
+s saprophyticus => staphylococcus saprophyticus
+s haemolyticus => staphylococcus haemolyticus
+s lugdunensis => staphylococcus lugdunensis
+s hominis => staphylococcus hominis
+s capitis => staphylococcus capitis
+
+t gondii => toxoplasma gondii
+t pallidum => treponema pallidum
+y pestis => yersinia pestis
+
+# Viridans group streptococci
+s anginosus => streptococcus anginosus
+s constellatus => streptococcus constellatus
+s intermedius => streptococcus intermedius
+s mitis => streptococcus mitis
+s mutans => streptococcus mutans
+s oralis => streptococcus oralis
+s salivarius => streptococcus salivarius
+s sanguinis => streptococcus sanguinis
+t gondii => toxoplasma gondii
+t pallidum => treponema pallidum
+y pestis => yersinia pestis
+
+
+staph => staphylococcus
+strep => streptococcus
+clostridia => clostridium
+pseudomonas => pseudomonas aeruginosa
+mycobacteria => mycobacterium tuberculosis
+neisseria => neisseria meningitidis
