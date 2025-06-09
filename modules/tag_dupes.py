@@ -1,7 +1,7 @@
 # pyright: reportMissingImports=false
 import  time, datetime, string
 from pathlib import Path
-from .config_manager import ConfigManager
+from ..config_manager import ConfigManager
 from PyQt6.QtWidgets import QInputDialog
 from aqt import mw
 from aqt.utils import showInfo

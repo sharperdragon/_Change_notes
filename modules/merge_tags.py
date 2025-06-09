@@ -8,7 +8,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from difflib import SequenceMatcher
 from PyQt6.QtWidgets import QInputDialog
-from .config_manager import ConfigManager
+from ..config_manager import ConfigManager
 from datetime import datetime
 
 from .assets.scrub_match import (
