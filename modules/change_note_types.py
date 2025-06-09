@@ -1,9 +1,6 @@
-import os
-from collections import defaultdict
-from datetime import datetime
-from ..utils import load_config, save_config
+
+from ..utils import save_config
 from ..config_manager import ConfigManager
-from ..config_ui import ConfigDialog
 
 from aqt import mw
 from aqt.qt import QAction, QInputDialog, QMenu

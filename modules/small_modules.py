@@ -7,8 +7,7 @@ from aqt.qt import QAction, QInputDialog, QMenu
 from aqt.browser import Browser
 from aqt.utils import showInfo
 from aqt import gui_hooks
-from .config_manager import ConfigManager
-from .config_ui import ConfigDialog
+from ..config_manager import ConfigManager
 
 config_manager = ConfigManager("batch_note_change_config", "global_config")
 
