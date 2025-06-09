@@ -32,6 +32,7 @@ from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
 from .modules.tag_dupes import run_tag_dupes
 from .modules.small_modules import delete_empty_note_types
 from .modules.change_note_types import change_selected_notes
+from .modules.add_tags import add_tag_menu_items
 
 
 config_manager = ConfigManager("batch_note_change_config", "global_config")
@@ -73,11 +74,11 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     if not selected:
         return
     col = browser.mw.col
+    menu.addSeparator()
     # Get names of note types for selected notes
     note_types = {col.models.get(col.get_note(n).mid)["name"] for n in selected}
     action = QAction("Batch Change Note Types", browser)
     action.triggered.connect(lambda: change_selected_notes(browser))
-    menu.addSeparator()
     menu.addAction(action)
 
     unify_tags_action = QAction("Merge Twin Note Tags⊹", browser)
@@ -92,6 +93,8 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     delete_empty_action.triggered.connect(delete_empty_note_types)
     menu.addAction(delete_empty_action)
 
+    # Add tag menu items after existing menu actions
+    add_tag_menu_items(browser, menu, config)
 
 # Ensures the browser context menu is only hooked once
 if not getattr(mw, "_change_note_type_menu_injected", False):
@@ -108,7 +111,6 @@ def inject_tools_menu(menu):
     batch = QAction("Batch Change Note Type…", mw)
     batch.triggered.connect(lambda: mw.browser.activateWindow() or mw.browser.raise_())
     change_menu.addAction(batch)
-
     resolve = QAction("Resolve Duplicates in Browser", mw)
     resolve.triggered.connect(lambda: mw.browser.activateWindow() or mw.browser.raise_())
     change_menu.addAction(resolve)

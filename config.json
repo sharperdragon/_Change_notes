@@ -22,6 +22,17 @@
       "*Nord-focus+"
     ]
     },
+  "tag_selected_notes_config": {
+    "set_1_name": "Base Tags",
+    "tag_set_1":[
+      "##Missed-Qs",
+      "##Bug-Drug-Missed-Pathoma"
+    ],
+    "set_2_name": "Test number",
+    "tag_set_2":[
+      "##Missed-Qs::UW_Tests"
+    ]
+    },
   "batch_note_change_config": {
     "hide_menu_when_one_type_selected": false,
     "allow_single_type_override": true,
