@@ -1,5 +1,5 @@
 # pyright: reportMissingImports=false
-import os, re, html, json, re, unicodedata
+import re
 from aqt import mw
 from collections import defaultdict
 from aqt.utils import showInfo
@@ -12,8 +12,7 @@ from ..config_manager import ConfigManager
 from datetime import datetime
 
 from .assets.scrub_match import (
-    normalize,
-    group_similar_notes_by_content,
+    normalize
 )
 
 DEBUG_MODE = False

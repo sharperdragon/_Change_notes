@@ -1,5 +1,5 @@
 
-from ..utils import save_config
+from .utils import save_config
 from ..config_manager import ConfigManager
 
 from aqt import mw

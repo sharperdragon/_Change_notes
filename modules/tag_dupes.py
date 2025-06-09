@@ -10,7 +10,7 @@ import hashlib
 from .assets.scrub_match import (
     group_similar_notes_by_content,
 )
-from .config_manager import ConfigManager
+from ..config_manager import ConfigManager
 
 config_manager = ConfigManager("global_config", "tag_dupes_config")
 

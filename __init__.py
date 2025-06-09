@@ -24,12 +24,15 @@ from aqt.browser import Browser
 from aqt.utils import showInfo
 from aqt import gui_hooks
 
-from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
-from .tag_dupes import run_tag_dupes  # supports debug flag
-from .utils import load_config, save_config
+from .modules.utils import load_config, save_config
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
+
+from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
+from .modules.tag_dupes import run_tag_dupes
 from .modules.small_modules import delete_empty_note_types
+from .modules.change_note_types import change_selected_notes
+
 
 config_manager = ConfigManager("batch_note_change_config", "global_config")
 
@@ -55,7 +58,7 @@ def run_merge_tags_with_threshold(browser: Browser):
 
 # Opens a dialog to batch-change note types of selected notes in the Anki browser.
 # Also applies optional field-mapping profiles saved in the config.
-from .modules.change_note_types import change_selected_notes
+
 
 
 
