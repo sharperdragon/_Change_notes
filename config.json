@@ -16,7 +16,7 @@
     "base_tag": "TAGS_MERGED",
     "log_folder": ""
     },
-  "delete_unused_config": {
+  "delete_empty_notes_config": {
     "protected_notes":[
       "*Nord+",
       "*Nord-focus+"

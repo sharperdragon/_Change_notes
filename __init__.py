@@ -29,6 +29,7 @@ from .tag_dupes import run_tag_dupes  # supports debug flag
 from .utils import load_config, save_config
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
+from .small_modules import delete_empty_note_types
 
 config_manager = ConfigManager("batch_note_change_config", "global_config")
 
@@ -54,90 +55,9 @@ def run_merge_tags_with_threshold(browser: Browser):
 
 # Opens a dialog to batch-change note types of selected notes in the Anki browser.
 # Also applies optional field-mapping profiles saved in the config.
-def change_selected_notes(browser: Browser):
-    # Get selected note IDs from browser
-    nids = browser.selectedNotes()
-    if not nids:
-        showInfo("No notes selected.")
-        return
-
-    col = browser.mw.col
-    # Retrieve all note types
-    models = col.models.all()
-    names = [m["name"] for m in models]
-
-    last_target = config.get("last_target_model", "")
-    default_index = names.index(last_target) if last_target in names else 0
-
-    # Prompt user to select target note type
-    target_name, ok = QInputDialog.getItem(
-        browser,
-        "Select Target Note Type",
-        "Note Type:",
-        names,
-        default_index,
-        False
-    )
-    if not ok or not target_name:
-        return
-
-    config["last_target_model"] = target_name
-    save_config(config)
-
-    # Retrieve saved field-mapping profiles
-    mapping_keys = list(config.get("field_mappings", {}).keys())
-    mapping_names = ["None"] + mapping_keys
-    last_map = config.get("last_mapping_profile", "")
-    map_index = mapping_keys.index(last_map) + 1 if last_map in mapping_keys else 0
-    # Prompt user to select field-mapping profile (optional)
-    profile_name, ok2 = QInputDialog.getItem(
-        browser,
-        "Select Field-Mapping Profile",
-        "Mapping Profile:",
-        mapping_names,
-        map_index,
-        False
-    )
-    mapping_profile = profile_name if ok2 and profile_name and profile_name != "None" else None
-    # If a mapping profile is chosen, store selection
-    if mapping_profile:
-        config["last_mapping_profile"] = mapping_profile
-        save_config(config)
-
-    # Get model ID of selected note type
-    mid = col.models.by_name(target_name)["id"]
-    _run_change_note_type(browser, nids, mid)
-
-    # Apply field mappings from selected profile
-    if mapping_profile:
-        mappings = config.get("field_mappings", {}).get(mapping_profile, [])
-        for nid in nids:
-            note = col.get_note(nid)
-            model = note.model()
-            flds = col.models.field_names(model)
-            for m in mappings:
-                src, tgt = m.get("source"), m.get("target")
-                if not src or not tgt or src not in flds or tgt not in flds:
-                    continue
-                note.fields[flds.index(tgt)] = note.fields[flds.index(src)]
-            note.flush()
+from .change_note_types import change_selected_notes
 
 
-
-
-# Scans all note types and deletes those with zero associated cards from the collection.
-def delete_empty_note_types():
-    col = mw.col
-    # Iterate through all note types to check usage
-    models = col.models.all()
-    deleted = 0
-    for model in models:
-        cards = col.db.scalar("SELECT COUNT() FROM cards WHERE nid IN (SELECT id FROM notes WHERE mid=?)", model["id"])
-        if cards == 0:
-            col.models.rem(model)
-            deleted += 1
-    mw.reset()
-    showInfo(f"Deleted {deleted} note types with zero cards.")
 
 
 # Injects right-click browser menu options for:
@@ -157,15 +77,15 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     menu.addSeparator()
     menu.addAction(action)
 
-    unify_tags_action = QAction("Twin Notes – Merge Tags", browser)
+    unify_tags_action = QAction("Merge Twin Note Tags⊹", browser)
     unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
     menu.addAction(unify_tags_action)
 
-    tag_dupes_action = QAction("Tag Dupe Notes", browser)
+    tag_dupes_action = QAction("Tag Dupes 🔖", browser)
     tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))
     menu.addAction(tag_dupes_action)
 
-    delete_empty_action = QAction("Delete Empty Note Types ␡", browser)
+    delete_empty_action = QAction("❌ Empty Note Types࿏", browser)
     delete_empty_action.triggered.connect(delete_empty_note_types)
     menu.addAction(delete_empty_action)
 
