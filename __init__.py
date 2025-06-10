@@ -35,7 +35,7 @@ from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
 
 
-config_manager = ConfigManager("batch_note_change_config", "global_config")
+config_manager = ConfigManager("Change_notes")
 
 # Load merged config from config_manager
 config = config_manager.load()

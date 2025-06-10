@@ -3,3 +3,7 @@ __pycache__/
 *.pyo
 .DS_Store
 logs
+__pycache__
+OLD
+modules/logs
+.DS_Store
