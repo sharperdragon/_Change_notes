@@ -12,7 +12,21 @@ from bs4 import BeautifulSoup
 from aqt import mw
 
 # === Constants & Global Config ===
-TEXT_REPLACEMENT_PATH = Path(__file__).parent / "text_replacements.txt"
+TEXT_REPLACEMENT_PATH = Path(__file__).with_name("text_replacements.txt")
+
+
+
+def prompt_threshold(default=0.92, minimum=0.85, maximum=1.0):
+    """Prompt user for fuzzy match threshold (0 = loose, 1.0 = strict)."""
+    val, ok = QInputDialog.getDouble(
+        mw, "Set Fuzzy Match Threshold",
+        "Fuzzy match threshold (0.85 = loose, 1.0 = strict):",
+        default, minimum, maximum, decimals=2
+    )
+    return val if ok else None
+
+
+
 
 SYNONYMS = {
     "antinuclear antibodies": ["ana"],
@@ -22,6 +36,54 @@ SYNONYMS = {
     "anti-scl-70": ["scl70"],
     "scl70": ["anti-scl-70"],
 }
+
+PREFIX_COMBOS = {
+    "hyper": [
+        "glycemia", "kalemia", "natremia", "calcemia", "reflexia",
+        "tonia", "lipidemia", "uricemia", "parathyroidism"
+    ],
+    "hypo": [
+        "glycemia", "kalemia", "natremia", "calcemia", "reflexia",
+        "tonia", "albuminemia", "parathyroidism", "magnesemia"
+    ],
+    "anti": [
+        "histamine", "inflammatory", "bacterial", "coagulant"
+    ]
+}
+
+SUFFIX_COMBOS = {
+    "emia": [
+        "hyperglyc", "hypoglyc", "hyperuric", "hypouric"
+    ],
+    "itis": [
+        "neur", "hepat", "appendic", "tonsill", "dermat"
+    ]
+}
+
+def build_morpheme_combos_from_rules():
+    combos = {}
+    for prefix, roots in PREFIX_COMBOS.items():
+        for root in roots:
+            combos[(prefix, root)] = prefix + root
+    for suffix, stems in SUFFIX_COMBOS.items():
+        for stem in stems:
+            combos[(stem, suffix)] = stem + suffix
+    return combos
+
+MORPHEME_COMBOS = build_morpheme_combos_from_rules()
+
+def combine_morphemes(tokens):
+    """Merge known morpheme pairs into a unified medical term."""
+    combined = []
+    i = 0
+    while i < len(tokens):
+        if i + 1 < len(tokens) and (tokens[i], tokens[i + 1]) in MORPHEME_COMBOS:
+            combined.append(MORPHEME_COMBOS[(tokens[i], tokens[i + 1])])
+            i += 2
+        else:
+            combined.append(tokens[i])
+            i += 1
+    return combined
 
 _REPLACEMENTS = {}
 
@@ -72,6 +134,8 @@ def normalize_cloze_content(cloze_content):
         tokens = [t.strip().lower() for t in cloze_content.split(",")]
     else:
         tokens = [t.strip().lower() for t in cloze_content.split()]
+
+    tokens = combine_morphemes(tokens)
 
     # Expand synonyms
     expanded_tokens = set()
@@ -158,7 +222,7 @@ def group_note_ids_by_similarity(note_infos, threshold, field_name="Text", has_e
     grouped = group_notes_by_similarity(filtered_notes, threshold, field_name)
     return {k: [n.id for n in v] for k, v in grouped.items()}
 
-# === File/Replacement Handling ===
+ # === File/Replacement Handling ===
 def load_replacements(path=TEXT_REPLACEMENT_PATH):
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()

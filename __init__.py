@@ -18,6 +18,17 @@ import os
 from collections import defaultdict
 from datetime import datetime
 
+# Import from the merge_images addon
+merge_images_path = os.path.expanduser("~/Library/Application Support/Anki2/addons21/merge_images")
+import sys
+if merge_images_path not in sys.path:
+    sys.path.append(merge_images_path)
+
+try:
+    from merge_images import run_merge_images
+except ImportError:
+    run_merge_images = None
+
 from aqt import mw
 from aqt.qt import QAction, QInputDialog, QMenu
 from aqt.browser import Browser
@@ -33,7 +44,12 @@ from .modules.tag_dupes import run_tag_dupes
 from .modules.small_modules import delete_empty_note_types
 from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
+from .modules.merge_img_and_tags import run_combined_merge
 
+
+#from .modules.merge_images.main  import merge_images_main
+
+#from .modules.Add_img_class.main import initialize_addon
 
 config_manager = ConfigManager("Change_notes")
 
@@ -57,12 +73,6 @@ def run_merge_tags_with_threshold(browser: Browser):
     if threshold is not None:
         unify_tags_on_duplicates(browser, threshold)
 
-# Opens a dialog to batch-change note types of selected notes in the Anki browser.
-# Also applies optional field-mapping profiles saved in the config.
-
-
-
-
 
 # Injects right-click browser menu options for:
 # - Batch changing note types
@@ -75,26 +85,38 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
         return
     col = browser.mw.col
     menu.addSeparator()
+    if run_merge_images:
+        merge_imgs_action = QAction("🖼 Merge Images (from Change_notes)", browser)
+        merge_imgs_action.triggered.connect(lambda: run_merge_images(selected, browser))
+        menu.addAction(merge_imgs_action)
     # Get names of note types for selected notes
     note_types = {col.models.get(col.get_note(n).mid)["name"] for n in selected}
-    action = QAction("Batch Change Note Types", browser)
-    action.triggered.connect(lambda: change_selected_notes(browser))
-    menu.addAction(action)
-
+    
+    # Add tag menu items after existing menu actions
+    add_tag_menu_items(browser, menu, config)
+    
     unify_tags_action = QAction("Merge Twin Note Tags⊹", browser)
     unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
     menu.addAction(unify_tags_action)
+
+    combined_merge_action = QAction("Merge Images + Tags ⛓", browser)
+    combined_merge_action.triggered.connect(lambda: run_combined_merge())
+    menu.addAction(combined_merge_action)
 
     tag_dupes_action = QAction("Tag Dupes 🔖", browser)
     tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))
     menu.addAction(tag_dupes_action)
 
+    menu.addSeparator()
+
+    action = QAction("Batch Change Note Types", browser)
+    action.triggered.connect(lambda: change_selected_notes(browser))
+    menu.addAction(action)
+
+
     delete_empty_action = QAction("❌ Empty Note Types࿏", browser)
     delete_empty_action.triggered.connect(delete_empty_note_types)
     menu.addAction(delete_empty_action)
-
-    # Add tag menu items after existing menu actions
-    add_tag_menu_items(browser, menu, config)
 
 # Ensures the browser context menu is only hooked once
 if not getattr(mw, "_change_note_type_menu_injected", False):

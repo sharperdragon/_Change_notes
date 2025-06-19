@@ -9,6 +9,13 @@ month_tag = f"##Missed-Qs::{datetime.now().year}::{datetime.now().strftime('%B')
 TEST_RANGE_BLOCK_SIZE = 25
 
 
+MONTH = datetime.now().strftime("%B")
+
+Correct_guess_tags = [
+    "#Focus-Review::correct_marked",
+    "#Focus-Review::ZIP::Correct_Guess"
+]
+
 def apply_tags_to_selected_notes(browser, tag_list: list[str]):
     col = browser.mw.col
     nids = browser.selectedNotes()
@@ -26,6 +33,7 @@ def apply_tags_to_selected_notes(browser, tag_list: list[str]):
     tooltip(f"✅ Applied {len(tag_list)} tags to {len(nids)} notes.")
 
 
+
 def add_tag_menu_items(browser, menu, config: dict):
     # Extract tag configuration from the passed-in config dictionary
     tag_config = config.get("tag_selected_notes_config", {})
@@ -37,16 +45,19 @@ def add_tag_menu_items(browser, menu, config: dict):
 
     # Add combined base + test# action first
     add_combined_base_plus_test(browser, tag_menu, tag_config)
-
-    # Add separator
-    tag_menu.addSeparator()
-
     # Add base tags and missed test tag
     add_base_tags(browser, tag_menu, tag_config)
-    add_missed_test_tag(browser, tag_menu, tag_config)
-
     # Add separator
     tag_menu.addSeparator()
+    
+    add_missed_test_tag(browser, tag_menu, tag_config)
+    
+    spacer = QAction(" ", browser)
+    spacer.setEnabled(False)
+    tag_menu.addAction(spacer)
+    
+    
+    add_correct_guess_action(browser, tag_menu)
 
     # Add UW Test This Month action
     add_uw_month_tag(browser, tag_menu)
@@ -148,3 +159,10 @@ def add_uw_month_tag(browser, menu):
                 showInfo("❌ Please enter a valid integer test number.")
     month_test_action.triggered.connect(handle_month_test_tag)
     menu.addAction(month_test_action)
+
+# --- Add Correct Guess Action ---
+def add_correct_guess_action(browser, menu):
+    """Add action to tag notes as correct guesses."""
+    action = QAction("Guessed Correct 🎫", browser)
+    action.triggered.connect(lambda _, tags=Correct_guess_tags: apply_tags_to_selected_notes(browser, tags))
+    menu.addAction(action)
