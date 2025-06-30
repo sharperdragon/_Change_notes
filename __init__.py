@@ -44,7 +44,7 @@ from .modules.tag_dupes import run_tag_dupes
 from .modules.small_modules import delete_empty_note_types
 from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
-from .modules.merge_img_and_tags import run_combined_merge
+
 
 
 #from .modules.merge_images.main  import merge_images_main
@@ -99,9 +99,12 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
     menu.addAction(unify_tags_action)
 
-    combined_merge_action = QAction("Merge Images + Tags ⛓", browser)
-    combined_merge_action.triggered.connect(lambda: run_combined_merge())
-    menu.addAction(combined_merge_action)
+    # Add Merge Scheduling (Similarity) action after "Merge Twin Note Tags⊹"
+    merge_sched_action = QAction("Merge Scheduling (Similarity)", browser)
+    from .modules.Merge_schedule import run_merge_scheduling
+    merge_sched_action.triggered.connect(lambda: run_merge_scheduling())
+    menu.addAction(merge_sched_action)
+
 
     tag_dupes_action = QAction("Tag Dupes 🔖", browser)
     tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))

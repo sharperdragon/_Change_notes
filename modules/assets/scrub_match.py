@@ -1,7 +1,5 @@
 # Standard Library
-import html
-import re
-import unicodedata
+import html, re, unicodedata
 from collections import defaultdict
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -13,20 +11,6 @@ from aqt import mw
 
 # === Constants & Global Config ===
 TEXT_REPLACEMENT_PATH = Path(__file__).with_name("text_replacements.txt")
-
-
-
-def prompt_threshold(default=0.92, minimum=0.85, maximum=1.0):
-    """Prompt user for fuzzy match threshold (0 = loose, 1.0 = strict)."""
-    val, ok = QInputDialog.getDouble(
-        mw, "Set Fuzzy Match Threshold",
-        "Fuzzy match threshold (0.85 = loose, 1.0 = strict):",
-        default, minimum, maximum, decimals=2
-    )
-    return val if ok else None
-
-
-
 
 SYNONYMS = {
     "antinuclear antibodies": ["ana"],
@@ -199,9 +183,11 @@ def normalize(text):
 def is_similar(a, b, threshold):
     return SequenceMatcher(None, a, b).ratio() >= threshold
 
-def group_similar_notes_by_content(note_infos, threshold, field_name="Text"):
+def group_similar_notes_by_content(note_infos, threshold, field_name="Text", has_excluded_tag=lambda note: False):
     note_lookup = defaultdict(list)
     for note in note_infos:
+        if has_excluded_tag(note):
+            continue
         field_names = [fld["name"] for fld in mw.col.models.get(note.mid)["flds"]]
         if field_name not in field_names:
             continue
@@ -219,10 +205,10 @@ def group_similar_notes_by_content(note_infos, threshold, field_name="Text"):
 
 def group_note_ids_by_similarity(note_infos, threshold, field_name="Text", has_excluded_tag=lambda note: False):
     filtered_notes = [note for note in note_infos if not has_excluded_tag(note)]
-    grouped = group_notes_by_similarity(filtered_notes, threshold, field_name)
+    grouped = group_similar_notes_by_content(filtered_notes, threshold, field_name)
     return {k: [n.id for n in v] for k, v in grouped.items()}
 
- # === File/Replacement Handling ===
+# === File/Replacement Handling ===
 def load_replacements(path=TEXT_REPLACEMENT_PATH):
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
@@ -238,3 +224,6 @@ def load_replacements(path=TEXT_REPLACEMENT_PATH):
         return {}
 
 _REPLACEMENTS = load_replacements()
+
+def merge_images_main():
+    pass  # Placeholder for merge_images_main implementation

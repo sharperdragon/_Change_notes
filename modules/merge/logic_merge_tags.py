@@ -8,6 +8,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from difflib import SequenceMatcher
 from PyQt6.QtWidgets import QInputDialog
+from aqt import dialogs
 from ...config_manager import ConfigManager
 from datetime import datetime
 
@@ -38,16 +39,15 @@ def log_debug(msg):
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(timestamped + "\n")
 
-base_tag = config.get("base_tag", "TAGS_MERGED")
-date_suffix = datetime.now().strftime("%B_%d")
-merged_tag = f"{base_tag}::{date_suffix}"
 
 # --- Fuzzy matching helper ---
 
 
-def unify_tags_on_duplicates(browser: Browser, threshold=None):
+def unify_tags_on_duplicates(browser: Browser, threshold=None, base_tag="TAGS_MERGED"):
     if threshold is None:
         threshold = 0.98
+    date_suffix = datetime.now().strftime("%B_%d")
+    merged_tag = f"{base_tag}::{date_suffix}"
 
     from anki.notes import Note
 

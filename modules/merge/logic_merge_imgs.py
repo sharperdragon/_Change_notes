@@ -1,5 +1,4 @@
-# Add missing imports
-import os, re, json, time
+import os, re, json, time, unicodedata
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -7,6 +6,7 @@ from datetime import datetime, timedelta
 # mypy: disable_error_code=import
 
 from aqt.qt import QDoubleSpinBox, QDialogButtonBox
+from aqt import dialogs
 
 
 # 📁 Path setup
@@ -25,6 +25,7 @@ from ..utils import (
 )
 
 from ..assets.scrub_match import normalize
+from ..assets.scrub_match import group_similar_notes_by_content
 
 from aqt import mw
 from aqt.qt import QInputDialog, QMessageBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QAction
@@ -39,17 +40,10 @@ def run_merge_images(note_ids: list[int], threshold=None, base_tag=None, browser
         return
 
     if threshold is None:
-        if not hasattr(run_merge_images, "_threshold"):
-            from ..assets.scrub_match import prompt_threshold
-            threshold = prompt_threshold()
-            if threshold is None:
-                return
-            run_merge_images._threshold = threshold
-        else:
-            threshold = run_merge_images._threshold
+        raise ValueError("Threshold must be provided by the caller.")
 
     if browser is None:
-        browser = mw.form.browser
+        browser = mw.browser
 
     all_note_infos = [mw.col.get_note(nid) for nid in note_ids]
     def has_excluded_tag(note):
@@ -58,11 +52,8 @@ def run_merge_images(note_ids: list[int], threshold=None, base_tag=None, browser
     received_tag = f"{base_tag}::received" if base_tag else "IMG_Uni::received"
     unchanged_tag = f"{base_tag}::same" if base_tag else "IMG_Uni::same"
     donor_tag = f"{base_tag}::donor" if base_tag else "IMG_Uni::donor"
-    enable_popup = CONFIG["logging"].get("enable_log_popup", True)
-    save_to_desktop = CONFIG["logging"].get("save_log_to_desktop", False)
-    log_prefix = CONFIG["logging"].get("log_filename_prefix", "merged_images_log_")
 
-    note_groups = group_notes_by_similarity(all_note_infos, threshold, "Text", has_excluded_tag)
+    note_groups = group_similar_notes_by_content(all_note_infos, threshold, "Text", has_excluded_tag)
     log_entries = []
     merged = 0
     all_used_donors = set()
@@ -196,26 +187,21 @@ def run_merge_images(note_ids: list[int], threshold=None, base_tag=None, browser
     log_entries.insert(0, summary)
 
     if merged == 0:
-        if enable_popup and log_entries:
-            show_log_window("\n\n".join(log_entries))
-        else:
-            show_log_window("No images were merged and no taggable group actions were logged.")
+        show_log_window("\n\n".join(log_entries) if log_entries else "No images were merged and no taggable group actions were logged.")
         return
 
-    if save_to_desktop:
-        log_dir = Path(addon_path) / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / f"{log_prefix}{int(time.time())}.txt"
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write("\n\n".join(log_entries))
+    log_dir = Path(addon_path) / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"merged_images_log_{int(time.time())}.txt"
+    with open(log_path, "w", encoding="utf-8") as f:
+        f.write("\n\n".join(log_entries))
 
-    if enable_popup:
-        show_log_window("\n\n".join(log_entries))
+    show_log_window("\n\n".join(log_entries))
 
 
 def merge_images_main(browser=None, threshold=None, base_tag=None):
     if browser is None:
-        browser = mw.form.browser
+        browser = dialogs.open("Browser", mw)
     note_ids = browser.selectedNotes()
     run_merge_images(note_ids, threshold=threshold, base_tag=base_tag, browser=browser)
 

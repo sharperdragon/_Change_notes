@@ -1,5 +1,7 @@
 import os
+import re
 from aqt import mw
+from aqt import dialogs
 from .merge.logic_merge_imgs import merge_images_main
 from .merge.logic_merge_tags import unify_tags_on_duplicates
 from .assets.scrub_match import prompt_threshold
@@ -20,7 +22,8 @@ def run_combined_merge():
     base_tag = config.get("base_tag", "Tag+IMG_MERGED")
 
     if config.get("run_image_merge", True):
-        merge_images_main(threshold=threshold, base_tag=base_tag)
+        browser = dialogs.open("Browser", mw)
+        merge_images_main(browser=browser, threshold=threshold, base_tag=base_tag)
 
     if config.get("run_tag_merge", True):
         unify_tags_on_duplicates(mw.form.browser, threshold=threshold, base_tag=base_tag)
