@@ -5,12 +5,12 @@ from anki.notes import Note
 from difflib import SequenceMatcher
 import os
 # Use normalized and scrubbed text from scrub_match for fuzzy matching
-from .assets.scrub_match import normalize_and_scrub
+from .assets.scrub_match import scrub_field, prompt_threshold
 
 # ---------------- CONFIG ---------------- #
 CONFIG = mw.addonManager.getConfig(__name__)
 MERGE_CONF = CONFIG.get("merge_scheduling", {})
-THRESHOLD = int(MERGE_CONF.get("merge_similarity_threshold", 85))
+THRESHOLD = int(prompt_threshold(default=MERGE_CONF.get("merge_similarity_threshold", 85)))
 FIELD_IDX = int(MERGE_CONF.get("merge_field_index", 0))
 LOG_PATH = MERGE_CONF.get("scheduling_merge_log_path", "merged_scheduling.log")
 LOG_DIR = mw.addonManager.addonFolder(__name__)
@@ -19,8 +19,10 @@ TAG_ON_MERGE = MERGE_CONF.get("tag_on_merge", "")
 # --------------------------------------- #
 
 def similarity(a: str, b: str) -> float:
-    """Use normalized and scrubbed text from scrub_match for fuzzy matching."""
-    return SequenceMatcher(None, normalize_and_scrub(a), normalize_and_scrub(b)).ratio() * 100
+    """Use scrubbed text from scrub_match for fuzzy matching."""
+    a_clean = scrub_field(a)
+    b_clean = scrub_field(b)
+    return SequenceMatcher(None, a_clean, b_clean).ratio() * 100
 
 def get_selected_notes() -> list[Note]:
     return [mw.col.get_note(nid) for nid in mw.selected_notes()]
@@ -76,14 +78,27 @@ def run_merge_scheduling():
 
     total = 0
     seen_ids = set()
+    revlog = mw.col.db
+
+    def get_first_review_id(card):
+        return revlog.scalar("SELECT MIN(id) FROM revlog WHERE cid = ?", card.id) or 0
+
+    def resolve_source(card1, card2):
+        if card1.reps != card2.reps:
+            return (card1.note(), card2.note()) if card1.reps > card2.reps else (card2.note(), card1.note())
+        a_first = get_first_review_id(card1)
+        b_first = get_first_review_id(card2)
+        if a_first != b_first:
+            return (card1.note(), card2.note()) if a_first < b_first else (card2.note(), card1.note())
+        return (card1.note(), card2.note()) if card1.due > card2.due else (card2.note(), card1.note())
+
     for note1, note2 in matched_pairs:
         if note1.id in seen_ids or note2.id in seen_ids:
             continue  # avoid double-processing
         seen_ids.update([note1.id, note2.id])
 
         card1, card2 = note1.cards()[0], note2.cards()[0]
-        # Pick source by highest reps
-        source, target = (note1, note2) if card1.reps > card2.reps else (note2, note1)
+        source, target = resolve_source(card1, card2)
         if merge_scheduling(source, target):
             total += 1
 
