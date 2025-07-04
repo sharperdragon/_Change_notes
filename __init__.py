@@ -102,9 +102,8 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     # Add Merge Scheduling (Similarity) action after "Merge Twin Note Tags⊹"
     merge_sched_action = QAction("Merge Scheduling (Similarity)", browser)
     from .modules.Merge_schedule import run_merge_scheduling
-    merge_sched_action.triggered.connect(lambda: run_merge_scheduling())
+    merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
     menu.addAction(merge_sched_action)
-
 
     tag_dupes_action = QAction("Tag Dupes 🔖", browser)
     tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))

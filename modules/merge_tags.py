@@ -20,9 +20,16 @@ DEBUG_MODE = False
 
 config = ConfigManager("global_config", "merge_tags_config").load()
 
+# Extract allowed tag parents from config (if any)
+allowed_parents = set(config.get("merge_only_from_parents", []))
+
 LOG_DIR = Path(mw.addonManager.addonsFolder()) / "Change_notes" / "logs" / "merge_tags"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 log_file = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H-%M')}_merge_tags.log"
+
+# Helper to check if tag is allowed (belongs to allowed parent or its children)
+def is_tag_allowed(tag: str, allowed_parents: set[str]) -> bool:
+    return any(tag == parent or tag.startswith(parent + "::") for parent in allowed_parents)
 
 def log_debug(msg):
     timestamped = f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {msg}"
@@ -100,10 +107,12 @@ def unify_tags_on_duplicates(browser: Browser, threshold=None):
             continue
         all_tags = set()
         notes = [col.get_note(nid) for nid in group]
+        # Only collect allowed tags for merging
         for note in notes:
-            all_tags.update(note.tags)
+            all_tags.update(tag for tag in note.tags if is_tag_allowed(tag, allowed_parents))
         for note in notes:
-            if set(note.tags) != all_tags:
+            existing_allowed_tags = {tag for tag in note.tags if is_tag_allowed(tag, allowed_parents)}
+            if existing_allowed_tags != all_tags:
                 note.tags = sorted(all_tags.union({merged_tag}))
                 note.flush()
                 updated += 1

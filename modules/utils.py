@@ -1,3 +1,4 @@
+from aqt import mw
 import json
 import os
 
@@ -32,3 +33,13 @@ def clean_img_tag(img_tag):
     return f'<img src="{src}" class="{class_attr}">' if class_attr else f'<img src="{src}">'
 
 
+
+# === Anki Field Index Utilities ===
+def get_field_index_from_config(note_type_name, field_name):
+    """Return the index of a field for a given note type."""
+    for model in mw.col.models.all():
+        if model["name"] == note_type_name:
+            for i, fld in enumerate(model["flds"]):
+                if fld["name"] == field_name:
+                    return i
+    raise ValueError(f"Field '{field_name}' not found in note type '{note_type_name}'")

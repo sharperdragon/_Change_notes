@@ -1,105 +1,114 @@
-import re
+import os
+from datetime import datetime
 from aqt import mw
 from aqt.utils import tooltip
-from anki.notes import Note
 from difflib import SequenceMatcher
-import os
-# Use normalized and scrubbed text from scrub_match for fuzzy matching
-from .assets.scrub_match import scrub_field, prompt_threshold
+from .assets.scrub_match_sched import load_replacements
 
-# ---------------- CONFIG ---------------- #
-CONFIG = mw.addonManager.getConfig(__name__)
-MERGE_CONF = CONFIG.get("merge_scheduling", {})
-THRESHOLD = int(prompt_threshold(default=MERGE_CONF.get("merge_similarity_threshold", 85)))
-FIELD_IDX = int(MERGE_CONF.get("merge_field_index", 0))
-LOG_PATH = MERGE_CONF.get("scheduling_merge_log_path", "merged_scheduling.log")
-LOG_DIR = mw.addonManager.addonFolder(__name__)
-LOG_FILE = os.path.join(LOG_DIR, LOG_PATH)
-TAG_ON_MERGE = MERGE_CONF.get("tag_on_merge", "")
-# --------------------------------------- #
+def run_merge_by_similarity(config_section, field_index, merge_function, tag_on_merge=None, context_name="", browser=None):
+    from .assets.scrub_match_sched import normalize, prompt_threshold
+    threshold = float(prompt_threshold(default=config_section.get("merge_similarity_threshold", "0.94")))
+    selected_ids = browser.selectedNotes()
 
-def similarity(a: str, b: str) -> float:
-    """Use scrubbed text from scrub_match for fuzzy matching."""
-    a_clean = scrub_field(a)
-    b_clean = scrub_field(b)
-    return SequenceMatcher(None, a_clean, b_clean).ratio() * 100
+    log_dir = os.path.expanduser("~/Library/Application Support/Anki2/addons21/Change_notes/modules/logs/merge_sched")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "merge_log.txt")
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        log_file.write(f"[{datetime.now()}] Merge Scheduling Log Started\n\n")
 
-def get_selected_notes() -> list[Note]:
-    return [mw.col.get_note(nid) for nid in mw.selected_notes()]
+    notes = [mw.col.get_note(nid) for nid in selected_ids]
 
-def merge_scheduling(source_note: Note, target_note: Note) -> bool:
-    """Copy scheduling from source to target if source has higher interval and tag both."""
-    source_card = source_note.cards()[0]
-    target_card = target_note.cards()[0]
+    replacements = load_replacements() if config_section.get("use_text_replacements") else {}
 
-    if source_card.ivl > target_card.ivl:
-        target_card.ivl = source_card.ivl
-        target_card.due = source_card.due
-        target_card.ease = source_card.ease
-        target_card.reps = source_card.reps
-        target_card.lapses = source_card.lapses
-        target_card.flush()
+    def clean(text):
+        return normalize(text)
 
-        # Apply tags if specified
-        if TAG_ON_MERGE:
-            for note in (source_note, target_note):
-                if TAG_ON_MERGE not in note.tags:
-                    note.add_tag(TAG_ON_MERGE)
-                    note.flush()
+    matches = []
+    seen = set()
+    text_map = {}
 
-        log_merge(source_note.id, target_note.id)
-        return True
-    return False
+    for i, n1 in enumerate(notes):
+        text1 = clean(n1.fields[field_index])
+        for j in range(i + 1, len(notes)):
+            n2 = notes[j]
+            text2 = clean(n2.fields[field_index])
+            sim = SequenceMatcher(None, text1, text2).ratio()
+            if sim >= threshold:
+                matches.append((n1, n2))
 
-def log_merge(source_id: int, target_id: int):
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"Merged scheduling: {source_id} → {target_id}\n")
+    # Build match frequency map
+    freq = {}
+    for n1, n2 in matches:
+        freq[n1.id] = freq.get(n1.id, 0) + 1
+        freq[n2.id] = freq.get(n2.id, 0) + 1
 
-def run_merge_scheduling():
-    notes = get_selected_notes()
-    matched_pairs = []
-    similarity_map = {}
+    # Filter to 1-to-1 only
+    final_pairs = [(a, b) for a, b in matches if freq[a.id] == 1 and freq[b.id] == 1]
+    merged = 0
+    merged_ids = set()
 
-    # Build similarity map: note.id -> [matching note objects]
-    for i, note1 in enumerate(notes):
-        for j, note2 in enumerate(notes[i+1:], i+1):
-            field1 = note1.fields[FIELD_IDX]
-            field2 = note2.fields[FIELD_IDX]
-            if similarity(field1, field2) >= THRESHOLD:
-                similarity_map.setdefault(note1.id, []).append(note2)
-                similarity_map.setdefault(note2.id, []).append(note1)
+    for n1, n2 in final_pairs:
+        if n1.id in merged_ids or n2.id in merged_ids:
+            continue
 
-    # Filter for unique 1-to-1 matches only
-    for note_id, matches in similarity_map.items():
-        if len(matches) == 1:
-            other = matches[0]
-            if similarity_map.get(other.id, []) == [mw.col.get_note(note_id)]:
-                matched_pairs.append((mw.col.get_note(note_id), other))
-
-    total = 0
-    seen_ids = set()
-    revlog = mw.col.db
-
-    def get_first_review_id(card):
-        return revlog.scalar("SELECT MIN(id) FROM revlog WHERE cid = ?", card.id) or 0
-
-    def resolve_source(card1, card2):
+        card1, card2 = n1.cards()[0], n2.cards()[0]
         if card1.reps != card2.reps:
-            return (card1.note(), card2.note()) if card1.reps > card2.reps else (card2.note(), card1.note())
-        a_first = get_first_review_id(card1)
-        b_first = get_first_review_id(card2)
-        if a_first != b_first:
-            return (card1.note(), card2.note()) if a_first < b_first else (card2.note(), card1.note())
-        return (card1.note(), card2.note()) if card1.due > card2.due else (card2.note(), card1.note())
+            donor, receiver = (n1, n2) if card1.reps > card2.reps else (n2, n1)
+        else:
+            revlog = mw.col.db
+            r1 = revlog.scalar("SELECT MIN(id) FROM revlog WHERE cid = ?", card1.id) or 0
+            r2 = revlog.scalar("SELECT MIN(id) FROM revlog WHERE cid = ?", card2.id) or 0
+            if r1 != r2:
+                donor, receiver = (n1, n2) if r1 < r2 else (n2, n1)
+            else:
+                donor, receiver = (n1, n2) if card1.due > card2.due else (n2, n1)
 
-    for note1, note2 in matched_pairs:
-        if note1.id in seen_ids or note2.id in seen_ids:
-            continue  # avoid double-processing
-        seen_ids.update([note1.id, note2.id])
+        if merge_function(donor, receiver):
+            with open(log_path, "a", encoding="utf-8") as log_file:
+                log_file.write(
+                    f"[{datetime.now()}] MERGED\n"
+                    f"  Donor   → Note ID: {donor.id}, Card ID: {donor.cards()[0].id}, Reps: {donor.cards()[0].reps}, Field: {donor.fields[field_index]}\n"
+                    f"  Receiver→ Note ID: {receiver.id}, Card ID: {receiver.cards()[0].id}, Reps: {receiver.cards()[0].reps}, Field: {receiver.fields[field_index]}\n\n"
+                )
+            if tag_on_merge:
+                for n in (donor, receiver):
+                    if tag_on_merge not in n.tags:
+                        n.add_tag(tag_on_merge)
+                        n.flush()
+            merged_ids.update([donor.id, receiver.id])
+            merged += 1
 
-        card1, card2 = note1.cards()[0], note2.cards()[0]
-        source, target = resolve_source(card1, card2)
-        if merge_scheduling(source, target):
-            total += 1
+    tooltip(f"{merged} {context_name} pairs merged.")
+def run_merge_scheduling(browser):
+    from .utils import get_field_index_from_config
 
-    tooltip(f"{total} note pairs had scheduling merged.")
+    config = mw.addonManager.getConfig(__name__)
+    sched_config = config.get("merge_scheduling", {})
+    field_index = sched_config.get("merge_field_index", 0)
+    tag = sched_config.get("tag_on_merge")
+
+    def scheduling_merge_function(donor, receiver):
+        donor_card = donor.cards()[0]
+        receiver_card = receiver.cards()[0]
+
+        # Apply scheduling from donor to receiver — no restrictions
+        receiver_card.ivl = donor_card.ivl
+        receiver_card.due = donor_card.due
+        receiver_card.factor = donor_card.factor
+        receiver_card.reps = donor_card.reps
+        receiver_card.lapses = donor_card.lapses
+        receiver_card.left = donor_card.left
+        receiver_card.odue = donor_card.odue
+        receiver_card.type = donor_card.type
+        receiver_card.queue = donor_card.queue
+        receiver_card.flush()
+        return True
+
+    run_merge_by_similarity(
+        config_section=sched_config,
+        field_index=field_index,
+        merge_function=scheduling_merge_function,
+        tag_on_merge=tag,
+        context_name="Scheduling",
+        browser=browser
+    )
