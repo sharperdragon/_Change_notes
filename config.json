@@ -1,5 +1,5 @@
 { "global_config": {
-    "default_fuzzy": "0.99",
+    "default_fuzzy": "0.95",
     "default_note_type": "*Nord+",
     "log_folder": "logs"
     },
@@ -32,10 +32,7 @@
   "tag_selected_notes_config": {
     "set_1_name": "Base Tags",
     "tag_set_1":[
-      "##Missed-Qs",
-      "##Bug-Drug-Missed-Pathoma",
-      "#Focus-Review::missed-Q"
-
+      "##Missed-Qs"
     ],
     "set_2_name": "Test number",
     "tag_set_2":[

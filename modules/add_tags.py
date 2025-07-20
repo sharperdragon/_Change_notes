@@ -12,8 +12,7 @@ TEST_RANGE_BLOCK_SIZE = 25
 MONTH = datetime.now().strftime("%B")
 
 Correct_guess_tags = [
-    "#Focus-Review::correct_marked",
-    "#Focus-Review::ZIP::Correct_Guess"
+    "Custom::correct_marked"
 ]
 
 def apply_tags_to_selected_notes(browser, tag_list: list[str]):
@@ -102,7 +101,8 @@ def prompt_and_apply_test_tag(browser, base_tag: str):
             lower = ((test_input - 1) // TEST_RANGE_BLOCK_SIZE) * TEST_RANGE_BLOCK_SIZE + 1
             upper = lower + TEST_RANGE_BLOCK_SIZE - 1
             range_tag = f"{lower}-{upper}"
-            full_number_tag = f"{base_tag}::{range_tag}::{test_input}"
+            
+            full_number_tag = f"{base_tag}::{range_tag}::{test_input:02d}"
             apply_tags_to_selected_notes(browser, [full_number_tag])
         except ValueError:
             showInfo("❌ Please enter a valid integer test number.")
@@ -135,7 +135,7 @@ def add_combined_base_plus_test(browser, menu, tag_config):
                 lower = ((test_input - 1) // TEST_RANGE_BLOCK_SIZE) * TEST_RANGE_BLOCK_SIZE + 1
                 upper = lower + TEST_RANGE_BLOCK_SIZE - 1
                 range_tag = f"{lower}-{upper}"
-                final_missed_test_tag = f"{test_tag_base}::{range_tag}::{test_input}"
+                final_missed_test_tag = f"{test_tag_base}::{range_tag}::{test_input:02d}"
                 set1_tags = tag_config.get("tag_set_1", []) + [month_tag]
                 combined_tags = set1_tags + [final_missed_test_tag]
                 apply_tags_to_selected_notes(browser, combined_tags)
@@ -153,7 +153,7 @@ def add_uw_month_tag(browser, menu):
             try:
                 test_input = int(test_num.strip())
                 month_str = datetime.now().strftime("%B")
-                final_tag = f"UW-Tests::{month_str}::{test_input}"
+                final_tag = f"UW-Tests::{month_str}::{test_input:02d}"
                 apply_tags_to_selected_notes(browser, [final_tag])
             except ValueError:
                 showInfo("❌ Please enter a valid integer test number.")
