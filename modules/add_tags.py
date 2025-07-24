@@ -8,6 +8,7 @@ month_tag = f"##Missed-Qs::{datetime.now().year}::{datetime.now().strftime('%B')
 
 TEST_RANGE_BLOCK_SIZE = 25
 
+MULTI_MISS_TAG = "##Missed-Qs::2x"
 
 MONTH = datetime.now().strftime("%B")
 
@@ -40,7 +41,7 @@ def add_tag_menu_items(browser, menu, config: dict):
         return
 
     # Create a submenu under the browser's context menu for applying tag presets
-    tag_menu = QMenu("📝 Apply Config Tags", browser)
+    tag_menu = QMenu(" 📝 Apply Config Tags ", browser)
 
     # Add combined base + test# action first
     add_combined_base_plus_test(browser, tag_menu, tag_config)
@@ -49,17 +50,21 @@ def add_tag_menu_items(browser, menu, config: dict):
     # Add separator
     tag_menu.addSeparator()
     
-    add_missed_test_tag(browser, tag_menu, tag_config)
+    add_UW_test_tag(browser, tag_menu, tag_config)
+    tag_menu.addSeparator()
     
-    spacer = QAction(" ", browser)
-    spacer.setEnabled(False)
-    tag_menu.addAction(spacer)
+    add_multi_tag(browser, tag_menu, tag_config)
+    tag_menu.addSeparator()
     
     
     add_correct_guess_action(browser, tag_menu)
 
     # Add UW Test This Month action
     add_uw_month_tag(browser, tag_menu)
+    
+    # Add COMQUEST Test + Month action
+    add_COMQUEST_tag(browser, tag_menu, tag_config)
+
 
     # Add the submenu to the context menu only if actions were added
     if tag_menu.actions():
@@ -68,25 +73,65 @@ def add_tag_menu_items(browser, menu, config: dict):
 
 
 # --- New helper functions ---
+def add_COMQUEST_tag(browser, menu, tag_config):
+    """Prompt for COMQUEST test number, apply tag with optional child, and add month tag."""
+    from aqt.qt import QInputDialog
+
+    set_3_name = tag_config.get("set_3_name")
+    set_3_tags = tag_config.get("tag_set_3", [])
+    if not (set_3_name and set_3_tags):
+        return
+
+    base_tag = set_3_tags[0]  # e.g., "##Missed-Qs::COMQUEST"
+    padded_name = f"{set_3_name:<24}"
+
+    def handle_comquest_tag():
+        test_num, ok = QInputDialog.getText(browser, "Enter COMQUEST Test Number", "Test #:")
+        if ok:
+            test_num = test_num.strip()
+            if test_num.isdigit():
+                formatted_tag = f"{base_tag}::{int(test_num):02d}"
+                tags = [formatted_tag, month_tag]
+            else:
+                tags = [base_tag, month_tag]
+            apply_tags_to_selected_notes(browser, tags)
+
+    action = QAction(padded_name, browser)
+    action.triggered.connect(handle_comquest_tag)
+    menu.addAction(action)
+
+
+
+def add_multi_tag(browser, menu, tag_config):
+    multi_tag = MULTI_MISS_TAG  # Already a string, no need for f-string
+    multi_tag_label = f"{'2x Missed 📌':<24}"
+    combined_tags = [multi_tag, month_tag]
+    add_static_config_action(browser, menu, multi_tag_label, combined_tags)
+
 
 def add_base_tags(browser, menu, tag_config):
-    """Add Set 1 and Set 2 static tag sets to the menu."""
-    set_1_name = tag_config.get("set_1_name")
-    set_1_tags = tag_config.get("tag_set_1", [])
-    if set_1_name and set_1_tags:
-        add_static_config_action(browser, menu, "📙Base Tags", set_1_tags + [month_tag])
+    """Add static tag sets 1, 2, and 3 to the menu using config-defined names."""
+    for i in range(1, 4):
+        set_name = tag_config.get(f"set_{i}_name")
+        tags = tag_config.get(f"tag_set_{i}", [])
+        if set_name and tags:
+            # Append month_tag only to tag_set_1 and tag_set_3
+            should_append_month = i in (1, 3)
+            full_tags = tags + ([month_tag] if should_append_month else [])
+            padded_name = f"{set_name:<24}"
+            add_static_config_action(browser, menu, padded_name, full_tags)
 
-    set_2_name = tag_config.get("set_2_name")
-    set_2_tags = tag_config.get("tag_set_2", [])
-    if set_2_name and set_2_tags and set_2_name != "Test number":
-        add_static_config_action(browser, menu, set_2_name, set_2_tags)
-
-def add_missed_test_tag(browser, menu, tag_config):
+def add_UW_test_tag(browser, menu, tag_config):
     """Add dynamic test number prompt action if configured."""
     if tag_config.get("set_1_name") == "Test number" or tag_config.get("set_2_name") == "Test number":
         set_2_tags = tag_config.get("tag_set_2", [])
         base_tag = set_2_tags[0] if set_2_tags else DEFAULT_TEST_TAG_PREFIX
         add_dynamic_test_prompt(browser, menu, base_tag)
+
+
+
+
+
 
 
 # --- New function for prompting test number and applying tag ---

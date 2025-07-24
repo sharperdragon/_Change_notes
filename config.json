@@ -4,10 +4,10 @@
     "log_folder": "logs"
     },
   "tag_dupes_config": {
-    "comparison_field" : "Text", 
+    "comparison_field": "Text", 
     "base_tag": "Main_dupe",
     "multi_tag_child": "multiple",
-    "TAG UNMATCHED" : "true",
+    "TAG UNMATCHED": "true",
     "unmatched_tag": "unmatched",
     "log_folder": ""
     },
@@ -30,13 +30,20 @@
     ]
     },
   "tag_selected_notes_config": {
-    "set_1_name": "Base Tags",
+    "month_tag":[
+      "##Missed-Qs"
+    ],
+    "set_1_name": "📙Base Tag",
     "tag_set_1":[
       "##Missed-Qs"
     ],
-    "set_2_name": "Test number",
+    "set_2_name": "♦️UW-Test number",
     "tag_set_2":[
       "##Missed-Qs::UW_Tests"
+    ],
+    "set_3_name": "♿️COMQUEST",
+    "tag_set_3":[
+      "##Missed-Qs::COMQUEST"
     ]
   },
   "batch_note_change_config": {
