@@ -1,6 +1,30 @@
-from aqt.qt import QAction, QMenu
+from aqt.qt import QAction, QMenu, QInputDialog
 from aqt.utils import showInfo, tooltip
 from datetime import datetime
+
+ROTATION_SCHEDULE = [
+    ("IM1",       "2025-06-30", "2025-07-25"),
+    ("FM2",       "2025-07-28", "2025-08-22"),
+    ("ACM",       "2025-08-25", "2025-09-05"),
+    ("OMM",       "2025-09-08", "2025-09-19"),
+    ("IM2",       "2025-09-22", "2025-10-17"),
+    ("Surgery",   "2025-10-20", "2025-11-14"),
+    ("FM1",       "2025-11-17", "2025-12-12"),
+    ("Pediatrics","2026-01-05", "2026-01-30"),
+    ("OBGYN",     "2026-02-02", "2026-02-27"),
+    ("Psych",     "2026-03-02", "2026-03-27"),
+]
+
+def get_current_or_next_rotation_tag() -> str:
+    today = datetime.today().date()
+    for rotation, start_str, end_str in ROTATION_SCHEDULE:
+        start = datetime.strptime(start_str, "%Y-%m-%d").date()
+        end = datetime.strptime(end_str, "%Y-%m-%d").date()
+        if start <= today <= end:
+            return f"##Missed-Qs::Rotation::{rotation}"
+        elif today < start:
+            return f"##Missed-Qs::Rotation::{rotation}"
+    return "##Missed-Qs::Rotation::Unknown"
 
 DEFAULT_TEST_TAG_PREFIX = "##Missed-Qs::UW_Tests"
 
@@ -21,6 +45,10 @@ def apply_tags_to_selected_notes(browser, tag_list: list[str]):
     nids = browser.selectedNotes()
     if not nids or not tag_list:
         return
+
+    rotation_tag = get_current_or_next_rotation_tag()
+    if rotation_tag not in tag_list:
+        tag_list.append(rotation_tag)
 
     for nid in nids:
         note = col.get_note(nid)
@@ -49,7 +77,10 @@ def add_tag_menu_items(browser, menu, config: dict):
     add_base_tags(browser, tag_menu, tag_config)
     # Add separator
     tag_menu.addSeparator()
-    
+        # Add COMQUEST Test + Month action
+    add_COMQUEST_tag(browser, tag_menu, tag_config)
+    tag_menu.addSeparator()
+
     add_UW_test_tag(browser, tag_menu, tag_config)
     tag_menu.addSeparator()
     
@@ -62,8 +93,7 @@ def add_tag_menu_items(browser, menu, config: dict):
     # Add UW Test This Month action
     add_uw_month_tag(browser, tag_menu)
     
-    # Add COMQUEST Test + Month action
-    add_COMQUEST_tag(browser, tag_menu, tag_config)
+
 
 
     # Add the submenu to the context menu only if actions were added
@@ -75,29 +105,33 @@ def add_tag_menu_items(browser, menu, config: dict):
 # --- New helper functions ---
 def add_COMQUEST_tag(browser, menu, tag_config):
     """Prompt for COMQUEST test number, apply tag with optional child, and add month tag."""
-    from aqt.qt import QInputDialog
-
     set_3_name = tag_config.get("set_3_name")
     set_3_tags = tag_config.get("tag_set_3", [])
     if not (set_3_name and set_3_tags):
         return
 
-    base_tag = set_3_tags[0]  # e.g., "##Missed-Qs::COMQUEST"
+    base_tag = set_3_tags[0]  # "##Missed-Qs::COMQUEST"
     padded_name = f"{set_3_name:<24}"
 
-    def handle_comquest_tag():
+    def on_trigger():
         test_num, ok = QInputDialog.getText(browser, "Enter COMQUEST Test Number", "Test #:")
-        if ok:
-            test_num = test_num.strip()
-            if test_num.isdigit():
-                formatted_tag = f"{base_tag}::{int(test_num):02d}"
-                tags = [formatted_tag, month_tag]
-            else:
-                tags = [base_tag, month_tag]
-            apply_tags_to_selected_notes(browser, tags)
+        if not ok:
+            return
+
+        test_num = test_num.strip()
+        if test_num.isdigit() and int(test_num) > 0:
+            formatted_tag = f"{base_tag}::{int(test_num):02d}"
+        else:
+            formatted_tag = base_tag  # fallback if blank or invalid
+
+        if not browser.selectedNotes():
+            showInfo("❌ No notes selected.")
+            return
+
+        apply_tags_to_selected_notes(browser, [formatted_tag, month_tag])
 
     action = QAction(padded_name, browser)
-    action.triggered.connect(handle_comquest_tag)
+    action.triggered.connect(on_trigger)
     menu.addAction(action)
 
 
@@ -111,7 +145,7 @@ def add_multi_tag(browser, menu, tag_config):
 
 def add_base_tags(browser, menu, tag_config):
     """Add static tag sets 1, 2, and 3 to the menu using config-defined names."""
-    for i in range(1, 4):
+    for i in (1, 2):
         set_name = tag_config.get(f"set_{i}_name")
         tags = tag_config.get(f"tag_set_{i}", [])
         if set_name and tags:
@@ -135,8 +169,6 @@ def add_UW_test_tag(browser, menu, tag_config):
 
 
 # --- New function for prompting test number and applying tag ---
-from aqt.qt import QInputDialog
-
 def prompt_and_apply_test_tag(browser, base_tag: str):
     """Prompt the user for a test number and apply a dynamically constructed tag to selected notes."""
     test_num, ok = QInputDialog.getText(browser, "Enter Test Number", "Test #:")
