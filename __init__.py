@@ -39,11 +39,37 @@ from .modules.utils import load_config, save_config
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
 
-from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
-from .modules.tag_dupes import run_tag_dupes
+from .modules.merge.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
+from .modules.merge.tag_dupes import run_tag_dupes
 from .modules.small_modules import delete_empty_note_types
 from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
+from .modules.merge.merge_schedule import run_merge_scheduling
+try:
+    from .modules.add_table_class import main as add_table_class_main  # supports module-level access
+except Exception:
+    add_table_class_main = None
+
+# Wrapper to run table classification safely
+from aqt.utils import showText
+
+def _run_classify_tables(browser: Browser):
+    if add_table_class_main is None:
+        showText("[Change_notes] Could not import add_table_class module.", title="Change_notes import error", plain_text=True)
+        return
+    fn = getattr(add_table_class_main, "add_class_main", None)
+    if callable(fn):
+        return fn(browser)
+    # Fallback: if only initialize_addon exists, initialize menus and inform user
+    init_fn = getattr(add_table_class_main, "initialize_addon", None)
+    if callable(init_fn):
+        try:
+            init_fn()
+            showInfo("Table classifier initialized. Use the Browser context menu to run it.")
+        except Exception as e:
+            showText(f"[Change_notes] Failed to initialize table classifier:\n{e}", title="Change_notes init error", plain_text=True)
+        return
+    showText("[Change_notes] Entry point 'add_class_main' not found in add_table_class module.", title="Change_notes entry error", plain_text=True)
 
 
 
@@ -85,36 +111,52 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
         return
     col = browser.mw.col
     menu.addSeparator()
+
+    # Create a submenu for all merge-related actions
+    merge_menu = QMenu("Edit Menu", menu)
+    added_merge = False
+
     if run_merge_images:
-        merge_imgs_action = QAction("🖼 Merge Images (from Change_notes)", browser)
+        merge_imgs_action = QAction("🖼 Merge Images", browser)
         merge_imgs_action.triggered.connect(lambda: run_merge_images(selected, browser))
-        menu.addAction(merge_imgs_action)
-    # Get names of note types for selected notes
-    note_types = {col.models.get(col.get_note(n).mid)["name"] for n in selected}
-    
-    # Add tag menu items after existing menu actions
-    add_tag_menu_items(browser, menu, config)
-    
+        merge_menu.addAction(merge_imgs_action)
+        added_merge = True
+
     unify_tags_action = QAction("Merge Twin Note Tags⊹", browser)
     unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
-    menu.addAction(unify_tags_action)
+    merge_menu.addAction(unify_tags_action)
+    added_merge = True
 
-    # Add Merge Scheduling (Similarity) action after "Merge Twin Note Tags⊹"
-    merge_sched_action = QAction("Merge Scheduling (Similarity)", browser)
-    from .modules.Merge_schedule import run_merge_scheduling
+    merge_sched_action = QAction("Merge Sched via Similarity", browser)
     merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
-    menu.addAction(merge_sched_action)
+    merge_menu.addAction(merge_sched_action)
+    added_merge = True
 
     tag_dupes_action = QAction("Tag Dupes 🔖", browser)
     tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))
-    menu.addAction(tag_dupes_action)
+    merge_menu.addAction(tag_dupes_action)
+    added_merge = True
 
-    menu.addSeparator()
+    # Only add the merge submenu if at least one merge action was added
+    if added_merge:
+        menu.addMenu(merge_menu)
+        menu.addSeparator()
+
+    # Get names of note types for selected notes
+    note_types = {col.models.get(col.get_note(n).mid)["name"] for n in selected}
+    
+    # Add tag menu items after existing menu actions (directly to root menu)
+    add_tag_menu_items(browser, menu, config)
 
     action = QAction("Batch Change Note Types", browser)
     action.triggered.connect(lambda: change_selected_notes(browser))
     menu.addAction(action)
 
+
+    # Add classify tables action
+    classify_tables_action = QAction("📊 Add Table class (columns)", browser)
+    classify_tables_action.triggered.connect(lambda: _run_classify_tables(browser))
+    menu.addAction(classify_tables_action)
 
     delete_empty_action = QAction("❌ Empty Note Types࿏", browser)
     delete_empty_action.triggered.connect(delete_empty_note_types)
@@ -138,6 +180,12 @@ def inject_tools_menu(menu):
     resolve = QAction("Resolve Duplicates in Browser", mw)
     resolve.triggered.connect(lambda: mw.browser.activateWindow() or mw.browser.raise_())
     change_menu.addAction(resolve)
+
+    classify = QAction("Classify Tables on Selected Notes…", mw)
+    classify.triggered.connect(
+        lambda: _run_classify_tables(mw.browser) if getattr(mw, "browser", None) else showInfo("Open the Browser and select notes first.")
+    )
+    change_menu.addAction(classify)
 
     menu.addMenu(change_menu)
 

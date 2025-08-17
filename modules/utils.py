@@ -1,6 +1,11 @@
 from aqt import mw
 import json
 import os
+import re, sys
+from ..config_manager import ConfigManager
+
+config_manager = ConfigManager("Change_notes")
+config = config_manager.load()
 
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
@@ -43,3 +48,19 @@ def get_field_index_from_config(note_type_name, field_name):
                 if fld["name"] == field_name:
                     return i
     raise ValueError(f"Field '{field_name}' not found in note type '{note_type_name}'")
+
+
+
+def prompt_fuzzy_threshold(default=None):
+    """Prompt user for fuzzy threshold (0–100) using a popup input dialog."""
+    
+    if default is None:
+        default = int(float(config.get("default_fuzzy", 0.98)) * 100)
+    val, ok = QInputDialog.getInt(
+        mw, "Set Fuzzy Match Threshold",
+        "Select fuzzy match threshold (0 = loose, 100 = strict):",
+        default, 85, 100, 1
+    )
+    if ok:
+        return val / 100  # Normalize to 0.0–1.0 range
+    return None

@@ -15,6 +15,32 @@ ROTATION_SCHEDULE = [
     ("Psych",     "2026-03-02", "2026-03-27"),
 ]
 
+# --- Helper: resolve current-or-next rotation label and its 1-based index ---
+def get_current_or_next_rotation_meta():
+    """
+    Returns (rot_num_2d, rot_label) where:
+      - rot_num_2d is a zero-padded 2-digit string (e.g., "02") representing the 1-based
+        position within ROTATION_SCHEDULE
+      - rot_label is the rotation abbreviation string (e.g., "FM2")
+    If today is between a rotation's start/end, that rotation is returned.
+    If not in any range, the next upcoming rotation is returned.
+    Fallback: ("00", "Unknown").
+    """
+    today = datetime.today().date()
+    # First pass: exact match (currently in this rotation)
+    for idx, (rotation, start_str, end_str) in enumerate(ROTATION_SCHEDULE, start=1):
+        start = datetime.strptime(start_str, "%Y-%m-%d").date()
+        end = datetime.strptime(end_str, "%Y-%m-%d").date()
+        if start <= today <= end:
+            return f"{idx:02d}", rotation
+    # Second pass: next upcoming rotation
+    for idx, (rotation, start_str, _end_str) in enumerate(ROTATION_SCHEDULE, start=1):
+        start = datetime.strptime(start_str, "%Y-%m-%d").date()
+        if today < start:
+            return f"{idx:02d}", rotation
+    # Fallback when today is after all entries
+    return "00", "Unknown"
+
 def get_current_or_next_rotation_tag() -> str:
     today = datetime.today().date()
     for rotation, start_str, end_str in ROTATION_SCHEDULE:
@@ -149,10 +175,14 @@ def add_COMQUEST_tag(browser, menu, tag_config):
             return
 
         test_num = test_num.strip()
+        # Build tag as: ##Missed-Qs::COMQUEST::nn_{Rotation}::TT
+        # where nn = 2-digit rotation index, {Rotation} = current label, TT = 2-digit test number
+        rot_num_2d, rot_label = get_current_or_next_rotation_meta()
         if test_num.isdigit() and int(test_num) > 0:
-            formatted_tag = f"{base_tag}::{int(test_num):02d}"
+            formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}::{int(test_num):02d}"
         else:
-            formatted_tag = base_tag  # fallback if blank or invalid
+            # Fallback keeps the nn_{Rotation} segment even if test number is invalid/blank
+            formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}"
 
         if not browser.selectedNotes():
             showInfo("❌ No notes selected.")
