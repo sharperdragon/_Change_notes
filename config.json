@@ -1,50 +1,66 @@
-{ "global_config": {
+{
+  "global_config": {
     "default_fuzzy": "0.95",
     "default_note_type": "*Nord+",
     "log_folder": "logs"
-    },
+  },
   "tag_dupes_config": {
-    "comparison_field": "Text", 
+    "comparison_field": "Text",
     "base_tag": "Main_dupe",
     "multi_tag_child": "multiple",
     "TAG UNMATCHED": "true",
     "unmatched_tag": "unmatched",
     "log_folder": ""
-    },
+  },
   "merge_tags_config": {
     "default_fuzzy": "0.94",
     "base_tag": "TAGS_MERGED",
     "log_folder": "",
-    "merge_only_from_parents": ["#OLD_Tags", "sketchymicro", "firstaid"]
-    },
+    "merge_only_from_parents": [
+      "#OLD_Tags",
+      "sketchymicro",
+      "firstaid"
+    ]
+  },
   "merge_images_and_tags_config": {
     "default_fuzzy": "0.99",
     "min_fuzzy": "0.82",
     "base_tag": "Tag+IMG_MERGED",
     "log_folder": ""
-    },
+  },
   "delete_empty_notes_config": {
-    "protected_notes":[
+    "protected_notes": [
       "*Nord+",
-      "*Nord-focus+"
+      "*Nord-focus+",
+      "Cloze - Dracula",
+      "Basic □"
     ]
-    },
+  },
   "tag_selected_notes_config": {
-    "month_tag":[
+    "month_tag": [
       "##Missed-Qs"
     ],
     "set_1_name": "📙Base Tag",
-    "tag_set_1":[
+    "tag_set_1": [
       "##Missed-Qs"
     ],
     "set_2_name": "♦️UW-Test number",
-    "tag_set_2":[
+    "tag_set_2": [
       "##Missed-Qs::UW_Tests"
     ],
     "set_3_name": "♿️COMQUEST",
-    "tag_set_3":[
+    "tag_set_3": [
       "##Missed-Qs::COMQUEST"
-    ]
+    ],
+    "other_menu": {
+      "label": "Other",
+      "prefix": "##Missed-Qs::Other::",
+      "resources": [
+        "Kaplan",
+        "True-Learn",
+        "Amboss"
+      ]
+    }
   },
   "batch_note_change_config": {
     "hide_menu_when_one_type_selected": false,
@@ -54,12 +70,11 @@
     "batch_size": 200,
     "show_progress": true,
     "last_mapping_profile": "",
-
     "auto_confirm_mappings": false,
     "tag_on_change": "NoteType::Changed",
     "enable_backup": true,
     "backup_directory": "~/Anki_Backups/NoteTypeChange"
-    },
+  },
   "merge_scheduling": {
     "merge_similarity_threshold": 85,
     "default_fuzzy": "0.95",
@@ -69,4 +84,4 @@
     "use_text_replacements": true,
     "tag_on_merge": "Scheduling::Merged"
   }
-  }
+}

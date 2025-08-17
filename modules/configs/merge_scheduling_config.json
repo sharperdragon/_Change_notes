@@ -1,0 +1,9 @@
+"merge_scheduling": {
+    "merge_similarity_threshold": 85,
+    "default_fuzzy": "0.95",
+    "min_fuzzy": "0.81",
+    "merge_field_index": 0,
+    "scheduling_merge_log_path": "merged_scheduling.log",
+    "use_text_replacements": true,
+    "tag_on_merge": "Scheduling::Merged"
+}

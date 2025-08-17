@@ -1,0 +1,9 @@
+
+"tag_dupes_config": {
+    "comparison_field": "Text",
+    "base_tag": "Main_dupe",
+    "multi_tag_child": "multiple",
+    "TAG UNMATCHED": "true",
+    "unmatched_tag": "unmatched",
+    "log_folder": ""
+}

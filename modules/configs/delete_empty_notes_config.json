@@ -1,0 +1,7 @@
+
+"delete_empty_notes_config": {
+  "protected_notes": [
+    "*Nord+",
+    "*Nord-focus+"
+  ]
+}

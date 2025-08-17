@@ -1,0 +1,6 @@
+"merge_images_and_tags_config": {
+  "default_fuzzy": "0.99",
+  "min_fuzzy": "0.82",
+  "base_tag": "Tag+IMG_MERGED",
+  "log_folder": ""
+}

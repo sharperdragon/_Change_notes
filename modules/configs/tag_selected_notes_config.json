@@ -1,0 +1,27 @@
+
+"tag_selected_notes_config": {
+  "month_tag": [
+    "##Missed-Qs"
+  ],
+  "set_1_name": "📙Base Tag",
+  "tag_set_1": [
+    "##Missed-Qs"
+  ],
+  "set_2_name": "♦️UW-Test number",
+  "tag_set_2": [
+    "##Missed-Qs::UW_Tests"
+  ],
+  "set_3_name": "♿️COMQUEST",
+  "tag_set_3": [
+    "##Missed-Qs::COMQUEST"
+  ],
+  "other_menu": {
+    "label": "Other",
+    "prefix": "##Missed-Qs::Other::",
+    "resources": [
+      "Kaplan",
+      "True-Learn",
+      "Amboss"
+    ]
+  }
+}

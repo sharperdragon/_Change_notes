@@ -1,0 +1,10 @@
+"merge_tags_config": {
+  "default_fuzzy": "0.94",
+  "base_tag": "TAGS_MERGED",
+  "log_folder": "",
+  "merge_only_from_parents": [
+    "#OLD_Tags",
+    "sketchymicro",
+    "firstaid"
+  ]
+}

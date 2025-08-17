@@ -1,0 +1,14 @@
+
+"batch_note_change_config": {
+  "hide_menu_when_one_type_selected": false,
+  "allow_single_type_override": true,
+  "last_target_model": "*Nord+",
+  "field_mappings": {},
+  "batch_size": 200,
+  "show_progress": true,
+  "last_mapping_profile": "",
+  "auto_confirm_mappings": false,
+  "tag_on_change": "NoteType::Changed",
+  "enable_backup": true,
+  "backup_directory": "~/Anki_Backups/NoteTypeChange"
+}
