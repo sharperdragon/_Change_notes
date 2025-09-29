@@ -1,3 +1,0 @@
-Fuzzy threshold: 97%
-
-Tagged 763 notes as DefaultTag_matchf97

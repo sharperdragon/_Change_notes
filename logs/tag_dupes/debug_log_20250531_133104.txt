@@ -1,2 +1,0 @@
-[2025-05-31 13:31:04] Config: BASE_TAG_LABEL=DefaultTag, FIELD_TO_COMPARE=Text, TAG_UNMATCHED=False, MULTI_CHILD_LABEL=multiple, log_folder=logs
-[2025-05-31 13:31:04] Log directory: /Users/claytongoddard/Library/Application Support/Anki2/addons21/Change_notes/logs/merge_tags

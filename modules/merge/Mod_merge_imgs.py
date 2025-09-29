@@ -1,8 +1,7 @@
 # Add missing imports
 import re, os, sys, json
 from collections import defaultdict
-# pyright: reportMissingImports=false
-# mypy: disable_error_code=import
+
 from aqt import mw
 from aqt.qt import QAction
 from aqt.browser import Browser

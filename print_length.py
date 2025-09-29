@@ -1,0 +1,3 @@
+PHRASE=""
+
+print(len(PHRASE))

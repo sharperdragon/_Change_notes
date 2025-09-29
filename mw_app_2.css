@@ -1,0 +1,61 @@
+mw.app.setStyleSheet("""
+    /* === QMenu (match native QCommonStyle metrics) === */
+    QMenu {
+        /* Fonts */
+        font-size: 13pt;                 /* .AppleSystemUIFont 13pt */
+
+        /* Palette */
+        background-color: #f5f5f5;       /* Window/Menu background */
+        color: #020202;                  /* Text */
+
+        /* Frame/Margins -> PM_MenuPanelWidth=0, HMargin=0, VMargin=4 */
+        border: none;                    /* no outer frame */
+        padding: 4px 0px;                /* top/bottom = 4, left/right = 0 */
+
+        /* Icons */
+        icon-size: 16px;                 /* PM_SmallIconSize = 16 */
+    }
+
+    /* === Menu items === */
+    QMenu::item {
+        /* Row geometry -> row_h = 18, padding top/bottom = 4, left/right = 0 */
+        min-height: 18px;                /* matches sizeFromContents height */
+        padding: 4px 0px;                /* T/B=4, L/R=0; checkable/icon add space themselves */
+        margin: 0px;                     /* no extra margins */
+        background: transparent;         /* plain state */
+        color: #020202;                  /* plain text */
+    }
+
+    /* Hovered/selected items -> Highlight rgba(37,99,235,127), HighlightedText black */
+    QMenu::item:selected {
+        background-color: rgba(37, 99, 235, 127);
+        color: #000000;
+    }
+
+    /* Disabled items */
+    QMenu::item:disabled {
+        color: #737373;                  /* matches Placeholder/disabled-ish tone */
+        background: transparent;
+    }
+
+    /* Separators -> 1px with 4px vertical margins */
+    QMenu::separator {
+        height: 1px;
+        background: #cccccc;
+        margin: 4px 0px;
+    }
+
+    /* Indicators (checkbox/radio) -> PM_IndicatorWidth=19, PM_IndicatorHeight=18 */
+    QMenu::indicator {
+        width: 19px;
+        height: 18px;
+    }
+    /* Use native indicator artwork (no custom images) */
+
+    /* Submenu arrow -> use native arrow, align to the right */
+    QMenu::right-arrow {
+        subcontrol-position: right center;
+        subcontrol-origin: padding;
+        margin-right: 0px;               /* no extra right margin */
+    }
+""")

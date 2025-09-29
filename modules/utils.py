@@ -4,7 +4,7 @@ import os
 import re, sys
 from ..config_manager import ConfigManager
 
-config_manager = ConfigManager("Change_notes")
+config_manager = ConfigManager("_Change_notes")
 config = config_manager.load()
 
 def load_config():

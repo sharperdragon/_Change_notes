@@ -1,4 +1,16 @@
 from aqt.qt import QAction, QMenu, QInputDialog
+import re
+# --- Helper to scrub resource label for tag suffix ---
+def scrub_resource_label_to_tag(label: str) -> str:
+    """
+    - Trim whitespace
+    - Remove any character that is not a letter, digit, space, or hyphen
+    - Collapse multiple spaces to one
+    """
+    base = str(label).strip()
+    base = re.sub(r'[^A-Za-z0-9\- ]+', '', base)
+    base = re.sub(r'\s+', ' ', base).strip()
+    return base
 from aqt.utils import showInfo, tooltip
 from datetime import datetime
 
@@ -6,9 +18,9 @@ ROTATION_SCHEDULE = [
     ("IM1",       "2025-06-30", "2025-07-25"),
     ("FM2",       "2025-07-28", "2025-08-22"),
     ("ACM",       "2025-08-25", "2025-09-05"),
-    ("OMM",       "2025-09-08", "2025-09-19"),
-    ("IM2",       "2025-09-22", "2025-10-17"),
-    ("Surgery",   "2025-10-20", "2025-11-14"),
+    ("OMM",       "2025-09-08", "2025-09-18"),
+    ("Surgert",   "2025-09-22", "2025-10-17"),
+    ("IM2",       "2025-10-20", "2025-11-14"),
     ("FM1",       "2025-11-17", "2025-12-12"),
     ("Pediatrics","2026-01-05", "2026-01-30"),
     ("OBGYN",     "2026-02-02", "2026-02-27"),
@@ -65,7 +77,7 @@ MULTI_MISS_TAG = "##Missed-Qs::2x"
 # Prefix for resource-specific tags applied alongside Base Tags
 OTHER_PREFIX = "##Missed-Qs::Other::"
 # Exact resource labels to display and to append to OTHER_PREFIX
-OTHER_RESOURCES = [" Kaplan ", "  True-Learn  ", "  Amboss  "]
+OTHER_RESOURCES = [" Kaplan ", "  True-Learn  ", "  Amboss  ", "  NBOME  "]
 
 MONTH = datetime.now().strftime("%B")
 
@@ -149,7 +161,7 @@ def add_tag_menu_items(browser, menu, config: dict):
     
     # Place resource actions (flat, not submenu) at the very end
     tag_menu.addSeparator()
-    add_other_resources_inline(browser, tag_menu, tag_config)
+    add_other_resources_actions(browser, tag_menu, tag_config)
 
 
     # Add the submenu to the context menu only if actions were added
@@ -254,8 +266,8 @@ def add_other_resources_menu(browser, menu, tag_config):
     for resource_name in cfg_resources:
         # Construct label: strip config whitespace, then pad with 3 spaces each side
         label = f"   {str(resource_name).strip()}   "
-        # Compute the resource-specific tag (use the stripped label, no extra padding)
-        resource_tag = f"{cfg_prefix}{str(resource_name).strip()}"
+        # Compute the resource-specific tag using scrubd label
+        resource_tag = f"{cfg_prefix}{scrub_resource_label_to_tag(resource_name)}"
 
         action = QAction(label, browser)
 
@@ -283,13 +295,13 @@ def add_other_resources_menu(browser, menu, tag_config):
 # while avoiding a nested submenu. Resource labels are stripped so stray
 # whitespace from config does not leak into QAction labels or tag text.
 
-def add_other_resources_inline(browser, menu, tag_config):
+def add_other_resources_actions(browser, menu, tag_config):
     """
     Append flat 'Other resource' actions to the end of the main tag menu.
     Each action applies: Base Tags (tag_set_1 + month_tag) + one resource tag.
 
     We intentionally do **not** modify config or defaults here; instead we
-    sanitize labels at runtime via `.strip()` to remain robust to whitespace
+    scrub labels at runtime via `.strip()` to remain robust to whitespace
     in the configured names (e.g., " Kaplan ").
     """
     # Pull configurable values; keep defaults if missing
@@ -301,7 +313,7 @@ def add_other_resources_inline(browser, menu, tag_config):
     for resource_name in cfg_resources:
         # Normalize label and tag (defensive against stray spaces in config)
         label = str(resource_name).strip()
-        resource_tag = f"{cfg_prefix}{label}"
+        resource_tag = f"{cfg_prefix}{scrub_resource_label_to_tag(resource_name)}"
 
         action = QAction(label, browser)
 
@@ -351,7 +363,7 @@ def add_dynamic_test_prompt(browser, menu, base_tag):
 
 def add_combined_base_plus_test(browser, menu, tag_config):
     """Add combined Set 1 + Test# action with prompt."""
-    combined_action = QAction("📕BASE + Test#", browser)
+    combined_action = QAction("📕BASE + Test (UW)", browser)
     def handle_combined_action():
         test_tag_base = tag_config.get("tag_set_2", [DEFAULT_TEST_TAG_PREFIX])[0]
         from aqt.qt import QInputDialog

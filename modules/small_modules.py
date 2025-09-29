@@ -26,43 +26,40 @@ except ImportError:
         _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec_()
 
 
-# Scans all note types and deletes those with zero associated cards from the collection.
 def delete_empty_note_types():
     from fnmatch import fnmatch
-    col = mw.col
-
-    # --- Load protected note types from the Change_notes config file (supports wildcards) ---
-    # Primary source: /Change_notes/config.json → delete_empty_notes_config.protected_notes
-    # Fallback: the already-loaded merged `config` dict if present
     from pathlib import Path
     import json
+    from aqt.utils import showInfo, showText, askUser
 
+    col = mw.col
+
+    # --- Load protected patterns from file or merged config ---
     protected = []
     try:
-        cfg_path = Path("/Users/claytongoddard/Library/Application Support/Anki2/addons21/Change_notes/config.json")
+        cfg_path = Path("/Users/claytongoddard/Library/Application Support/Anki2/addons21/_Change_notes/config.json")
         if cfg_path.exists():
             data = json.loads(cfg_path.read_text(encoding="utf-8"))
-            protected = list(
-                data.get("delete_empty_notes_config", {}).get("protected_notes", [])
-            )
+            protected = list(data.get("delete_empty_notes_config", {}).get("protected_notes", []))
     except Exception:
-        # If the file is missing or malformed, fall back to the in-memory config
+        # fall through to config dict if file missing/malformed
         pass
 
     if not protected:
-        protected = list(
-            config.get("delete_empty_notes_config", {}).get("protected_notes", [])
-        )
+        protected = list(config.get("delete_empty_notes_config", {}).get("protected_notes", []))
 
     models = col.models.all()
     to_delete_names = []
 
     for model in models:
         model_name = model.get("name", "")
-        # Skip deletion for any model whose name matches a protected pattern (wildcard supported)
+        # Skip protected patterns (supports wildcards via fnmatch)
         if any(fnmatch(model_name, pattern) for pattern in protected):
             continue
-        cards = col.db.scalar("SELECT COUNT() FROM cards WHERE nid IN (SELECT id FROM notes WHERE mid=?)", model["id"])
+        cards = col.db.scalar(
+            "SELECT COUNT() FROM cards WHERE nid IN (SELECT id FROM notes WHERE mid=?)",
+            model["id"],
+        )
         if cards == 0:
             to_delete_names.append(model_name)
 
@@ -70,13 +67,19 @@ def delete_empty_note_types():
         showInfo("No note types have zero cards.")
         return
 
-    summary = "Note types with zero cards:\n- " + "\n- ".join(to_delete_names)
+    # --- Show full list in a scrollable window (prevents too-tall popups) ---
+    # showText is scrollable and includes a Copy button; safe on small screens.
+    header = f"Note types with zero cards ({len(to_delete_names)}):\n"
+    body = "\n".join(f"- {name}" for name in sorted(to_delete_names, key=str.lower))
+    showText(header + body, title="Empty Note Types", copyBtn=True)
 
-    from aqt.utils import askUser
-    if not askUser(summary + "\n\nDelete these note types now?"):
+    # --- Keep the confirmation short ---
+    if not askUser(f"Delete these {len(to_delete_names)} note types now?\n"
+                   f"(Full list shown in the previous window)"):
         showInfo("Deletion cancelled.")
         return
 
+    # --- Perform deletion ---
     by_name = {m.get("name", ""): m for m in col.models.all()}
     deleted = 0
     for name in to_delete_names:

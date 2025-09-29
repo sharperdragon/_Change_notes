@@ -2,7 +2,8 @@
 
 from aqt.browser import Browser
 from aqt import mw
-from .merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
+from ..utils import prompt_fuzzy_threshold
+from .merge_tags import unify_tags_on_duplicates
 from .Mod_merge_imgs import merge_images_main # adjust import if path is different
 from ...config_manager import ConfigManager
 

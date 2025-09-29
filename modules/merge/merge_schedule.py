@@ -12,7 +12,7 @@ def run_merge_by_similarity(config_section, field_index, merge_function, tag_on_
     threshold = float(prompt_threshold(default=config_section.get("merge_similarity_threshold", "0.94")))
     selected_ids = browser.selectedNotes()
 
-    log_dir = os.path.expanduser("~/Library/Application Support/Anki2/addons21/Change_notes/modules/logs/merge_sched")
+    log_dir = os.path.expanduser("~/Library/Application Support/Anki2/addons21/_Change_notes/modules/logs/merge_sched")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, "merge_log.txt")
     with open(log_path, "w", encoding="utf-8") as log_file:

@@ -33,7 +33,8 @@
       "*Nord+",
       "*Nord-focus+",
       "Cloze - Dracula",
-      "Basic □"
+      "Basic □",
+      "Image Occlusion Enhanced"
     ]
   },
   "tag_selected_notes_config": {
@@ -56,9 +57,10 @@
       "label": "Other",
       "prefix": "##Missed-Qs::Other::",
       "resources": [
-        "Kaplan",
-        "True-Learn",
-        "Amboss"
+        "🫐 NBOME 🫐",
+        "Kaplan 🍠",
+        "True-Learn 🐟",
+        "Amboss 🦠"
       ]
     }
   },

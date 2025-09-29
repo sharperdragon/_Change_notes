@@ -1,0 +1,61 @@
+    /* === QMenu global === */
+    QMenu {
+        font-size: 14pt;            /* text size */
+        /* background-color: #f5f5f5;  menu background */
+        /* color: #020202;             default text color */
+        /* border: 1px solid #ccc;     outer border */
+        /* padding: 2px;               space inside menu frame */
+    }
+
+    /* === Individual items === */
+    QMenu::item {
+        /* padding: 4px 20px;          top/bottom, left/right inside each row */
+        /* margin: 0px;                margin around items */
+        /* background: transparent;    default background */
+        /* color: #020202;             default item text */
+        min-height: 19px;           /* row height (default ~19) */
+    }
+
+    /* === Hovered/selected items === */
+    QMenu::item:selected {
+        /* background-color: #2563eb;  highlight background */
+        /* color: #ffffff;             highlight text */
+    }
+
+    /* === Disabled items === */
+    QMenu::item:disabled {
+        color: #888888;
+        /* background: transparent; */
+    }
+
+    /* === Separators === */
+    QMenu::separator {
+        height: 1px;
+        /* background: #cccccc; */
+        /* margin: 4px 0px; */
+    }
+
+    /* === Indicators (checkboxes, radio buttons) === */
+    QMenu::indicator {
+        width: 16px;
+        height: 16px;
+    }
+    QMenu::indicator:checked {
+        /* image: url(:/qt-project.org/styles/commonstyle/images/checkboxindicator.png); */
+    }
+    QMenu::indicator:unchecked {
+        /* image: url(:/qt-project.org/styles/commonstyle/images/checkboxindicator.png); */
+    }
+
+    /* === Right-arrow for submenus === */
+    QMenu::right-arrow {
+        /* image: url(:/qt-project.org/styles/commonstyle/images/rightarrow.png); */
+        /* subcontrol-position: right center; */
+        /* subcontrol-origin: padding; */
+        /* margin-right: 8px; */
+    }
+
+
+    #changeNotesMenu QMenu::item {
+        min-height: 24px;
+    }
