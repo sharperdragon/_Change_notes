@@ -19,7 +19,7 @@ ROTATION_SCHEDULE = [
     ("FM2",       "2025-07-28", "2025-08-22"),
     ("ACM",       "2025-08-25", "2025-09-05"),
     ("OMM",       "2025-09-08", "2025-09-18"),
-    ("Surgert",   "2025-09-22", "2025-10-17"),
+    ("Surgery",   "2025-09-22", "2025-10-17"),
     ("IM2",       "2025-10-20", "2025-11-14"),
     ("FM1",       "2025-11-17", "2025-12-12"),
     ("Pediatrics","2026-01-05", "2026-01-30"),
@@ -163,12 +163,10 @@ def add_tag_menu_items(browser, menu, config: dict):
     tag_menu.addSeparator()
     add_other_resources_actions(browser, tag_menu, tag_config)
 
-
     # Add the submenu to the context menu only if actions were added
     if tag_menu.actions():
         menu.addSeparator()
         menu.addMenu(tag_menu)
-
 
 # --- New helper functions ---
 def add_COMQUEST_tag(browser, menu, tag_config):
