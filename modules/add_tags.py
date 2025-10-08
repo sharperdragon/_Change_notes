@@ -82,7 +82,7 @@ OTHER_RESOURCES = [" Kaplan ", "  True-Learn  ", "  Amboss  ", "  NBOME  "]
 MONTH = datetime.now().strftime("%B")
 
 Correct_guess_tags = [
-    "Custom::correct_marked"
+    "#Custom::correct_marked"
 ]
 
  # --- Helper: add a tag to a note safely across Anki versions ---
