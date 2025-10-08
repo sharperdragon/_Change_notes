@@ -233,9 +233,6 @@ def add_UW_test_tag(browser, menu, tag_config):
         add_dynamic_test_prompt(browser, menu, base_tag)
 
 
-
-
-
 # --- Helper to get Base Tags (tag_set_1 + month_tag) ---
 def get_base_tags(tag_config: dict) -> list[str]:
     """Return base tags from config (tag_set_1) plus month_tag, mirroring existing behavior."""
