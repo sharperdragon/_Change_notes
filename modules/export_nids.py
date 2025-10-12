@@ -165,9 +165,9 @@ def create_export_nids_action(
 
         # 4) Paths with user base name + timestamp + required suffixes
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        ts = datetime.now().strftime("%H-%M_%d-%m")
-        simple_path = os.path.join(desktop, f"{base}_{ts}_simple.txt")  # <- required suffix
-        query_path  = os.path.join(desktop, f"{base}_{ts}_query.txt")   # <- required suffix
+        ts = datetime.now().strftime("%H%M")
+        simple_path = os.path.join(desktop, f"NID export/{base}_{ts}_simple.txt")  # <- required suffix
+        query_path  = os.path.join(desktop, f"NID export/{base}_{ts}_query.txt")   # <- required suffix
 
         # 5) Write files
         ok1, msg1 = _write_text_to_path(comma_str, simple_path)
