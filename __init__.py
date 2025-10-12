@@ -13,7 +13,9 @@ Compatibility:
 - GUI and context menu integrations ensure minimal user disruption
 
 """
-import os
+# pyright: reportMissingImports=false
+# mypy: disable_error_code=import
+import os, sys
 from collections import defaultdict
 from datetime import datetime
 from PyQt6.QtWidgets import QWidgetAction, QLabel
@@ -22,38 +24,26 @@ from fnmatch import fnmatch
 from pathlib import Path
 import json
 
-
-# Import from the merge_images addon
-merge_images_path = os.path.expanduser("~/Library/Application Support/Anki2/addons21/_merge_images")
-import sys
-if merge_images_path not in sys.path:
-    sys.path.append(merge_images_path)
-
-# Import the external add-on's launcher (separate folder under addons21/merge_images)
-try:
-    from _merge_images import run_merge_images  # expects signature: (selected_note_ids, browser)
-except Exception:
-    run_merge_images = None  # hide the menu item if the other add-on isn't present
-
-
-
 from aqt import mw
 from aqt.qt import QAction, QInputDialog, QMenu
 from aqt.browser import Browser
 from aqt.utils import showInfo, showText
 from aqt import gui_hooks
 
+
 from .modules.utils import load_config, save_config
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
 
-from .modules.merge.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
-from .modules.merge.tag_dupes import run_tag_dupes
+from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
+from .modules.tag_dupes import run_tag_dupes
+from .modules.merge_schedule import run_merge_scheduling
 from .modules.del_empty_notes import delete_empty_note_types
 from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
 from .modules.Add_img_class import main as add_img_class_main
 from .modules.export_nids import create_export_nids_action
+from .modules.merge_images import run_merge_images
 
 from .modules.add_table_class import main as add_table_class_main  # supports module-level access
 
@@ -85,6 +75,7 @@ except ImportError:
         from aqt.changenotetype import ChangeNotetypeDialog
         _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec_()
 
+
 # Prompt for threshold and run tag unification if threshold is set
 def run_merge_tags_with_threshold(browser: Browser):
     threshold = prompt_fuzzy_threshold()
@@ -103,8 +94,6 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
         return
     col = browser.mw.col
     menu.addSeparator()
-
-
 
     # Add tag menu items after existing menu actions (directly to root menu)
     add_tag_menu_items(browser, menu, config)
@@ -143,7 +132,7 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     added_merge = True
 
     merge_sched_action = QAction("Merge Scheduling (Similarity)", browser)
-    from .modules.merge.merge_schedule import run_merge_scheduling
+
     merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
     merge_menu.addAction(merge_sched_action)
     added_merge = True

@@ -13,8 +13,8 @@ from pathlib import Path
 # Dynamically add the modules directory to sys.path
 
 
-from ...config_manager import ConfigManager
-from ..assets.scrub_match import (
+from ..config_manager import ConfigManager
+from .assets.scrub_match import (
     normalize
 )
 

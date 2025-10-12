@@ -3,12 +3,12 @@ from datetime import datetime
 from aqt import mw
 from aqt.utils import tooltip
 from difflib import SequenceMatcher
-from ..assets.scrub_match_sched import load_replacements
-from ...config_manager import ConfigManager
+from .assets.scrub_match_sched import load_replacements
+from ..config_manager import ConfigManager
 
 
 def run_merge_by_similarity(config_section, field_index, merge_function, tag_on_merge=None, context_name="", browser=None):
-    from ..assets.scrub_match_sched import normalize, prompt_threshold
+    from .assets.scrub_match_sched import normalize, prompt_threshold
     threshold = float(prompt_threshold(default=config_section.get("merge_similarity_threshold", "0.94")))
     selected_ids = browser.selectedNotes()
 
@@ -82,7 +82,7 @@ def run_merge_by_similarity(config_section, field_index, merge_function, tag_on_
 
     tooltip(f"{merged} {context_name} pairs merged.")
 def run_merge_scheduling(browser):
-    from ..utils import get_field_index_from_config
+    from .utils import get_field_index_from_config
 
     config = mw.addonManager.getConfig(__name__)
     sched_config = config.get("merge_scheduling", {})

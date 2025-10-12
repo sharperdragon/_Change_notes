@@ -1,3 +1,0 @@
-IF "merge_images" and/or "merge_images_AND_tags" is not working:
-
-Place the folders in modules/merge/old/.... directly into the add on folders

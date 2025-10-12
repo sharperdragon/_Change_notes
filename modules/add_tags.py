@@ -1,3 +1,5 @@
+# pyright: reportMissingImports=false
+# mypy: disable_error_code=import
 from aqt.qt import QAction, QMenu, QInputDialog
 import re
 # --- Helper to scrub resource label for tag suffix ---
