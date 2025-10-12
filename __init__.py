@@ -24,14 +24,14 @@ import json
 
 
 # Import from the merge_images addon
-merge_images_path = os.path.expanduser("~/Library/Application Support/Anki2/addons21/merge_images")
+merge_images_path = os.path.expanduser("~/Library/Application Support/Anki2/addons21/_merge_images")
 import sys
 if merge_images_path not in sys.path:
     sys.path.append(merge_images_path)
 
 # Import the external add-on's launcher (separate folder under addons21/merge_images)
 try:
-    from merge_images import run_merge_images  # expects signature: (selected_note_ids, browser)
+    from _merge_images import run_merge_images  # expects signature: (selected_note_ids, browser)
 except Exception:
     run_merge_images = None  # hide the menu item if the other add-on isn't present
 
