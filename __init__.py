@@ -43,7 +43,7 @@ from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
 from .modules.Add_img_class import main as add_img_class_main
 from .modules.export_nids import create_export_nids_action
-from .modules.merge_images import run_merge_images
+from .modules.merge_imgs import run_merge_images
 
 from .modules.add_table_class import main as add_table_class_main  # supports module-level access
 
