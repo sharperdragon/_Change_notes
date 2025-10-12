@@ -49,7 +49,7 @@ from .config_ui import ConfigDialog
 
 from .modules.merge.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
 from .modules.merge.tag_dupes import run_tag_dupes
-from .modules.small_modules import delete_empty_note_types
+from .modules.del_empty_notes import delete_empty_note_types
 from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
 from .modules.Add_img_class import main as add_img_class_main
