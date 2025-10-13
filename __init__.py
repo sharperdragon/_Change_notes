@@ -44,7 +44,7 @@ from .modules.add_tags import add_tag_menu_items
 from .modules.Add_img_class import main as add_img_class_main
 from .modules.export_nids import create_export_nids_action
 from .modules.merge_imgs import run_merge_images
-
+from .modules.merge_all import run_merge_all
 from .modules.add_table_class import main as add_table_class_main  # supports module-level access
 
 
@@ -115,9 +115,14 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     classify_tables_action.triggered.connect(lambda: _run_classify_tables(browser))
     menu.addAction(classify_tables_action)
 
+    # Create a submenu for all edit-related actions
+    edit_menu = QMenu("Edit Menu 📝", menu)
+    edit_menu.setObjectName("editMenu")
+    added_edit = False
+
     # Create a submenu for all merge-related actions
-    merge_menu = QMenu("Edit Menu", menu)
-    merge_menu.setObjectName("changeNotesMenu")
+    merge_menu = QMenu("Merge Menu 🚧", menu)
+    merge_menu.setObjectName("mergeMenu")
     added_merge = False
 
     if run_merge_images:
@@ -132,29 +137,33 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     added_merge = True
 
     merge_sched_action = QAction("Merge Scheduling (Similarity)", browser)
-
     merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
     merge_menu.addAction(merge_sched_action)
     added_merge = True
 
     tag_dupes_action = QAction("Tag Dupes 🔖", browser)
     tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))
-    merge_menu.addAction(tag_dupes_action)
-    added_merge = True
-    
+    edit_menu.addAction(tag_dupes_action)
+    added_edit = True
+
     delete_empty_action = QAction("❌ Empty Note Types࿏", browser)
     delete_empty_action.triggered.connect(delete_empty_note_types)
-    merge_menu.addAction(delete_empty_action)
-    added_merge = True
-        
+    edit_menu.addAction(delete_empty_action)
+    added_edit = True
+
     action = QAction("Batch Change Note Types", browser)
     action.triggered.connect(lambda: change_selected_notes(browser))
-    merge_menu.addAction(action)
-    added_merge = True
+    edit_menu.addAction(action)
+    added_edit = True
     
     # Only add the merge submenu if at least one merge action was added
     if added_merge:
+        menu.addSeparator()
         menu.addMenu(merge_menu)
+
+    # Add the edit submenu if at least one edit action was added
+    if added_edit:
+        menu.addMenu(edit_menu)
         menu.addSeparator()
 
     # Get names of note types for selected notes
