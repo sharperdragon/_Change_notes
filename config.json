@@ -16,7 +16,8 @@
     "default_fuzzy": "0.94",
     "base_tag": "TAGS_MERGED",
     "log_folder": "",
-    "merge_only_from_parents": [
+    "merge_select_only": "False",
+    "merge_only_parents": [
       "#OLD_Tags",
       "sketchymicro",
       "firstaid"

@@ -10,6 +10,9 @@ from aqt.qt import QInputDialog, QMessageBox, QDialogButtonBox, QTextEdit, QDial
 from aqt.browser import Browser
 from aqt.gui_hooks import browser_will_show_context_menu
 
+SKETCHY_PREFIX = "https://dashboard.sketchy.com"
+SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
+
 config = {
     "default_threshold": 0.90,
     "min_threshold": 0.80,
@@ -34,6 +37,7 @@ config = {
         "wrap_images_in_div": True,
         "insert_new_line_between_images": True,
         "append_to_existing_field": True,
+        "copy_sketchy_links": True,
     },
 
     "logging": {
@@ -49,7 +53,6 @@ config = {
     },
 }
 
-# === Config Access & Runtime Caches ===
 CONFIG = config
 
 def cfg(path: str, default=None):
@@ -97,6 +100,82 @@ from .utils import (
     normalize,
     group_notes_by_similarity,
 )
+
+# --- Sketchy link helpers ----------------------------------------------------
+def extract_sketchy_links(html: str):
+    """
+    ? Return list of (href, full_anchor_html) for Sketchy dashboard links in html.
+    """
+    if not html:
+        return []
+    anchors = re.findall(r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)', html, flags=re.IGNORECASE|re.DOTALL)
+    # anchors: list of tuples [(full_anchor_html, href)]
+    return [(href, full_html) for (full_html, href) in anchors]
+
+def parse_image_link_groups(field_html: str):
+    """
+    ? Identify groups of one-or-more <img> immediately followed by an optional <br> and a Sketchy link.
+    ? Returns list of dicts: [{"srcs":[...ordered...], "link_html":..., "href":...}, ...]
+    """
+    results = []
+    if not field_html:
+        return results
+    # Match: (IMG+)(optional <br/?>) (Sketchy <a ...>...</a>)
+    pattern = re.compile(
+        r'((?:<img\b[^>]*?>\s*)+)(?:<br\s*/?>\s*)?(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)',
+        flags=re.IGNORECASE|re.DOTALL
+    )
+    for m in pattern.finditer(field_html):
+        img_block = m.group(1)
+        link_html = m.group(2)
+        href = m.group(3)
+        imgs = extract_images(img_block)
+        srcs = extract_srcs(imgs)
+        if srcs:
+            results.append({"srcs": srcs, "link_html": link_html, "href": href})
+    return results
+
+def field_contains_href(html: str, href: str) -> bool:
+    if not html or not href:
+        return False
+    return re.search(re.escape(href), html, flags=re.IGNORECASE) is not None
+
+def insert_link_below_images(field_html: str, group_srcs: list[str], link_html: str):
+    """
+    ? Insert "<br>" + link_html immediately after the last <img> whose src is in group_srcs.
+    ? Returns (new_html, inserted_bool)
+    """
+    if not field_html or not group_srcs or not link_html:
+        return field_html, False
+
+    last_end = -1
+    last_match_span = None
+
+    # Find the last occurring <img ... src="X"> among the group's srcs
+    for src in group_srcs:
+        # Capture full <img ...> to know exact insertion point after this tag
+        img_pat = re.compile(r'(<img\b[^>]*?src="' + re.escape(src) + r'"[^>]*>)', flags=re.IGNORECASE|re.DOTALL)
+        for m in img_pat.finditer(field_html):
+            if m.end() > last_end:
+                last_end = m.end()
+                last_match_span = (m.start(), m.end())
+
+    if last_match_span is None:
+        # Fallback: no image found; append link at end to avoid losing data
+        separator = "" if field_html.endswith("<br>") else "<br>"
+        return field_html + separator + link_html, True
+
+    insert_at = last_match_span[1]
+
+    # Always ensure a <br> before the link; avoid duplicate if one is already present
+    after = field_html[insert_at:insert_at+4].lower()  # quick peek for '<br'
+    needs_br = not after.startswith("<br")
+
+    insertion = ("<br>" if needs_br else "") + link_html
+
+    new_html = field_html[:insert_at] + insertion + field_html[insert_at:]
+    return new_html, True
+# ----------------------------------------------------------------------------- 
 
 
 def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
@@ -230,6 +309,22 @@ def run_merge_images(note_ids: list[int], browser=None):
                     if m:
                         src_to_imgtag[m.group(1)] = img
 
+            # Collect Sketchy image-link groups from donor fields
+            copy_links = cfg("merge_behavior.copy_sketchy_links", True)
+            donor_link_groups = []
+            if copy_links:
+                for donor in donors:
+                    field_names_donor = get_field_names(donor)
+                    for di, fhtml in enumerate(donor.fields):
+                        if field_names_donor[di] not in SCAN_FIELDS:
+                            continue
+                        groups = parse_image_link_groups(fhtml)
+                        if groups:
+                            for g in groups:
+                                g2 = dict(g)
+                                g2["donor_id"] = donor.id
+                                donor_link_groups.append(g2)
+
             for note in model_group:
                 updated_fields = list(note.fields)
                 changed = False
@@ -314,6 +409,48 @@ def run_merge_images(note_ids: list[int], browser=None):
                     if not append_to_existing and (to_prepend_srcs or to_append_srcs):
                         log_entries.append(f"🔁 Replaced content in Note {note.id} field '{field_name}' due to append_to_existing_field=False")
 
+                # ---- Copy Sketchy links under their corresponding images ----
+                if copy_links and donor_link_groups:
+                    field_names_rec = field_names  # already computed above
+                    # Recompute current src sets per field after image merges
+                    current_field_srcs = {}
+                    for fi, fhtml in enumerate(updated_fields):
+                        if field_names_rec[fi] not in SCAN_FIELDS:
+                            continue
+                        imgs_now = extract_images(fhtml)
+                        current_field_srcs[fi] = set(extract_srcs(imgs_now))
+
+                    for grp in donor_link_groups:
+                        target_index = None
+                        grp_srcs_set = set(grp["srcs"])
+                        # Choose the first field that contains all group srcs
+                        for fi, srcset in current_field_srcs.items():
+                            if grp_srcs_set.issubset(srcset):
+                                target_index = fi
+                                break
+                        if target_index is None:
+                            continue  # no suitable field in this note
+
+                        # Skip if the exact href already exists in that field
+                        if field_contains_href(updated_fields[target_index], grp["href"]):
+                            continue
+
+                        new_html, inserted = insert_link_below_images(
+                            updated_fields[target_index],
+                            grp["srcs"],
+                            grp["link_html"]
+                        )
+                        if inserted:
+                            updated_fields[target_index] = new_html
+                            changed = True
+                            t_field_name = get_field_names(note)[target_index]
+                            log_entries.append(
+                                f"🔗 Added Sketchy link under images in Note {note.id} field '{t_field_name}': {grp['href']}"
+                            )
+                            if grp.get("donor_id") is not None:
+                                used_donors.add(grp["donor_id"])
+                # ----------------------------------------------------------------
+
                 if changed:
                     merged += 1
                     note.fields = updated_fields
@@ -323,6 +460,8 @@ def run_merge_images(note_ids: list[int], browser=None):
                         if donor.id in used_donors:
                             donor.tags = list(set(donor.tags) | {donor_tag})
                             mw.col.update_note(donor)
+                    # Track all donors (including link-only donors) to avoid mislabeling them as "same"
+                    all_used_donors.update(used_donors)
                     mw.col.update_note(note)
 
     src_to_note_ids = defaultdict(list)
@@ -446,6 +585,7 @@ def delete_old_logs(days=7):
 
 
 def collect_used_donors_for_block(missing_imgs, donor_notes):
+    
     used_donors = set()
     for donor in donor_notes:
         donor_imgs = extract_srcs(extract_images("".join(donor.fields)))
@@ -456,3 +596,7 @@ def collect_used_donors_for_block(missing_imgs, donor_notes):
                 if src in donor_imgs:
                     used_donors.add(donor.id)
                     break
+
+
+
+ 

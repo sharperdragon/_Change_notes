@@ -1,4 +1,3 @@
-
 import re, sys
 from datetime import datetime
 from aqt import mw
@@ -9,7 +8,6 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from difflib import SequenceMatcher
 from PyQt6.QtWidgets import QInputDialog
-from pathlib import Path
 # Dynamically add the modules directory to sys.path
 
 
@@ -23,18 +21,59 @@ DEBUG_MODE = False
 config_manager = ConfigManager("_Change_notes")
 config = config_manager.load()
 
+# Load the specific merge-tags config group
 config = ConfigManager("global_config", "merge_tags_config").load()
 
-# Extract allowed tag parents from config (if any)
-allowed_parents = set(config.get("merge_only_from_parents", []))
+# --- Config parsing helpers ---
+def _parse_bool(val, default=False):
+    """
+    Normalize truthy strings like 'true'/'False' or integers 0/1 to a real bool.
+    Falls back to default if value is None.
+    """
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        v = val.strip().lower()
+        if v in {"true", "t", "yes", "y", "1"}:
+            return True
+        if v in {"false", "f", "no", "n", "0"}:
+            return False
+    return default
+
+# Read new key; default is False, meaning "ignore parent filter"
+MERGE_SELECT_ONLY = _parse_bool(config.get("merge_select_only"), default=False)
+
+# Read parents from the new key; fallback to deprecated key if needed
+_parents_new = config.get("merge_only_parents")
+_parents_old = config.get("merge_only_from_parents", [])
+ALLOWED_PARENTS = [p for p in (_parents_new if _parents_new is not None else _parents_old) or [] if p]
+ALLOWED_PARENTS_LOWER = [p.lower() for p in ALLOWED_PARENTS]
+
+# Helper: case-insensitive parent check
+def _is_tag_in_parents(tag: str) -> bool:
+    """
+    Returns True if tag equals a parent or starts with 'parent::'
+    Comparison is case-insensitive.
+    """
+    t = tag.lower()
+    for pl in ALLOWED_PARENTS_LOWER:
+        if t == pl or t.startswith(pl + "::"):
+            return True
+    return False
+
+# Gate: if MERGE_SELECT_ONLY is False, allow all tags (parents list ignored per spec)
+def tag_is_allowed(tag: str) -> bool:
+    if not MERGE_SELECT_ONLY:
+        return True
+    return _is_tag_in_parents(tag)
 
 LOG_DIR = Path(mw.addonManager.addonsFolder()) / "_Change_notes" / "logs" / "merge_tags"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-log_file = LOG_DIR / f"{datetime.now().strftime('%Y-%m-%d_%H-%M')}_merge_tags.log"
-
-# Helper to check if tag is allowed (belongs to allowed parent or its children)
-def is_tag_allowed(tag: str, allowed_parents: set[str]) -> bool:
-    return any(tag == parent or tag.startswith(parent + "::") for parent in allowed_parents)
+log_file = LOG_DIR / f"{datetime.now().strftime('%Y-%m')}_merge_tags.log"
 
 def log_debug(msg):
     timestamped = f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {msg}"
@@ -46,6 +85,9 @@ def log_debug(msg):
 base_tag = config.get("base_tag", "TAGS_MERGED")
 date_suffix = datetime.now().strftime("%B_%d")
 merged_tag = f"{base_tag}::{date_suffix}"
+
+# Log effective config (once per module import)
+log_debug(f"Config — MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, ALLOWED_PARENTS={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}")
 
 # --- Fuzzy matching helper ---
 
@@ -67,6 +109,10 @@ def unify_tags_on_duplicates(browser: Browser, threshold=None):
         threshold = prompt_fuzzy_threshold()
         if threshold is None:
             return
+
+    # ! run-start: record gating for this invocation
+    skipped_by_parent_filter = 0
+    log_debug(f"Run start — threshold={threshold}, MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, parents={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}")
 
     from anki.notes import Note
 
@@ -112,11 +158,15 @@ def unify_tags_on_duplicates(browser: Browser, threshold=None):
             continue
         all_tags = set()
         notes = [col.get_note(nid) for nid in group]
-        # Only collect allowed tags for merging
+        # $ only collect allowed tags for merging when gated on
         for note in notes:
-            all_tags.update(tag for tag in note.tags if is_tag_allowed(tag, allowed_parents))
+            for tag in note.tags:
+                if tag_is_allowed(tag):
+                    all_tags.add(tag)
+                else:
+                    skipped_by_parent_filter += 1
         for note in notes:
-            existing_allowed_tags = {tag for tag in note.tags if is_tag_allowed(tag, allowed_parents)}
+            existing_allowed_tags = {tag for tag in note.tags if tag_is_allowed(tag)}
             if existing_allowed_tags != all_tags:
                 note.tags = sorted(all_tags.union({merged_tag}))
                 note.flush()
@@ -124,5 +174,8 @@ def unify_tags_on_duplicates(browser: Browser, threshold=None):
                 log_debug(f"Updated tags for note {note.id} -> Tags: {note.tags}")
 
     mw.reset()
-    log_debug(f"Completed tag merge. Updated {updated} notes.")
-    showInfo(f"Updated tags on {updated} duplicate notes.")
+    log_debug(f"Completed tag merge. Updated {updated} notes. Skipped tags by parent filter: {skipped_by_parent_filter}")
+    info_msg = f"Updated tags on {updated} duplicate notes."
+    if MERGE_SELECT_ONLY:
+        info_msg += f"\n(Parent filter active; skipped tags: {skipped_by_parent_filter})"
+    showInfo(info_msg)
