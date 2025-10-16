@@ -2,19 +2,27 @@
 # mypy: disable_error_code=import
 from aqt.qt import QAction, QMenu, QInputDialog
 import re
-# --- Helper to scrub resource label for tag suffix ---
-def scrub_resource_label_to_tag(label: str) -> str:
-    """
-    - Trim whitespace
-    - Remove any character that is not a letter, digit, space, or hyphen
-    - Collapse multiple spaces to one
-    """
-    base = str(label).strip()
-    base = re.sub(r'[^A-Za-z0-9\- ]+', '', base)
-    base = re.sub(r'\s+', ' ', base).strip()
-    return base
 from aqt.utils import showInfo, tooltip
 from datetime import datetime
+
+MULTI_MISS_TAG = "##Missed-Qs::2x"
+DEFAULT_TEST_TAG_PREFIX = "##Missed-Qs::UW_Tests"
+
+month_tag = f"##Missed-Qs::{datetime.now().year}::{datetime.now().strftime('%B')}"
+TEST_RANGE_BLOCK_SIZE = 25
+
+OTHER_RESOURCES = [" Kaplan ", "  True-Learn  ", "  Amboss  ", "  NBOME  "]
+MONTH = datetime.now().strftime("%B")
+
+OTHER_PREFIX = "##Missed-Qs::Other::"
+
+# ! Rotation tag pieces for key info variant
+ROTATION_TAG_BASE = "##Missed-Qs::Rotation"
+KEY_INFO_SUFFIX   = "key_info"
+
+Correct_guess_tags = [
+    "#Custom::correct_marked"
+]
 
 ROTATION_SCHEDULE = [
     ("IM1",       "2025-06-30", "2025-07-25"),
@@ -28,6 +36,26 @@ ROTATION_SCHEDULE = [
     ("OBGYN",     "2026-02-02", "2026-02-27"),
     ("Psych",     "2026-03-02", "2026-03-27"),
 ]
+
+# ! --------------------------------------------------------
+# ! --------------------------------------------------------
+# ! --------------------------------------------------------
+def scrub_resource_label_to_tag(label: str) -> str:
+    """
+    - Trim whitespace
+    - Remove any character that is not a letter, digit, space, or hyphen
+    - Collapse multiple spaces to one
+    """
+    base = str(label).strip()
+    base = re.sub(r'[^A-Za-z0-9\- ]+', '', base)
+    base = re.sub(r'\s+', ' ', base).strip()
+    return base
+
+
+def get_rotation_key_info_tag() -> str:
+
+    _num2d, rot_label = get_current_or_next_rotation_meta()
+    return f"{ROTATION_TAG_BASE}::{rot_label}::{KEY_INFO_SUFFIX}"
 
 # --- Helper: resolve current-or-next rotation label and its 1-based index ---
 def get_current_or_next_rotation_meta():
@@ -66,28 +94,10 @@ def get_current_or_next_rotation_tag() -> str:
             return f"##Missed-Qs::Rotation::{rotation}"
     return "##Missed-Qs::Rotation::Unknown"
 
-DEFAULT_TEST_TAG_PREFIX = "##Missed-Qs::UW_Tests"
 
-month_tag = f"##Missed-Qs::{datetime.now().year}::{datetime.now().strftime('%B')}"
-
-TEST_RANGE_BLOCK_SIZE = 25
-
-MULTI_MISS_TAG = "##Missed-Qs::2x"
-# NOTE: Defaults only. These can be overridden via config under
-# tag_selected_notes_config.other_menu {label, prefix, resources}.
-# --- Other Resources submenu constants ---
-# Prefix for resource-specific tags applied alongside Base Tags
-OTHER_PREFIX = "##Missed-Qs::Other::"
-# Exact resource labels to display and to append to OTHER_PREFIX
-OTHER_RESOURCES = [" Kaplan ", "  True-Learn  ", "  Amboss  ", "  NBOME  "]
-
-MONTH = datetime.now().strftime("%B")
-
-Correct_guess_tags = [
-    "#Custom::correct_marked"
-]
 
  # --- Helper: add a tag to a note safely across Anki versions ---
+
 def _add_tag_safe(note, tag: str):
     """Use add_tag if available, otherwise fallback to addTag (older API)."""
     if hasattr(note, "add_tag"):
@@ -128,8 +138,6 @@ def apply_tags_to_selected_notes(browser, tag_list: list[str]):
     # Brief confirmation including the rotation tag added
     tooltip(f"✅ Applied {len(final_tags)} tags (incl. rotation) to {len(nids)} notes.")
 
-
-
 def add_tag_menu_items(browser, menu, config: dict):
     # Extract tag configuration from the passed-in config dictionary
     tag_config = config.get("tag_selected_notes_config", {})
@@ -137,7 +145,7 @@ def add_tag_menu_items(browser, menu, config: dict):
         return
 
     # Create a submenu under the browser's context menu for applying tag presets
-    tag_menu = QMenu(" 📝 Apply Config Tags ", browser)
+    tag_menu = QMenu(" 📝 Apply Tags ", browser)
 
     # Add combined base + test# action first
     add_combined_base_plus_test(browser, tag_menu, tag_config)
@@ -153,10 +161,9 @@ def add_tag_menu_items(browser, menu, config: dict):
     tag_menu.addSeparator()
     
     add_multi_tag(browser, tag_menu, tag_config)
-    tag_menu.addSeparator()
-    
-    
+    add_key_info_action(browser, tag_menu)
     add_correct_guess_action(browser, tag_menu)
+    tag_menu.addSeparator()
 
     # Add UW Test This Month action
     add_uw_month_tag(browser, tag_menu)
@@ -170,7 +177,6 @@ def add_tag_menu_items(browser, menu, config: dict):
         menu.addSeparator()
         menu.addMenu(tag_menu)
 
-# --- New helper functions ---
 def add_COMQUEST_tag(browser, menu, tag_config):
     """Prompt for COMQUEST test number, apply tag with optional child, and add month tag."""
     set_3_name = tag_config.get("set_3_name")
@@ -206,14 +212,11 @@ def add_COMQUEST_tag(browser, menu, tag_config):
     action.triggered.connect(on_trigger)
     menu.addAction(action)
 
-
-
 def add_multi_tag(browser, menu, tag_config):
     multi_tag = MULTI_MISS_TAG  # Already a string, no need for f-string
     multi_tag_label = f"{'2x Missed 📌':<24}"
     combined_tags = [multi_tag, month_tag]
     add_static_config_action(browser, menu, multi_tag_label, combined_tags)
-
 
 def add_base_tags(browser, menu, tag_config):
     """Add static tag sets 1, 2, and 3 to the menu using config-defined names."""
@@ -285,12 +288,20 @@ def add_other_resources_menu(browser, menu, tag_config):
     if other_menu.actions():
         menu.addMenu(other_menu)
 
-# --- "Other" resources as flat actions at end of main menu ---
-# NOTE: We keep the legacy submenu function above for reference, but this
-# inline version is now used to append actions directly to the main tag menu.
-# This preserves behavior (Base Tags + month_tag + resource tag + auto-rotation)
-# while avoiding a nested submenu. Resource labels are stripped so stray
-# whitespace from config does not leak into QAction labels or tag text.
+def add_key_info_action(browser, menu):
+    """Add action to apply ##Missed-Qs::Rotation::{ROTATION}::key_info to selected notes."""
+    action = QAction("Rotation Key Info 🗝️", browser)
+
+    def on_click():
+        if not browser.selectedNotes():
+            showInfo("❌ No notes selected.")
+            return
+        key_tag = get_rotation_key_info_tag()
+        # ? Route through the central applier so the base rotation tag auto-adds too
+        apply_tags_to_selected_notes(browser, [key_tag])
+
+    action.triggered.connect(on_click)
+    menu.addAction(action)
 
 def add_other_resources_actions(browser, menu, tag_config):
     """
@@ -327,7 +338,6 @@ def add_other_resources_actions(browser, menu, tag_config):
         action.triggered.connect(on_click)
         menu.addAction(action)
 
-# --- New function for prompting test number and applying tag ---
 def prompt_and_apply_test_tag(browser, base_tag: str):
     """Prompt the user for a test number and apply a dynamically constructed tag to selected notes."""
     test_num, ok = QInputDialog.getText(browser, "Enter Test Number", "Test #:")
