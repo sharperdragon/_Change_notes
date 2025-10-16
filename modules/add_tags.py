@@ -146,6 +146,19 @@ def add_tag_menu_items(browser, menu, config: dict):
 
     # Create a submenu under the browser's context menu for applying tag presets
     tag_menu = QMenu(" 📝 Apply Tags ", browser)
+    # ? Add custom padding and spacing for tag menu items
+    tag_menu.setStyleSheet("""
+
+        QMenu::item {
+            padding-top: 4.5px;
+            padding-bottom: 4.5px;
+            padding-left: 6px;
+            padding-right: 6px;
+        }
+        QMenu::item:selected {
+            background-color: rgba(120, 160, 255, 60);  /* subtle hover highlight */
+        }
+    """)
 
     # Add combined base + test# action first
     add_combined_base_plus_test(browser, tag_menu, tag_config)
@@ -290,7 +303,7 @@ def add_other_resources_menu(browser, menu, tag_config):
 
 def add_key_info_action(browser, menu):
     """Add action to apply ##Missed-Qs::Rotation::{ROTATION}::key_info to selected notes."""
-    action = QAction("Rotation Key Info 🗝️", browser)
+    action = QAction("Key Info 🗝️", browser)
 
     def on_click():
         if not browser.selectedNotes():
