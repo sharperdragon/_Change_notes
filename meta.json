@@ -42,14 +42,14 @@
       ]
     },
     "tag_selected_notes_config": {
-      "month_tag": ["##Missed-Qs"],
-      "set_1_name": "\ud83d\udcd9Base Tag",
-      "tag_set_1": ["##Missed-Qs"],
-      "set_2_name": "\u2666\ufe0fUW-Test number",
-      "tag_set_2": ["##Missed-Qs::UW_Tests"],
-      "set_3_name": "\u267f\ufe0fCOMQUEST",
-      "tag_set_3": ["##Missed-Qs::COMQUEST"],
-      "other_menu": {
+      "missed_month_tag_base": ["##Missed-Qs"],
+      "base_name": "\ud83d\udcd9Base Tag",
+      "base_tag": ["##Missed-Qs"],
+      "set_1_name": "\u2666\ufe0fUW-Test number",
+      "tag_missed_subset_1": ["##Missed-Qs::UW_Tests"],
+      "set_2_name": "\u267f\ufe0fCOMQUEST",
+      "tag_missed_subset_2": ["##Missed-Qs::COMQUEST"],
+      "other_submenu": {
         "label": "Other",
         "prefix": "##Missed-Qs::Other::",
         "resources": [

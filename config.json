@@ -39,19 +39,19 @@
     ]
   },
   "tag_selected_notes_config": {
-    "month_tag": [
+    "missed_month_tag": [
       "##Missed-Qs"
     ],
-    "set_1_name": "📙Base Tag",
-    "tag_set_1": [
+    "base_name": "📙Base Tag",
+    "missed_base_tag": [
       "##Missed-Qs"
     ],
-    "set_2_name": "♦️UW-Test number",
-    "tag_set_2": [
+    "subset_1_name": "♦️UW-Test number",
+    "subset_tag_1": [
       "##Missed-Qs::UW_Tests"
     ],
-    "set_3_name": "♿️COMQUEST",
-    "tag_set_3": [
+    "subset_2_name": "♿️COMQUEST",
+    "subset_tag_2": [
       "##Missed-Qs::COMQUEST"
     ],
     "other_menu": {

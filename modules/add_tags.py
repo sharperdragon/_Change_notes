@@ -1,28 +1,72 @@
 # pyright: reportMissingImports=false
-# mypy: disable_error_code=import
 from aqt.qt import QAction, QMenu, QInputDialog
 import re
 from aqt.utils import showInfo, tooltip
 from datetime import datetime
 
-MULTI_MISS_TAG = "##Missed-Qs::2x"
-DEFAULT_TEST_TAG_PREFIX = "##Missed-Qs::UW_Tests"
 
-month_tag = f"##Missed-Qs::{datetime.now().year}::{datetime.now().strftime('%B')}"
-TEST_RANGE_BLOCK_SIZE = 25
 
-OTHER_RESOURCES = [" Kaplan ", "  True-Learn  ", "  Amboss  ", "  NBOME  "]
-MONTH = datetime.now().strftime("%B")
+# ! ----------------------------- USER-TUNABLE CONSTANTS -----------------------------
+# ? Base “missed” scaffolding
+MISSED_BASE_TAG       = ["##Missed-Qs"]      # former: tag_config["missed_base_tag"]
 
-OTHER_PREFIX = "##Missed-Qs::Other::"
+# ? Month + rotation labels (now bare segments; the base "##Missed-Qs" is composed at use-time)
+MULTI_MISS_TAG          = "2x"
+DEFAULT_TEST_TAG_PREFIX = "UW_Tests"
+OTHER_SUFFIX            = "Other"
 
-# ! Rotation tag pieces for key info variant
-ROTATION_TAG_BASE = "##Missed-Qs::Rotation"
-KEY_INFO_SUFFIX   = "key_info"
+# $ Compose a full Missed-Qs tag path with the base prefix
+def base_tag_path(*parts: str) -> str:
+    return "::".join([MISSED_BASE_TAG[0], *[p for p in parts if p]])
 
-Correct_guess_tags = [
-    "#Custom::correct_marked"
-]
+# ? UW / COMQUEST “subset” equivalents
+SUBSET_1_NAME          = "🛃UWorld"
+SUBSET_1_TAG          = ["##Missed-Qs::UW_Tests"]   
+SUBSET_2_NAME          = "♿️COMQUEST"
+SUBSET_2_TAG          = ["##Missed-Qs::COMQUEST"]  
+
+# ? Other resources (flat actions + submenu)
+OTHER_MENU_LABEL       = "Other"
+OTHER_RESOURCES        = ["Kaplan", "True-Learn", "Amboss", "NBOME"]
+
+# ? Special actions
+KEY_TAG_BASE           = "#Custom::#Shelf"
+KEY_INFO_SUFFIX        = "*KEY"
+CORRECT_GUESS_TAGS     = ["#Custom::correct_marked"]
+
+# ? Exclude list for “auto-missed” context
+EXCLUDE_AUTO_MISS      = ["add_key_info_action"]
+# ! --------------------------- END USER-TUNABLE CONSTANTS ---------------------------
+
+# $ Helpers to resolve base tags without changing the top config
+def _get_list(name: str):
+  v = globals().get(name)
+  return v if isinstance(v, list) and v else []
+
+def _uw_base_tag() -> str:
+  # Prefer a value that looks like UW
+  for name in ("SUBSET_1_TAGS", "SUBSET_1_TAG", "SUBSET_2_TAGS", "SUBSET_2_TAG"):
+      for cand in _get_list(name):
+          if "UW_Base" in cand or "::UW" in cand:
+              return cand
+  # Fallback to composed default
+  return base_tag_path(DEFAULT_TEST_TAG_PREFIX)
+
+def _comquest_base_tag() -> str:
+  # Prefer a value that looks like COMQUEST
+  for name in ("SUBSET_2_TAGS", "SUBSET_2_TAG", "SUBSET_1_TAGS", "SUBSET_1_TAG"):
+      for cand in _get_list(name):
+          if "COMQUEST_Base" in cand or "COMQUEST" in cand:
+              return cand
+  # Fallback to explicit default
+  return "##Missed-Qs::COMQUEST_Base"
+
+
+MONTH                = datetime.now().strftime("%B")
+missed_month_tag     = f"##Missed-Qs::{datetime.now().year}::{MONTH}"
+TEST_RANGE_BLOCK_SIZE= 25
+
+
 
 ROTATION_SCHEDULE = [
     ("IM1",       "2025-06-30", "2025-07-25"),
@@ -37,53 +81,32 @@ ROTATION_SCHEDULE = [
     ("Psych",     "2026-03-02", "2026-03-27"),
 ]
 
-# ! --------------------------------------------------------
-# ! --------------------------------------------------------
-# ! --------------------------------------------------------
 def scrub_resource_label_to_tag(label: str) -> str:
-    """
-    - Trim whitespace
-    - Remove any character that is not a letter, digit, space, or hyphen
-    - Collapse multiple spaces to one
-    """
-    base = str(label).strip()
-    base = re.sub(r'[^A-Za-z0-9\- ]+', '', base)
-    base = re.sub(r'\s+', ' ', base).strip()
-    return base
+    missed_base = str(label).strip()
+    missed_base = re.sub(r'[^A-Za-z0-9\- ]+', '', missed_base)
+    missed_base = re.sub(r'\s+', ' ', missed_base).strip()
+    return missed_base
 
 
 def get_rotation_key_info_tag() -> str:
 
     _num2d, rot_label = get_current_or_next_rotation_meta()
-    return f"{ROTATION_TAG_BASE}::{rot_label}::{KEY_INFO_SUFFIX}"
+    return f"{KEY_TAG_BASE}::{rot_label}::{KEY_INFO_SUFFIX}"
 
-# --- Helper: resolve current-or-next rotation label and its 1-based index ---
 def get_current_or_next_rotation_meta():
-    """
-    Returns (rot_num_2d, rot_label) where:
-      - rot_num_2d is a zero-padded 2-digit string (e.g., "02") representing the 1-based
-        position within ROTATION_SCHEDULE
-      - rot_label is the rotation abbreviation string (e.g., "FM2")
-    If today is between a rotation's start/end, that rotation is returned.
-    If not in any range, the next upcoming rotation is returned.
-    Fallback: ("00", "Unknown").
-    """
     today = datetime.today().date()
-    # First pass: exact match (currently in this rotation)
     for idx, (rotation, start_str, end_str) in enumerate(ROTATION_SCHEDULE, start=1):
         start = datetime.strptime(start_str, "%Y-%m-%d").date()
         end = datetime.strptime(end_str, "%Y-%m-%d").date()
         if start <= today <= end:
             return f"{idx:02d}", rotation
-    # Second pass: next upcoming rotation
     for idx, (rotation, start_str, _end_str) in enumerate(ROTATION_SCHEDULE, start=1):
         start = datetime.strptime(start_str, "%Y-%m-%d").date()
         if today < start:
             return f"{idx:02d}", rotation
-    # Fallback when today is after all entries
     return "00", "Unknown"
 
-def get_current_or_next_rotation_tag() -> str:
+def get_missed_tag_for_rotation() -> str:
     today = datetime.today().date()
     for rotation, start_str, end_str in ROTATION_SCHEDULE:
         start = datetime.strptime(start_str, "%Y-%m-%d").date()
@@ -95,39 +118,38 @@ def get_current_or_next_rotation_tag() -> str:
     return "##Missed-Qs::Rotation::Unknown"
 
 
-
- # --- Helper: add a tag to a note safely across Anki versions ---
-
+ 
 def _add_tag_safe(note, tag: str):
-    """Use add_tag if available, otherwise fallback to addTag (older API)."""
     if hasattr(note, "add_tag"):
         note.add_tag(tag)
     else:
-        # Older Anki API
         note.addTag(tag)
 
-def apply_tags_to_selected_notes(browser, tag_list: list[str]):
+# ! Centralized tag applier: adds rotation (always) and month (unless excluded)
+def apply_tags_to_selected_notes(browser, tag_list: list[str], action_key: str):
     col = browser.mw.col
     nids = browser.selectedNotes()
     if not nids:
         return
+    # $ Build dynamic context tags
+    final = list(tag_list or [])
+    # Extend exclusion locally to keep "Guessed Correct" clean without touching top config
+    local_exclude = set(EXCLUDE_AUTO_MISS) | {"correct_guess"}
+    # Append rotation + month only when NOT excluded
+    if action_key not in local_exclude:
+        final.append(get_missed_tag_for_rotation())
+        final.append(missed_month_tag)
 
-    # Always compute rotation tag and append it
-    rotation_tag = get_current_or_next_rotation_tag()
-
-    # Build final ordered tag list: incoming tags + rotation (de-duplicated, preserve order)
-    combined = list(tag_list or []) + [rotation_tag]
+    # $ Deduplicate while preserving order
     seen = set()
     final_tags = []
-    for t in combined:
+    for t in final:
         if t and t not in seen:
             seen.add(t)
             final_tags.append(t)
 
-    # Apply to all selected notes
     for nid in nids:
         note = col.get_note(nid)
-        # Ensure all tags are present
         current = set(note.tags)
         for tag in final_tags:
             if tag not in current:
@@ -135,20 +157,19 @@ def apply_tags_to_selected_notes(browser, tag_list: list[str]):
         note.flush()
 
     browser.model.reset()
-    # Brief confirmation including the rotation tag added
-    tooltip(f"✅ Applied {len(final_tags)} tags (incl. rotation) to {len(nids)} notes.")
+    tooltip(f"✅ Applied {len(final_tags)} tags to {len(nids)} notes.")
 
-def add_tag_menu_items(browser, menu, config: dict):
-    # Extract tag configuration from the passed-in config dictionary
-    tag_config = config.get("tag_selected_notes_config", {})
-    if not tag_config:
-        return
+# $ Add a plain "Base" action (no test/rotation/month)
+def add_base_plain_action(browser, menu):
+    action = QAction("♦️Base", browser)
+    action.triggered.connect(lambda _:
+        apply_tags_to_selected_notes(browser, MISSED_BASE_TAG, action_key="base_plain")
+    )
+    menu.addAction(action)
 
-    # Create a submenu under the browser's context menu for applying tag presets
+def add_tag_menu_items(browser, menu, config=None):
     tag_menu = QMenu(" 📝 Apply Tags ", browser)
-    # ? Add custom padding and spacing for tag menu items
     tag_menu.setStyleSheet("""
-
         QMenu::item {
             padding-top: 4.5px;
             padding-bottom: 4.5px;
@@ -160,199 +181,78 @@ def add_tag_menu_items(browser, menu, config: dict):
         }
     """)
 
-    # Add combined base + test# action first
-    add_combined_base_plus_test(browser, tag_menu, tag_config)
-    # Add base tags and missed test tag
-    add_base_tags(browser, tag_menu, tag_config)
-    # Add separator
-    tag_menu.addSeparator()
-        # Add COMQUEST Test + Month action
-    add_COMQUEST_tag(browser, tag_menu, tag_config)
-    tag_menu.addSeparator()
 
-    add_UW_test_tag(browser, tag_menu, tag_config)
+    add_uworld_tags(browser, tag_menu)
+    add_COMQUEST_tag(browser, tag_menu)
+    add_base_plain_action(browser, tag_menu)
     tag_menu.addSeparator()
     
-    add_multi_tag(browser, tag_menu, tag_config)
+    add_multi_tag(browser, tag_menu)
+    tag_menu.addSeparator()
+    
     add_key_info_action(browser, tag_menu)
     add_correct_guess_action(browser, tag_menu)
     tag_menu.addSeparator()
-
-    # Add UW Test This Month action
-    add_uw_month_tag(browser, tag_menu)
     
-    # Place resource actions (flat, not submenu) at the very end
-    tag_menu.addSeparator()
-    add_other_resources_actions(browser, tag_menu, tag_config)
+    add_other_resources_actions(browser, tag_menu)
 
-    # Add the submenu to the context menu only if actions were added
     if tag_menu.actions():
         menu.addSeparator()
         menu.addMenu(tag_menu)
 
-def add_COMQUEST_tag(browser, menu, tag_config):
-    """Prompt for COMQUEST test number, apply tag with optional child, and add month tag."""
-    set_3_name = tag_config.get("set_3_name")
-    set_3_tags = tag_config.get("tag_set_3", [])
-    if not (set_3_name and set_3_tags):
-        return
-
-    base_tag = set_3_tags[0]  # "##Missed-Qs::COMQUEST"
-    padded_name = f"{set_3_name:<24}"
-
-    def on_trigger():
-        test_num, ok = QInputDialog.getText(browser, "Enter COMQUEST Test Number", "Test #:")
-        if not ok:
-            return
-
-        test_num = test_num.strip()
-        # Build tag as: ##Missed-Qs::COMQUEST::nn_{Rotation}::TT
-        # where nn = 2-digit rotation index, {Rotation} = current label, TT = 2-digit test number
-        rot_num_2d, rot_label = get_current_or_next_rotation_meta()
-        if test_num.isdigit() and int(test_num) > 0:
-            formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}::{int(test_num):02d}"
-        else:
-            # Fallback keeps the nn_{Rotation} segment even if test number is invalid/blank
-            formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}"
-
-        if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
-            return
-
-        apply_tags_to_selected_notes(browser, [formatted_tag, month_tag])
-
-    action = QAction(padded_name, browser)
-    action.triggered.connect(on_trigger)
+def add_COMQUEST_tag(browser, menu):
+    base_tag = _comquest_base_tag()
+    action = QAction(f"{SUBSET_2_NAME:<24}", browser)
+    action.triggered.connect(
+        make_test_prompt_handler(
+            browser, base_tag, action_key="comquest_test_prompt",
+            title="Enter COMQUEST Test Number", label="Test #:",
+            blank_behavior="base_plus_rotation",
+            number_style="rotation_then_number"
+        )
+    )
     menu.addAction(action)
 
-def add_multi_tag(browser, menu, tag_config):
-    multi_tag = MULTI_MISS_TAG  # Already a string, no need for f-string
+def add_multi_tag(browser, menu):
+    multi_tag = base_tag_path(MULTI_MISS_TAG)  
     multi_tag_label = f"{'2x Missed 📌':<24}"
-    combined_tags = [multi_tag, month_tag]
-    add_static_config_action(browser, menu, multi_tag_label, combined_tags)
+    add_static_action(browser, menu, multi_tag_label, [multi_tag], action_key="multi_missed")
 
-def add_base_tags(browser, menu, tag_config):
-    """Add static tag sets 1, 2, and 3 to the menu using config-defined names."""
-    for i in (1, 2):
-        set_name = tag_config.get(f"set_{i}_name")
-        tags = tag_config.get(f"tag_set_{i}", [])
-        if set_name and tags:
-            # Append month_tag only to tag_set_1 and tag_set_3
-            should_append_month = i in (1, 3)
-            full_tags = tags + ([month_tag] if should_append_month else [])
-            padded_name = f"{set_name:<24}"
-            add_static_config_action(browser, menu, padded_name, full_tags)
-
-def add_UW_test_tag(browser, menu, tag_config):
-    """Add dynamic test number prompt action if configured."""
-    if tag_config.get("set_1_name") == "Test number" or tag_config.get("set_2_name") == "Test number":
-        set_2_tags = tag_config.get("tag_set_2", [])
-        base_tag = set_2_tags[0] if set_2_tags else DEFAULT_TEST_TAG_PREFIX
-        add_dynamic_test_prompt(browser, menu, base_tag)
+def add_uworld_tags(browser, menu):
+    set_name = SUBSET_1_NAME
+    base = _uw_base_tag()
+    if set_name and base:
+        padded_name = f"{set_name:<24}"
+        action = QAction(padded_name, browser)
+        action.triggered.connect(
+            make_test_prompt_handler(
+                browser, base, action_key="uw_test_prompt",
+                title="Enter UWorld Test Number", label="Test #:",
+                blank_behavior="base_only",
+                number_style="range_then_number"
+            )
+        )
+        menu.addAction(action)
 
 
-# --- Helper to get Base Tags (tag_set_1 + month_tag) ---
-def get_base_tags(tag_config: dict) -> list[str]:
-    """Return base tags from config (tag_set_1) plus month_tag, mirroring existing behavior."""
-    base = tag_config.get("tag_set_1", [])
-    # Ensure we always append the current month_tag
-    return base + [month_tag]
-
-
-# --- "Other" submenu: Base Tags + one resource tag ---
-def add_other_resources_menu(browser, menu, tag_config):
-    """
-    Create an "Other" submenu that applies Base Tags (tag_set_1 + month_tag)
-    plus exactly one resource tag with the prefix OTHER_PREFIX.
-
-    Items: Kaplan, True-Learn, Amboss.
-    """
-    # Pull configurable values from config, fallback to defaults defined above
-    other_cfg = tag_config.get("other_menu", {}) if isinstance(tag_config, dict) else {}
-    other_label = other_cfg.get("label", "Other")
-    cfg_prefix = other_cfg.get("prefix", OTHER_PREFIX)
-    cfg_resources = other_cfg.get("resources", OTHER_RESOURCES)
-
-    other_menu = QMenu(other_label, browser)  # opens on hover as a submenu
-
-    # Build actions for each resource
-    for resource_name in cfg_resources:
-        # Construct label: strip config whitespace, then pad with 3 spaces each side
-        label = f"   {str(resource_name).strip()}   "
-        # Compute the resource-specific tag using scrubd label
-        resource_tag = f"{cfg_prefix}{scrub_resource_label_to_tag(resource_name)}"
-
-        action = QAction(label, browser)
-
-        def on_click(_, rtag=resource_tag):
-            # Guard: require a selection; match existing UX for error messaging
-            if not browser.selectedNotes():
-                showInfo("❌ No notes selected.")
-                return
-            # Gather Base Tags (tag_set_1 + month_tag) and append this resource tag
-            tags_to_apply = get_base_tags(tag_config) + [rtag]
-            # Reuse centralized applier so rotation tag auto-add still happens
-            apply_tags_to_selected_notes(browser, tags_to_apply)
-
-        action.triggered.connect(on_click)
-        other_menu.addAction(action)
-
-    # Only add the submenu if we actually created actions
-    if other_menu.actions():
-        menu.addMenu(other_menu)
-
-def add_key_info_action(browser, menu):
-    """Add action to apply ##Missed-Qs::Rotation::{ROTATION}::key_info to selected notes."""
-    action = QAction("Key Info 🗝️", browser)
-
-    def on_click():
-        if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
-            return
-        key_tag = get_rotation_key_info_tag()
-        # ? Route through the central applier so the base rotation tag auto-adds too
-        apply_tags_to_selected_notes(browser, [key_tag])
-
-    action.triggered.connect(on_click)
-    menu.addAction(action)
-
-def add_other_resources_actions(browser, menu, tag_config):
-    """
-    Append flat 'Other resource' actions to the end of the main tag menu.
-    Each action applies: Base Tags (tag_set_1 + month_tag) + one resource tag.
-
-    We intentionally do **not** modify config or defaults here; instead we
-    scrub labels at runtime via `.strip()` to remain robust to whitespace
-    in the configured names (e.g., " Kaplan ").
-    """
-    # Pull configurable values; keep defaults if missing
-    other_cfg = tag_config.get("other_menu", {}) if isinstance(tag_config, dict) else {}
-    cfg_prefix = other_cfg.get("prefix", OTHER_PREFIX)
-    cfg_resources = other_cfg.get("resources", OTHER_RESOURCES)
-
-    # Build actions directly on the main menu (no submenu)
-    for resource_name in cfg_resources:
-        # Normalize label and tag (defensive against stray spaces in config)
+def add_other_resources_actions(browser, menu):
+    for resource_name in OTHER_RESOURCES:
         label = str(resource_name).strip()
-        resource_tag = f"{cfg_prefix}{scrub_resource_label_to_tag(resource_name)}"
+        resource_tag = base_tag_path(OTHER_SUFFIX, scrub_resource_label_to_tag(resource_name))
 
         action = QAction(label, browser)
 
-        # IMPORTANT: keep rotation auto-append by routing through
-        # apply_tags_to_selected_notes(), which computes and adds the rotation tag.
         def on_click(_, rtag=resource_tag):
             if not browser.selectedNotes():
                 showInfo("❌ No notes selected.")
                 return
-            # Base Tags = tag_set_1 + month_tag (see get_base_tags)
-            tags_to_apply = get_base_tags(tag_config) + [rtag]
-            apply_tags_to_selected_notes(browser, tags_to_apply)
+            tags_to_apply = MISSED_BASE_TAG + [rtag]
+            apply_tags_to_selected_notes(browser, tags_to_apply, action_key="other_resource")
 
         action.triggered.connect(on_click)
         menu.addAction(action)
 
-def prompt_and_apply_test_tag(browser, base_tag: str):
-    """Prompt the user for a test number and apply a dynamically constructed tag to selected notes."""
+def prompt_and_apply_test_tag(browser, base_tag: str, action_key: str):
     test_num, ok = QInputDialog.getText(browser, "Enter Test Number", "Test #:")
     if ok and test_num.strip():
         try:
@@ -360,68 +260,89 @@ def prompt_and_apply_test_tag(browser, base_tag: str):
             lower = ((test_input - 1) // TEST_RANGE_BLOCK_SIZE) * TEST_RANGE_BLOCK_SIZE + 1
             upper = lower + TEST_RANGE_BLOCK_SIZE - 1
             range_tag = f"{lower}-{upper}"
-            
             full_number_tag = f"{base_tag}::{range_tag}::{test_input:02d}"
-            apply_tags_to_selected_notes(browser, [full_number_tag])
+            apply_tags_to_selected_notes(browser, [full_number_tag], action_key=action_key)
         except ValueError:
             showInfo("❌ Please enter a valid integer test number.")
 
+# $ Factory: build a test-number prompt handler bound to a base_tag + action_key
+def make_test_prompt_handler(browser, base_tag: str, action_key: str,
+                             title: str = "Enter Test Number", label: str = "Test #:",
+                             blank_behavior: str = "base_plus_rotation",
+                             number_style: str = "range_then_number"):
+    """
+    blank_behavior:
+      - "base_only"          -> blank/non-numeric -> base_tag
+      - "base_plus_rotation" -> blank/non-numeric -> base_tag::<rotNum>_<rotLabel>
 
-# Helper functions for modular menu action addition
+    number_style:
+      - "range_then_number"    -> base_tag::<lower-upper>::NN
+      - "rotation_then_number" -> base_tag::<rotNum>_<rotLabel>::NN
+    """
+    def on_trigger():
+        # Prompt with no placeholder/default text
+        test_num, ok = QInputDialog.getText(browser, title, label)
+        if not ok:
+            return
+        test_num = (test_num or "").strip()
+        rot_num_2d, rot_label = get_current_or_next_rotation_meta()
 
-def add_static_config_action(browser, menu, set_name, tags):
-    """Add a static tag set action to the menu."""
+        if test_num == "":
+            if blank_behavior == "base_only":
+                formatted_tag = f"{base_tag}"
+            else:
+                formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}"
+        else:
+            try:
+                tn = int(test_num)
+            except ValueError:
+                # Treat non-numeric like blank
+                if blank_behavior == "base_only":
+                    formatted_tag = f"{base_tag}"
+                else:
+                    formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}"
+            else:
+                if number_style == "rotation_then_number":
+                    formatted_tag = f"{base_tag}::{rot_num_2d}_{rot_label}::{tn:02d}"
+                else:
+                    lower = ((tn - 1) // TEST_RANGE_BLOCK_SIZE) * TEST_RANGE_BLOCK_SIZE + 1
+                    upper = lower + TEST_RANGE_BLOCK_SIZE - 1
+                    range_tag = f"{lower}-{upper}"
+                    formatted_tag = f"{base_tag}::{range_tag}::{tn:02d}"
+
+        if not browser.selectedNotes():
+            showInfo("❌ No notes selected.")
+            return
+        apply_tags_to_selected_notes(browser, [formatted_tag], action_key=action_key)
+    return on_trigger
+
+def add_static_action(browser, menu, set_name: str, tags: list[str], action_key: str):
     action = QAction(set_name, browser)
-    action.triggered.connect(lambda _, tags=tags: apply_tags_to_selected_notes(browser, tags))
+    action.triggered.connect(lambda _, tags=tags, k=action_key: apply_tags_to_selected_notes(browser, tags, action_key=k))
     menu.addAction(action)
 
-def add_dynamic_test_prompt(browser, menu, base_tag):
-    """Add a dynamic test number prompt action to the menu."""
+def add_dynamic_test_prompt(browser, menu, base_tag: str, action_key: str):
     action = QAction("♦️Missed Test #", browser)
-    action.triggered.connect(lambda _, base_tag=base_tag: prompt_and_apply_test_tag(browser, base_tag))
+    action.triggered.connect(lambda _, base_tag=base_tag, k=action_key: prompt_and_apply_test_tag(browser, base_tag, action_key=k))
     menu.addAction(action)
 
-def add_combined_base_plus_test(browser, menu, tag_config):
-    """Add combined Set 1 + Test# action with prompt."""
-    combined_action = QAction("📕BASE + Test (UW)", browser)
-    def handle_combined_action():
-        test_tag_base = tag_config.get("tag_set_2", [DEFAULT_TEST_TAG_PREFIX])[0]
-        from aqt.qt import QInputDialog
-        test_num, ok = QInputDialog.getText(browser, "Enter Test Number", "Test #:")
-        if ok and test_num.strip():
-            try:
-                test_input = int(test_num.strip())
-                lower = ((test_input - 1) // TEST_RANGE_BLOCK_SIZE) * TEST_RANGE_BLOCK_SIZE + 1
-                upper = lower + TEST_RANGE_BLOCK_SIZE - 1
-                range_tag = f"{lower}-{upper}"
-                final_missed_test_tag = f"{test_tag_base}::{range_tag}::{test_input:02d}"
-                set1_tags = tag_config.get("tag_set_1", []) + [month_tag]
-                combined_tags = set1_tags + [final_missed_test_tag]
-                apply_tags_to_selected_notes(browser, combined_tags)
-            except ValueError:
-                showInfo("❌ Please enter a valid integer test number.")
-    combined_action.triggered.connect(handle_combined_action)
-    menu.addAction(combined_action)
 
-def add_uw_month_tag(browser, menu):
-    """Add action to tag as UW-Tests::{Month}::{TestNumber}."""
-    month_test_action = QAction("📒Full UW Test Tag– Month", browser)
-    def handle_month_test_tag():
-        test_num, ok = QInputDialog.getText(browser, "Enter Test Number", "Test #:")
-        if ok and test_num.strip():
-            try:
-                test_input = int(test_num.strip())
-                month_str = datetime.now().strftime("%B")
-                final_tag = f"UW-Tests::{month_str}::{test_input:02d}"
-                apply_tags_to_selected_notes(browser, [final_tag])
-            except ValueError:
-                showInfo("❌ Please enter a valid integer test number.")
-    month_test_action.triggered.connect(handle_month_test_tag)
-    menu.addAction(month_test_action)
 
-# --- Add Correct Guess Action ---
+def add_key_info_action(browser, menu):
+    action = QAction("Key Info 🗝️", browser)
+
+    def on_click():
+        if not browser.selectedNotes():
+            showInfo("❌ No notes selected.")
+            return
+        key_tag = get_rotation_key_info_tag()
+        apply_tags_to_selected_notes(browser, [key_tag], action_key="add_key_info_action")  # EXCLUDED from month/rotation
+    action.triggered.connect(on_click)
+    menu.addAction(action)
+
 def add_correct_guess_action(browser, menu):
-    """Add action to tag notes as correct guesses."""
     action = QAction("Guessed Correct 🎫", browser)
-    action.triggered.connect(lambda _, tags=Correct_guess_tags: apply_tags_to_selected_notes(browser, tags))
+    action.triggered.connect(lambda _:
+        apply_tags_to_selected_notes(browser, CORRECT_GUESS_TAGS, action_key="correct_guess")
+    )
     menu.addAction(action)
