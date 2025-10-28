@@ -12,6 +12,8 @@ from bs4 import BeautifulSoup
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
 from aqt.qt import  QInputDialog
+from aqt import mw
+from aqt.qt import QDialog, QVBoxLayout, QDialogButtonBox, QDoubleSpinBox
 
 
  # ConfigManager is located one level up (_Change_notes/config_manager.py)
@@ -318,3 +320,66 @@ _REPLACEMENTS = load_replacements()
 
 
 
+
+def prompt_similarity_threshold(
+    *,
+    default: float = 0.90,
+    minimum: float = 0.80,
+    maximum: float = 1.00,
+    ui: str = "float",
+    step: float = 0.01,
+    decimals: int = 2,
+    title: str = "Fuzzy Threshold",
+    percent_suffix: str = "%"
+) -> tuple[float | None, bool]:
+    dlg = QDialog(mw)
+    dlg.setWindowTitle(title)
+    lay = QVBoxLayout(dlg)
+
+    spin = QDoubleSpinBox()
+
+    if ui == "percent":
+        # If caller passed floats (0.85..1.00), convert to percents.
+        use_min, use_max, use_def = minimum, maximum, default
+        if maximum <= 1.0:
+            use_min, use_max, use_def = minimum * 100, maximum * 100, default * 100
+
+        # ? Percent UX defaults: whole % steps, no decimals
+        spin.setDecimals(0 if decimals is None else decimals)
+        if decimals is None:
+            spin.setDecimals(0)
+        spin.setRange(use_min, use_max)
+        spin.setSingleStep(max(1.0, step * 100))
+        spin.setValue(use_def)
+        spin.setSuffix(percent_suffix)
+    else:
+        spin.setDecimals(decimals)
+        spin.setRange(minimum, maximum)
+        spin.setSingleStep(step)
+        spin.setValue(default)
+
+    lay.addWidget(spin)
+
+    btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+    btns.accepted.connect(dlg.accept)
+    btns.rejected.connect(dlg.reject)
+    lay.addWidget(btns)
+
+    if dlg.exec() != QDialog.Accepted:
+        return None, False
+
+    val = spin.value()
+    if ui == "percent":
+        val /= 100.0
+        # Clamp to the caller’s FLOAT domain after conversion
+        lo = minimum if maximum <= 1.0 else minimum
+        hi = maximum if maximum <= 1.0 else maximum
+        # If caller passed percent bounds (85..100), convert them for clamp:
+        if maximum > 1.0:
+            lo, hi = minimum / 100.0, maximum / 100.0
+        val = max(min(val, hi), lo)
+    else:
+        # Clamp to float domain
+        val = max(min(val, maximum), minimum)
+
+    return val, True

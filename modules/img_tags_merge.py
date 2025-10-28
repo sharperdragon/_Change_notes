@@ -1,0 +1,92 @@
+from ..config_manager import ConfigManager 
+from .merge_imgs import run_merge_images
+from .merge_tags import unify_tags_on_duplicates
+from .utils import prompt_similarity_threshold
+
+# pyright: reportMissingImports=false
+# mypy: disable_error_code=import
+from aqt import mw
+from aqt.qt import QMessageBox, QDialogButtonBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QDoubleSpinBox
+from aqt.utils import showInfo
+from aqt.browser import Browser
+from aqt.browser import Browser as AqtBrowser 
+
+
+# ?  = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+# ?  =============================================================================================
+config_manager = ConfigManager("_Change_notes")
+config = config_manager.load()
+CONFIG = config
+
+def cfg(path: str, default=None):
+    node = CONFIG
+    for key in path.split("."):
+        if isinstance(node, dict) and key in node:
+            node = node[key]
+        else:
+            return default
+    return node
+
+def _f(path: str, default):
+    val = cfg(path, default)
+    try:
+        return float(val)
+    except Exception:
+        return float(default)
+
+
+
+def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None = None, tag_threshold: float | None = None):
+    if isinstance(selected, AqtBrowser) and browser is None:
+        browser, selected = selected, None
+
+    if browser is None:
+        QMessageBox.information(mw, "Unify Images + Tags", "Open the Browser first, or run this from the Browser context.")
+        return
+    # --- Resolve selected note IDs (be flexible) ---
+    if selected is None:
+        try:
+            note_ids = browser.selectedNotes()
+        except Exception:
+            QMessageBox.information(mw, "Unify Images + Tags", "Could not read the current selection from the Browser.")
+            return
+    else:
+        if isinstance(selected, int):
+            note_ids = [selected]
+        elif isinstance(selected, (list, tuple, set)):
+            note_ids = list(selected)
+        else:
+            try:
+                note_ids = list(selected)
+            except Exception:
+                note_ids = browser.selectedNotes()
+
+    if not note_ids:
+        QMessageBox.information(mw, "Unify Images + Tags", "No notes selected.")
+        return
+    # --- Decide thresholds (prompt once if needed) ---
+    if threshold is None and tag_threshold is None:
+        # Pull unified fuzzy settings from global_fuzzy_opts
+        default_threshold = _f("global_fuzzy_opts.default_fuzz", 0.96)
+        min_threshold     = _f("global_fuzzy_opts.min_fuzz", 0.78)
+        max_threshold     = _f("global_fuzzy_opts.max_fuzz", 1.00)
+
+        t, ok = prompt_similarity_threshold(
+            default=default_threshold,
+            minimum=min_threshold,
+            maximum=max_threshold,
+            ui="float",
+            title="Fuzzy Threshold (Global)"
+        )
+        if not ok:
+            return
+        threshold = max(min(t, max_threshold), min_threshold)
+        tag_threshold = threshold
+    else:
+        # backfill if only one provided
+        if threshold is None:
+            threshold = tag_threshold
+        if tag_threshold is None:
+            tag_threshold = threshold
+    run_merge_images(note_ids, browser, threshold=threshold)
+    unify_tags_on_duplicates(browser, threshold=tag_threshold)

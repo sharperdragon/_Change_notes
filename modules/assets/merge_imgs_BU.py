@@ -5,24 +5,30 @@ from urllib.parse import urlsplit
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime, timedelta
+
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
 from aqt import mw
-from aqt.qt import QMessageBox, QDialogButtonBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QDoubleSpinBox
-from .utils import (
+from aqt.qt import QInputDialog, QMessageBox, QDialogButtonBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QAction, QDoubleSpinBox
+from aqt.browser import Browser
+from aqt.gui_hooks import browser_will_show_context_menu
+from ..utils import (
     extract_images,
     extract_srcs,
     clean_img_tag,
+    normalize_cloze_content,
+    normalize,
     group_notes_by_similarity,
-    prompt_similarity_threshold
 )
 
 SKETCHY_PREFIX = "https://dashboard.sketchy.com"
 SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
 
+
 config = {
     "default_threshold": 0.90,
     "min_threshold": 0.80,
+    "max_threshold": 1.0,
     "ask_threshold_each_time": True,
 
     "allowed_models": [],
@@ -37,7 +43,6 @@ config = {
         "Extra6",
         "Extra7",
         "Button",
-        "Display",
     ],
 
     "merge_behavior": {
@@ -63,7 +68,12 @@ config = {
 CONFIG = config
 
 
+
+
 def cfg(path: str, default=None):
+    """
+    ! Config getter that walks dot paths, e.g. cfg("logging.enable_log_popup", True)
+    """
     node = CONFIG
     for key in path.split("."):
         if isinstance(node, dict) and key in node:
@@ -72,15 +82,14 @@ def cfg(path: str, default=None):
             return default
     return node
 
+
 # Add-on path and caches
 addon_path = Path(mw.addonManager.addonsFolder()) / "_Change_notes"
 FIELD_NAMES_BY_MID: dict[int, list[str]] = {}
 SCAN_FIELDS = set(cfg("fields_to_scan_for_images", []))
 
+
 def extract_all_imgs(fields_html: list[str]) -> list[tuple[int, str, tuple[int,int]]]:
-    """
-    Return list of (field_index, src, match_span) for every <img>.
-    """
     found = []
     for i, html in enumerate(fields_html):
         for m in clean_img_tag.finditer(html):
@@ -115,6 +124,7 @@ def is_model_allowed(note) -> bool:
 
 
 
+
 # --- Sketchy link helpers ----------------------------------------------------
 def extract_sketchy_links(html: str):
     """
@@ -126,119 +136,57 @@ def extract_sketchy_links(html: str):
     # anchors: list of tuples [(full_anchor_html, href)]
     return [(href, full_html) for (full_html, href) in anchors]
 
-# ? Detect bare Sketchy URLs and build anchors when needed
-SKETCHY_URL_ONLY_RE = re.compile(r'(' + SKETCHY_DOMAIN_RE + r')', flags=re.IGNORECASE)
-
-def _as_real_anchor(href: str, link_html: str | None) -> str:
-    """
-    Normalize into a real <a href="...">...</a>. If donor had a bare URL or escaped anchor,
-    we generate a short anchor to avoid losing the link.
-    """
-    if link_html and "<a" in link_html.lower():
-        return link_html  # already a real anchor
-    # short, consistent label avoids weird donor text
-    return f'<a href="{href}" target="_blank" rel="noopener">Sketchy</a>'
-
-def _find_links_any_form(html_unescaped: str):
-    """
-    Return list of tuples: (href, link_html_real, start_idx, end_idx)
-    Accepts:
-      - real anchors
-      - escaped anchors (once unescaped)
-      - bare URLs
-    """
-    results = []
-
-    # 1) real anchors
-    for m in re.finditer(r'(&lt;a\b[^&gt;]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^&gt;]*&gt;.*?&lt;/a&gt;)', html_unescaped, flags=re.IGNORECASE | re.DOTALL):
-        # If anchors are still escaped, they'll match here. We'll unescape below.
-        full_escaped = m.group(1)
-        href = m.group(2)
-        full_real = unescape(full_escaped)
-        results.append((href, _as_real_anchor(href, full_real), m.start(), m.end()))
-
-    # Also search already-unescaped real anchors
-    for m in re.finditer(r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)', html_unescaped, flags=re.IGNORECASE | re.DOTALL):
-        full = m.group(1)
-        href = m.group(2)
-        results.append((href, _as_real_anchor(href, full), m.start(), m.end()))
-
-    # 2) bare URLs (avoid double-adding ones already inside anchors)
-    for m in SKETCHY_URL_ONLY_RE.finditer(html_unescaped):
-        href = m.group(1)
-        # Skip if this position is inside an existing anchor match
-        inside_anchor = any(m.start() >= s and m.end() <= e for _, _, s, e in results)
-        if not inside_anchor:
-            results.append((href, _as_real_anchor(href, None), m.start(), m.end()))
-
-    # Sort by start for determinism
-    results.sort(key=lambda t: t[2])
-    return results
-
-
+# --- replace the whole function with this ---
 def parse_image_link_groups(field_html: str):
     """
-    Identify pairs of (one-or-more &lt;img&gt;) + (Sketchy link) even if images are wrapped,
-    the link is BEFORE or AFTER the images, or the link is a bare URL / escaped anchor.
+    Identify pairs of (one-or-more <img>) + (Sketchy <a ...>) even if the
+    images are wrapped in a <div> and the link appears *after* </div>.
     Returns: [{"srcs":[...ordered...], "link_html":..., "href":...}, ...]
     """
     results = []
     if not field_html:
         return results
 
-    # Work on unescaped HTML so escaped anchors become searchable
-    html_u = unescape(field_html)
-
-    # Windows around the link where we sniff for neighboring &lt;img&gt; runs
-    WINDOW = 1400
-
-    # a run of &lt;img&gt; tags possibly wrapped with a closing div edge
-    IMG_RUN = re.compile(
-        r'(?:</div>\s*)?(?:<br\s*/?>\s*)?((?:<img\b[^>]*?>\s*)+)',
+    # 1) Find every Sketchy anchor (REAL HTML, not &lt;…&gt;).
+    link_pat = re.compile(
+        r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)',
         flags=re.IGNORECASE | re.DOTALL
     )
 
-    # Also permit an &lt;img&gt; run FOLLOWED by optional &lt;br/&gt; or opening &lt;div&gt; before the link
-    IMG_RUN_FORWARD = re.compile(
-        r'((?:<img\b[^>]*?>\s*)+)(?:<br\s*/?>\s*)?(?:<div\b[^>]*?>\s*)?',
+    # 2) Look backward from each link for the nearest run of <img> tags.
+    #    Allow an optional closing </div> and optional <br/> between images and the link.
+    BACKWARD_WINDOW = 1200
+
+    # Matches a tail block ending right before the link:
+    #   optional closing </div>, optional <br>, and (critically) a run of <img> tags
+    imgs_tail_pat = re.compile(
+        r'(?:</div>\s*)?'            # optional closing container before the link
+        r'(?:<br\s*/?>\s*)?'         # optional <br> between images and link
+        r'((?:<img\b[^>]*?>\s*)+)$', # one-or-more <img> at the very end of the slice
         flags=re.IGNORECASE | re.DOTALL
     )
 
-    for href, link_html_real, s, e in _find_links_any_form(html_u):
-        # Look backward
-        back_start = max(0, s - WINDOW)
-        before = html_u[back_start:s]
-        back_match = None
-        # we want the trailing run nearest the link
-        for m in IMG_RUN.finditer(before):
-            back_match = m  # keep last
+    for m in link_pat.finditer(field_html):
+        full_link_html = m.group(1)  # RAW <a …>…</a>
+        href = m.group(2)
 
-        # Look forward
-        fwd_end = min(len(html_u), e + WINDOW)
-        after = html_u[e:fwd_end]
-        fwd_match = IMG_RUN_FORWARD.match(after)
+        # Look back from the start of the link
+        start = max(0, m.start() - BACKWARD_WINDOW)
+        before = field_html[start:m.start()]
 
-        imgs_block = None
-        # Prefer whichever side is closer: if both exist, choose the side with shorter gap
-        if back_match and fwd_match:
-            gap_back = s - (back_start + back_match.start())
-            gap_fwd = (e + fwd_match.end()) - e
-            imgs_block = back_match.group(1) if gap_back <= gap_fwd else fwd_match.group(1)
-        elif back_match:
-            imgs_block = back_match.group(1)
-        elif fwd_match:
-            imgs_block = fwd_match.group(1)
-
-        if not imgs_block:
+        # Nearest trailing run of <img> tags
+        tail_match = imgs_tail_pat.search(before)
+        if not tail_match:
             continue
 
-        imgs = extract_images(imgs_block)       # RAW &lt;img …&gt;
+        imgs_block = tail_match.group(1)
+        imgs = extract_images(imgs_block)   # expects RAW <img …>
         srcs = extract_srcs(imgs)
 
         if srcs:
             results.append({
-                "srcs": srcs,                   # keep original order
-                "link_html": link_html_real,    # guaranteed real anchor
+                "srcs": srcs,               # keep original order
+                "link_html": full_link_html, # RAW anchor ready to insert
                 "href": href
             })
 
@@ -310,20 +258,23 @@ def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
         return spin.value(), True
     return None, False
 
-def run_merge_images(note_ids: list[int], browser=None, threshold: float | None = None):
+def run_merge_images(note_ids: list[int], browser=None):
     if not note_ids:
         QMessageBox.information(mw, "Unify Images", "No notes selected.")
         return
 
-    # ! Threshold defaulting (UI prompt moved to merge_images_main)
-    if threshold is None:
-        # Use config defaults and clamp to [min, max]
-        default_threshold = cfg("default_threshold", 0.90)
-        min_threshold = cfg("min_threshold", 0.80)
-        max_threshold = 1.0
-        threshold = max(min(default_threshold, max_threshold), min_threshold)
+    default_threshold = cfg("default_threshold", 0.98)
+    min_threshold = cfg("min_threshold", 0.85)
+    max_threshold = cfg("max_threshold", 1.0)
+    ask_each = cfg("ask_threshold_each_time", True)
 
-    # print(f"[MergeImages] Using threshold={threshold:.3f}")
+    if ask_each:
+        t, ok = prompt_threshold(default_threshold, min_threshold, max_threshold)
+        if not ok:
+            return
+        threshold = max(min(t, max_threshold), min_threshold)
+    else:
+        threshold = max(min(default_threshold, max_threshold), min_threshold)
 
     if browser is None:
         browser = mw.form.browser
@@ -517,42 +468,27 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
                 # ---- Copy Sketchy links under their corresponding images ----
                 if copy_links and donor_link_groups:
+                    field_names_rec = field_names  # already computed above
                     # Recompute current src sets per field after image merges
                     current_field_srcs = {}
                     for fi, fhtml in enumerate(updated_fields):
-                        if field_names[fi] not in SCAN_FIELDS:
+                        if field_names_rec[fi] not in SCAN_FIELDS:
                             continue
                         imgs_now = extract_images(fhtml)
                         current_field_srcs[fi] = set(extract_srcs(imgs_now))
 
                     for grp in donor_link_groups:
-                        grp_set = set(grp["srcs"])
-
-                        # 1) Ideal: a field containing ALL srcs
-                        exact_target = next((fi for fi, sset in current_field_srcs.items() if grp_set.issubset(sset)), None)
-
-                        target_index = exact_target
+                        target_index = None
+                        grp_srcs_set = set(grp["srcs"])
+                        # Choose the first field that contains all group srcs
+                        for fi, srcset in current_field_srcs.items():
+                            if grp_srcs_set.issubset(srcset):
+                                target_index = fi
+                                break
                         if target_index is None:
-                            # 2) Next-best: field with MAX OVERLAP
-                            best_idx, best_overlap = None, 0
-                            for fi, sset in current_field_srcs.items():
-                                overlap = len(grp_set & sset)
-                                if overlap > best_overlap:
-                                    best_idx, best_overlap = fi, overlap
-                            if best_overlap > 0:
-                                target_index = best_idx
+                            continue  # no suitable field in this note
 
-                        if target_index is None:
-                            # 3) Last resort: first SCAN_FIELDS field
-                            for fi, name in enumerate(field_names):
-                                if name in SCAN_FIELDS:
-                                    target_index = fi
-                                    break
-
-                        if target_index is None:
-                            continue
-
-                        # Skip if href already present
+                        # Skip if the exact href already exists in that field
                         if field_contains_href(updated_fields[target_index], grp["href"]):
                             continue
 
@@ -564,7 +500,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         if inserted:
                             updated_fields[target_index] = new_html
                             changed = True
-                            t_field_name = field_names[target_index]
+                            t_field_name = get_field_names(note)[target_index]
                             log_entries.append(
                                 f"🔗 Added Sketchy link under images in Note {note.id} field '{t_field_name}': {grp['href']}"
                             )
@@ -652,6 +588,14 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     if enable_popup:
         show_log_window("\n\n".join(log_entries))
 
+
+def merge_images_main(browser=None):
+    if browser is None:
+        browser = mw.form.browser
+    note_ids = browser.selectedNotes()
+    run_merge_images(note_ids, browser)
+
+
 def show_log_window(log_text):
     dlg = QDialog(mw)
     dlg.setWindowTitle("Unify Images Log")
@@ -666,6 +610,15 @@ def show_log_window(log_text):
     dlg.setLayout(layout)
     dlg.resize(800, 500)
     dlg.exec()
+
+def browser_menu_hook(menu, browser: Browser):
+    act = QAction("🧬 Unify Images from Donors", menu)
+    act.triggered.connect(lambda: merge_images_main(browser))
+    menu.addAction(act)
+browser_will_show_context_menu.append(browser_menu_hook)
+
+
+
 
 
 # Delete old logs utility
@@ -701,54 +654,6 @@ def collect_used_donors_for_block(missing_imgs, donor_notes):
                     used_donors.add(donor.id)
                     break
 
-def merge_images_main(selected=None, browser=None):
-    # --- Resolve browser ---
-    if browser is None:
-        browser = mw.form.browser
 
-    # --- Resolve selected note IDs (be flexible) ---
-    note_ids = None
-    if selected is None:
-        # No explicit selection provided; pull from the browser
-        note_ids = browser.selectedNotes()
-    else:
-        # Normalize various possible forms of 'selected'
-        if isinstance(selected, int):
-            note_ids = [selected]
-        elif isinstance(selected, (list, tuple, set)):
-            # Ensure all are ints/strings convertible to int if needed
-            note_ids = list(selected)
-        else:
-            # Fallback: try to treat as an iterable; if not, ignore and pull from browser
-            try:
-                note_ids = list(selected)
-            except Exception:
-                note_ids = browser.selectedNotes()
 
-    if not note_ids:
-        QMessageBox.information(mw, "Unify Images", "No notes selected.")
-        return
-
-    # ? Gather threshold config here (UI edge)
-    default_threshold = cfg("default_threshold", 0.97)
-    min_threshold = cfg("min_threshold", 0.80)
-    max_threshold =  1.0
-    ask_each = cfg("ask_threshold_each_time", True)
-
-    # Decide threshold (prompt or silent clamp)
-    if ask_each:
-        t, ok = prompt_similarity_threshold(
-            default=default_threshold,
-            minimum=min_threshold,
-            maximum=max_threshold,
-            ui="float",
-            title="Fuzzy Threshold (Images)"
-        )
-        if not ok:
-            return  # user canceled
-        threshold = max(min(t, max_threshold), min_threshold)
-    else:
-        threshold = max(min(default_threshold, max_threshold), min_threshold)
-
-    # Delegate
-    run_merge_images(note_ids, browser, threshold=threshold)
+ 

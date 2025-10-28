@@ -3,7 +3,6 @@
 # mypy: disable_error_code=import
 from aqt import mw
 
-
 class ConfigManager:
     """Manages loading and saving add-on configuration."""
 

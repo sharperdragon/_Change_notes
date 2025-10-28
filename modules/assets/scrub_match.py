@@ -5,7 +5,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 # Third-Party
 from bs4 import BeautifulSoup
-
+# pyright: reportMissingImports=false
+# mypy: disable_error_code=import
 # Anki / aqt
 from aqt import mw
 

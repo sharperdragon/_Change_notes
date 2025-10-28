@@ -30,8 +30,6 @@ from aqt.browser import Browser
 from aqt.utils import showInfo, showText
 from aqt import gui_hooks
 
-
-from .modules.utils import load_config, save_config
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
 
@@ -43,8 +41,8 @@ from .modules.change_note_types import change_selected_notes
 from .modules.add_tags import add_tag_menu_items
 from .modules.Add_img_class import main as add_img_class_main
 from .modules.export_nids import create_export_nids_action
-from .modules.merge_imgs import run_merge_images
-from .modules.merge_all import run_merge_all
+from .modules.merge_imgs import merge_images_main
+from .modules.img_tags_merge import merge_imgs_and_tags
 from .modules.add_table_class import main as add_table_class_main  # supports module-level access
 
 
@@ -125,18 +123,23 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     merge_menu.setObjectName("mergeMenu")
     added_merge = False
 
-    if run_merge_images:
+    if merge_images_main:
         merge_imgs_action = QAction("🧬 Merge Images", browser)
-        merge_imgs_action.triggered.connect(lambda: run_merge_images(selected, browser))
+        merge_imgs_action.triggered.connect(lambda: merge_images_main(selected, browser))
         merge_menu.addAction(merge_imgs_action)
         added_merge = True
+
+    unify_Img_and_tags_action = QAction("🍃Merge Imgs+Tags", browser)
+    unify_Img_and_tags_action.triggered.connect(lambda _=None: merge_imgs_and_tags(browser=browser))
+    merge_menu.addAction(unify_Img_and_tags_action)
+    added_merge = True
 
     unify_tags_action = QAction("Merge Twin Note Tags⊹", browser)
     unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
     merge_menu.addAction(unify_tags_action)
     added_merge = True
 
-    merge_sched_action = QAction("Merge Scheduling (Similarity)", browser)
+    merge_sched_action = QAction("Merge Schedule – Similarity", browser)
     merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
     merge_menu.addAction(merge_sched_action)
     added_merge = True
