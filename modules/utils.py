@@ -360,12 +360,12 @@ def prompt_similarity_threshold(
 
     lay.addWidget(spin)
 
-    btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
     btns.accepted.connect(dlg.accept)
     btns.rejected.connect(dlg.reject)
     lay.addWidget(btns)
 
-    if dlg.exec() != QDialog.Accepted:
+    if dlg.exec() != QDialog.DialogCode.Accepted:
         return None, False
 
     val = spin.value()

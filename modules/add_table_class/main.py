@@ -17,7 +17,7 @@ try:
 except Exception:
     _cfg = {}
 
-_LOG_PATH = os.path.expanduser(_cfg.get("log_path", "~/Desktop/Add_table_class_log.txt"))
+_LOG_PATH = os.path.expanduser(_cfg.get("log_path", "~/Desktop/anki_logs/Add_table_class_log.txt"))
 _APPLY_TO_EXISTING = bool(_cfg.get("apply_to_existing_classes", True))
 
 
@@ -212,7 +212,7 @@ def add_class_main(browser):
 
 def open_config_gui():
     dialog = ConfigDialog(CFG_NAMESPACE, ConfigManager)
-    dialog.exec_()
+    dialog.exec()
 
 
 def initialize_addon():

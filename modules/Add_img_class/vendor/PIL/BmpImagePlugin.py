@@ -140,14 +140,6 @@ class BmpImageFile(ImageFile.ImageFile):
                     for idx, mask in enumerate(masks):
                         file_info[mask] = i32(header_data, 36 + idx * 4)
                 else:
-                    # 40 byte headers only have the three components in the
-                    # bitfields masks, ref:
-                    # https://msdn.microsoft.com/en-us/library/windows/desktop/dd183376(v=vs.85).aspx
-                    # See also
-                    # https://github.com/python-pillow/Pillow/issues/1293
-                    # There is a 4th component in the RGBQuad, in the alpha
-                    # location, but it is listed as a reserved component,
-                    # and it is not generally an alpha channel
                     file_info["a_mask"] = 0x0
                     for mask in masks:
                         file_info[mask] = i32(read(4))

@@ -14,7 +14,7 @@
   },
   "global_fuzzy_opts":{
       "default_fuzz": 0.97,
-      "min_fuzz": 0.79,
+      "min_fuzz": 0.59,
       "max_fuzz": 1.0
   },
   "merge_tags_config": {
@@ -23,14 +23,14 @@
     "log_folder": "",
     "merge_select_only": "False",
     "merge_only_parents": [
-      "#OLD_Tags",
-      "sketchymicro",
-      "firstaid"
+      "",
+      "",
+      ""
     ]
   },
     "merge_images_config":{
       "default_threshold": 0.97,
-      "min_threshold": 0.79,
+      "min_threshold": 0.60,
       "max_threshold": 1.0,
       "ask_threshold_each_time": true,
       "allowed_models": [],
@@ -43,7 +43,8 @@
         "Extra5",
         "Extra6",
         "Extra7",
-        "Button"
+        "Button",
+        "Front"
       ],
       "merge_behavior": {
         "wrap_images_in_div": true,
@@ -62,8 +63,8 @@
       }
     },
   "merge_images_and_tags_config": {
-    "default_fuzzy": "0.99",
-    "min_fuzzy": "0.78",
+    "default_fuzzy": 0.99,
+    "min_fuzzy": 0.78,
     "base_tag": "Tag+IMG_MERGED",
     "log_folder": ""
   },
@@ -118,8 +119,8 @@
   },
   "merge_scheduling": {
     "merge_similarity_threshold": 85,
-    "default_fuzzy": "0.95",
-    "min_fuzzy": "0.81",
+    "default_fuzzy": 0.95,
+    "min_fuzzy": 0.81,
     "merge_field_index": 0,
     "scheduling_merge_log_path": "merged_scheduling.log",
     "use_text_replacements": true,

@@ -1,20 +1,20 @@
-from aqt import mw
+import html
 import json
 import os
-import re, sys
-
-import html, re, unicodedata
+import re
+import unicodedata
 from collections import defaultdict
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from bs4 import BeautifulSoup
+from aqt import mw
+
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
-from aqt.qt import  QInputDialog
+from aqt.qt import QInputDialog
+from bs4 import BeautifulSoup
 
-
- # ConfigManager is located one level up (_Change_notes/config_manager.py)
+# ConfigManager is located one level up (_Change_notes/config_manager.py)
 try:
     from ..config_manager import ConfigManager  # type: ignore
 except Exception:
@@ -23,6 +23,7 @@ except Exception:
 # --- Centralized config loading helpers ---
 _ADDON_ROOT = Path(__file__).resolve().parents[1]
 _CONFIG_PATH = _ADDON_ROOT / "config.json"
+
 
 def _load_config_raw():
     """
@@ -45,6 +46,7 @@ def _load_config_raw():
     except Exception:
         return {}
 
+
 def get_config_section(section_name: str, default=None):
     """
     Fetch a named section from the config (e.g., 'merge_images_config').
@@ -55,12 +57,14 @@ def get_config_section(section_name: str, default=None):
         default = {}
     return data.get(section_name, default)
 
+
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
+
 
 def save_config(config):
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
@@ -79,7 +83,6 @@ def get_field_index_from_config(note_type_name, field_name):
     raise ValueError(f"Field '{field_name}' not found in note type '{note_type_name}'")
 
 
-
 def prompt_fuzzy_threshold(default=None):
     """Prompt user for fuzzy threshold (0–100) using a popup input dialog."""
     if default is None:
@@ -88,14 +91,17 @@ def prompt_fuzzy_threshold(default=None):
         default_threshold = float(mi_cfg.get("default_threshold", 0.98))
         default = int(default_threshold * 100)
     val, ok = QInputDialog.getInt(
-        mw, "Set Fuzzy Match Threshold",
+        mw,
+        "Set Fuzzy Match Threshold",
         "Select fuzzy match threshold (0 = loose, 100 = strict):",
-        default, 85, 100, 1
+        default,
+        85,
+        100,
+        1,
     )
     if ok:
         return val / 100  # Normalize to 0.0–1.0 range
     return None
-
 
 
 # === Constants & Global Config ===
@@ -112,26 +118,35 @@ SYNONYMS = {
 
 PREFIX_COMBOS = {
     "hyper": [
-        "glycemia", "kalemia", "natremia", "calcemia", "reflexia",
-        "tonia", "lipidemia", "uricemia", "parathyroidism"
+        "glycemia",
+        "kalemia",
+        "natremia",
+        "calcemia",
+        "reflexia",
+        "tonia",
+        "lipidemia",
+        "uricemia",
+        "parathyroidism",
     ],
     "hypo": [
-        "glycemia", "kalemia", "natremia", "calcemia", "reflexia",
-        "tonia", "albuminemia", "parathyroidism", "magnesemia"
+        "glycemia",
+        "kalemia",
+        "natremia",
+        "calcemia",
+        "reflexia",
+        "tonia",
+        "albuminemia",
+        "parathyroidism",
+        "magnesemia",
     ],
-    "anti": [
-        "histamine", "inflammatory", "bacterial", "coagulant"
-    ]
+    "anti": ["histamine", "inflammatory", "bacterial", "coagulant"],
 }
 
 SUFFIX_COMBOS = {
-    "emia": [
-        "hyperglyc", "hypoglyc", "hyperuric", "hypouric"
-    ],
-    "itis": [
-        "neur", "hepat", "appendic", "tonsill", "dermat"
-    ]
+    "emia": ["hyperglyc", "hypoglyc", "hyperuric", "hypouric"],
+    "itis": ["neur", "hepat", "appendic", "tonsill", "dermat"],
 }
+
 
 def build_morpheme_combos_from_rules():
     combos = {}
@@ -146,16 +161,24 @@ def build_morpheme_combos_from_rules():
 
     return combos
 
+
 MORPHEME_COMBOS = build_morpheme_combos_from_rules()
 
 _REPLACEMENTS = {}
+
 
 # === HTML Extraction Utilities ===
 def extract_images(text):
     return re.findall(r'<img [^>]*src="[^"]+"[^>]*>', text, re.IGNORECASE)
 
+
 def extract_srcs(image_tags):
-    return {re.search(r'src="([^"]+)"', img).group(1) for img in image_tags if 'src="' in img}
+    return {
+        re.search(r'src="([^"]+)"', img).group(1)
+        for img in image_tags
+        if 'src="' in img
+    }
+
 
 def clean_img_tag(img_tag):
     src_match = re.search(r'src="([^"]+)"', img_tag, re.IGNORECASE)
@@ -164,12 +187,17 @@ def clean_img_tag(img_tag):
         return ""
     src = src_match.group(1)
     class_attr = class_match.group(1) if class_match else None
-    return f'<img src="{src}" class="{class_attr}">' if class_attr else f'<img src="{src}">'
+    return (
+        f'<img src="{src}" class="{class_attr}">'
+        if class_attr
+        else f'<img src="{src}">'
+    )
 
 
 # === Text Normalization ===
 def strip_html(s):
-    return re.sub(r'<[^>]+>', '', s)
+    return re.sub(r"<[^>]+>", "", s)
+
 
 # Helper for cloze normalization
 def normalize_cloze_content(cloze_content):
@@ -210,6 +238,7 @@ def normalize_cloze_content(cloze_content):
     # Return normalized, sorted string
     return " ".join(sorted(expanded_tokens))
 
+
 def combine_morphemes(tokens):
     """
     Merge known morpheme pairs into a unified medical term.
@@ -226,6 +255,7 @@ def combine_morphemes(tokens):
             i += 1
     return combined
 
+
 def normalize(text):
     # Step 1: Strip HTML using BeautifulSoup
     soup = BeautifulSoup(text, "html.parser")
@@ -238,21 +268,21 @@ def normalize(text):
     text = text.replace("\xa0", " ")
 
     # Step 3: Normalize unicode to ascii
-    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
     # Normalize e.g. and other parenthetical segments
-    text = re.sub(r'\(\s*e\.?g\.?,?\s*', '(e.g. ', text)
-    text = re.sub(r'\s*\)', ')', text)
+    text = re.sub(r"\(\s*e\.?g\.?,?\s*", "(e.g. ", text)
+    text = re.sub(r"\s*\)", ")", text)
 
     # Step 4: Collect and normalize all clozes by group (e.g., c1)
-    cloze_matches = re.findall(r'\{\{c(\d+)::(.*?)(?:::.*?)?\}\}', text)
+    cloze_matches = re.findall(r"\{\{c(\d+)::(.*?)(?:::.*?)?\}\}", text)
     cloze_dict = defaultdict(list)
 
     for group, content in cloze_matches:
         cloze_dict[group].append(content)
 
     # Remove all original clozes
-    text = re.sub(r'\{\{c\d+::.*?(?:::.*?)?\}\}', '', text)
+    text = re.sub(r"\{\{c\d+::.*?(?:::.*?)?\}\}", "", text)
 
     # Append normalized clozes
     for group, contents in cloze_dict.items():
@@ -261,24 +291,29 @@ def normalize(text):
         text += f" {{c{group}::{normalized}}}"
 
     # Step 5: Remove punctuation, arrows
-    text = re.sub(r'[.,:;!?]', '', text)
-    text = re.sub(r'\s*,\s*', ', ', text)
-    text = re.sub(r'\s*/\s*', ' or ', text)
-    text = text.replace("↑", "increased").replace("↓", "decreased").replace("↔", "normal")
+    text = re.sub(r"[.,:;!?]", "", text)
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = re.sub(r"\s*/\s*", " or ", text)
+    text = (
+        text.replace("↑", "increased").replace("↓", "decreased").replace("↔", "normal")
+    )
 
     # Step 6: Apply custom replacements
     for abbr, full in _REPLACEMENTS.items():
-        text = re.sub(rf'\b{abbr}\b', full, text)
+        text = re.sub(rf"\b{abbr}\b", full, text)
 
     # Step 7: Final whitespace and lowercase normalization
-    return re.sub(r'\s+', ' ', text).strip().lower()
+    return re.sub(r"\s+", " ", text).strip().lower()
 
 
 # === Similarity & Grouping ===
 def is_similar(a, b, threshold):
     return SequenceMatcher(None, a, b).ratio() >= threshold
 
-def group_notes_by_similarity(note_infos, threshold, field_name="Text", has_excluded_tag=lambda note: False):
+
+def group_notes_by_similarity(
+    note_infos, threshold, field_name="Text", has_excluded_tag=lambda note: False
+):
     note_lookup = defaultdict(list)
     for note in note_infos:
         if has_excluded_tag(note):
@@ -291,12 +326,15 @@ def group_notes_by_similarity(note_infos, threshold, field_name="Text", has_excl
         if norm in note_lookup:
             note_lookup[norm].append(note)
         else:
-            matched_key = next((k for k in note_lookup if is_similar(norm, k, threshold)), None)
+            matched_key = next(
+                (k for k in note_lookup if is_similar(norm, k, threshold)), None
+            )
             if matched_key:
                 note_lookup[matched_key].append(note)
             else:
                 note_lookup[norm].append(note)
     return note_lookup
+
 
 # === File/Replacement Handling ===
 def load_replacements(path=TEXT_REPLACEMENT_PATH):
@@ -304,7 +342,8 @@ def load_replacements(path=TEXT_REPLACEMENT_PATH):
         lines = Path(path).read_text(encoding="utf-8").splitlines()
         return {
             line.split("=>")[0].strip(): line.split("=>")[1].strip()
-            for line in lines if "=>" in line
+            for line in lines
+            if "=>" in line
         }
     except FileNotFoundError:
         print(f"⚠️ Replacement file not found at {path}, skipping replacements.")
@@ -313,8 +352,5 @@ def load_replacements(path=TEXT_REPLACEMENT_PATH):
         print(f"Failed to load replacements: {e}")
         return {}
 
+
 _REPLACEMENTS = load_replacements()
-
-
-
-

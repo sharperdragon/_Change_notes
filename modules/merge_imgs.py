@@ -175,6 +175,35 @@ def _find_links_any_form(html_unescaped: str):
     results.sort(key=lambda t: t[2])
     return results
 
+# * Normalizes a URL for reliable comparisons (scheme/host/path; drops fragment; lowercases host).
+def _normalize_url(u: str) -> str:
+    try:
+        from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+        parts = urlsplit(u.strip())
+        # normalize scheme and host
+        scheme = 'https' if parts.scheme in ('http', 'https', '') else parts.scheme
+        netloc = parts.netloc.lower()
+        path = parts.path or '/'
+        # Optionally drop tracking params; keep meaningful ones
+        q_pairs = [(k, v) for (k, v) in parse_qsl(parts.query, keep_blank_values=True)
+                   if not k.lower().startswith(('utm_', 'fbclid'))]
+        query = urlencode(q_pairs, doseq=True)
+        # fragment ignored for equality
+        return urlunsplit((scheme, netloc, path, query, ''))
+    except Exception:
+        return (u or '').strip()
+
+# * Checks if an equivalent Sketchy URL already exists in the (possibly escaped) field HTML.
+def field_contains_sketchy_href_any_form(field_html: str, href: str) -> bool:
+    if not field_html or not href:
+        return False
+    target_norm = _normalize_url(href)
+    html_u = unescape(field_html)
+    for found_href, _, _, _ in _find_links_any_form(html_u):
+        if _normalize_url(found_href) == target_norm:
+            return True
+    return False
+
 
 def parse_image_link_groups(field_html: str):
     """
@@ -300,13 +329,13 @@ def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
 
     layout.addWidget(spin)
 
-    button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+    button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
     layout.addWidget(button_box)
 
     button_box.accepted.connect(dialog.accept)
     button_box.rejected.connect(dialog.reject)
 
-    if dialog.exec() == QDialog.Accepted:
+    if dialog.exec() == QDialog.DialogCode.Accepted:
         return spin.value(), True
     return None, False
 
@@ -430,6 +459,16 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                                 g2 = dict(g)
                                 g2["donor_id"] = donor.id
                                 donor_link_groups.append(g2)
+            # ? De-dup by (normalized href, ordered src tuple)
+            _seen_groups = set()
+            _unique_groups = []
+            for g in donor_link_groups:
+                key = (_normalize_url(g.get("href", "")), tuple(g.get("srcs", [])))
+                if key in _seen_groups:
+                    continue
+                _seen_groups.add(key)
+                _unique_groups.append(g)
+            donor_link_groups = _unique_groups
 
             for note in model_group:
                 updated_fields = list(note.fields)
@@ -525,6 +564,17 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         imgs_now = extract_images(fhtml)
                         current_field_srcs[fi] = set(extract_srcs(imgs_now))
 
+                    # Track per-field normalized hrefs present (pre + during this pass)
+                    field_href_norms = {}
+                    for fi, fhtml in enumerate(updated_fields):
+                        if field_names[fi] not in SCAN_FIELDS:
+                            continue
+                        html_u = unescape(fhtml)
+                        present = set()
+                        for found_href, _, _, _ in _find_links_any_form(html_u):
+                            present.add(_normalize_url(found_href))
+                        field_href_norms[fi] = present
+
                     for grp in donor_link_groups:
                         grp_set = set(grp["srcs"])
 
@@ -552,8 +602,10 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         if target_index is None:
                             continue
 
-                        # Skip if href already present
-                        if field_contains_href(updated_fields[target_index], grp["href"]):
+                        # Skip if an equivalent href (anchor/escaped/bare) already present in this field
+                        if field_contains_sketchy_href_any_form(updated_fields[target_index], grp["href"]) or \
+                           _normalize_url(grp["href"]) in field_href_norms.get(target_index, set()):
+                            log_entries.append(f"🔁 Skip link (already present) in Note {note.id} field '{field_names[target_index]}': {grp['href']}")
                             continue
 
                         new_html, inserted = insert_link_below_images(
@@ -564,6 +616,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         if inserted:
                             updated_fields[target_index] = new_html
                             changed = True
+                            field_href_norms.setdefault(target_index, set()).add(_normalize_url(grp["href"]))
                             t_field_name = field_names[target_index]
                             log_entries.append(
                                 f"🔗 Added Sketchy link under images in Note {note.id} field '{t_field_name}': {grp['href']}"
@@ -641,16 +694,19 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
     # Write logs to Desktop or addon logs dir based on config
     if save_to_desktop:
-        log_dir = Path.home() / "Desktop"
+        log_dir = Path.home() / "Desktop/anki logs"
     else:
         log_dir = Path(addon_path) / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
+
+    # ! ensure log directory exists to avoid FileNotFoundError
+    log_dir.mkdir(parents=True, exist_ok=True)
+
     log_path = log_dir / f"{log_prefix}{int(time.time())}.txt"
     with open(log_path, "w", encoding="utf-8") as f:
         f.write("\n\n".join(log_entries))
 
-    if enable_popup:
-        show_log_window("\n\n".join(log_entries))
+        if enable_popup:
+            show_log_window("\n\n".join(log_entries))
 
 def show_log_window(log_text):
     dlg = QDialog(mw)

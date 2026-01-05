@@ -71,7 +71,7 @@ except ImportError:
         _run_change_note_type = lambda browser, nids, mid: _change_note_type_fn(browser, nids, mid)
     except ImportError:
         from aqt.changenotetype import ChangeNotetypeDialog
-        _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec_()
+        _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec()
 
 
 # Prompt for threshold and run tag unification if threshold is set
@@ -101,7 +101,7 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
 
     # Export NIDs (adds two Desktop files + copies query to clipboard)
     export_action = create_export_nids_action(parent=browser, mw=mw, browser=browser)
-    menu.addAction(export_action)  # <-- add to the context menu
+    menu.addAction(export_action)  
     
     # Context menu → runs add_table_class on currently selected notes.
     classify_imgs_action = QAction("Add IMG class 🏞️", browser)
@@ -123,23 +123,22 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     merge_menu.setObjectName("mergeMenu")
     added_merge = False
 
-    if merge_images_main:
-        merge_imgs_action = QAction("🧬 Merge Images", browser)
-        merge_imgs_action.triggered.connect(lambda: merge_images_main(selected, browser))
-        merge_menu.addAction(merge_imgs_action)
-        added_merge = True
-
     unify_Img_and_tags_action = QAction("🍃Merge Imgs+Tags", browser)
     unify_Img_and_tags_action.triggered.connect(lambda _=None: merge_imgs_and_tags(browser=browser))
     merge_menu.addAction(unify_Img_and_tags_action)
     added_merge = True
 
-    unify_tags_action = QAction("Merge Twin Note Tags⊹", browser)
+    merge_imgs_action = QAction("🧬 Merge Images", browser)
+    merge_imgs_action.triggered.connect(lambda: merge_images_main(selected, browser))
+    merge_menu.addAction(merge_imgs_action)
+    added_merge = True
+
+    unify_tags_action = QAction("🔀 Merge Tags⊹", browser)
     unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
     merge_menu.addAction(unify_tags_action)
     added_merge = True
 
-    merge_sched_action = QAction("Merge Schedule – Similarity", browser)
+    merge_sched_action = QAction("🛻 Merge Schedule", browser)
     merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
     merge_menu.addAction(merge_sched_action)
     added_merge = True
@@ -214,7 +213,7 @@ except ImportError:
 def open_config_gui():
     # Launch GUI config dialog for field-mapping setup
     dialog = ConfigDialog("Change_note-types", ConfigManager)
-    dialog.exec_()
+    dialog.exec()
 
 
 def custom_styled_action(text, parent, triggered_fn):

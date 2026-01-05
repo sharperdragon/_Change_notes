@@ -83,6 +83,7 @@ def _write_nids_to_path(nids: Sequence[int], path: str) -> Tuple[bool, str]:
         return False, f"Failed to save NIDs: {e!r}"
 
 
+
 def _copy_nids_to_clipboard(nids_or_text) -> None:
     """
     Copy to the system clipboard. Accepts either:
@@ -99,6 +100,15 @@ def _copy_nids_to_clipboard(nids_or_text) -> None:
         cb.setText("\n".join(str(n) for n in nids_or_text))
 
 
+# New helper to ensure Desktop export directory exists
+def _ensure_export_dir() -> str:
+    """Ensure the Desktop export directory exists and return its path."""
+    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+    export_dir = os.path.join(desktop, "NID export")
+    os.makedirs(export_dir, exist_ok=True)
+    return export_dir
+
+
 # New helper: write arbitrary text
 
 def _write_text_to_path(text: str, path: str) -> Tuple[bool, str]:
@@ -108,6 +118,23 @@ def _write_text_to_path(text: str, path: str) -> Tuple[bool, str]:
         return True, f"Saved to: {path}"
     except Exception as e:
         return False, f"Failed to save to {path}: {e!r}"
+
+
+# New helper: write error log to Desktop/NID export
+def _write_error_log(details: str) -> str:
+    """Write an error report to ~/Desktop/NID export and return the path.
+
+    If writing fails, returns an empty string.
+    """
+    try:
+        export_dir = _ensure_export_dir()
+        ts = datetime.now().strftime("%H-%M_%m-%d")
+        log_path = os.path.join(export_dir, f"export_nids_error_{ts}.txt")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(details)
+        return log_path
+    except Exception:
+        return ""
 
 
 # ---------- Public entry point you call from __init__ ----------
@@ -163,11 +190,11 @@ def create_export_nids_action(
         # Two empty lines between chunks -> join with 3 newlines
         query_text = ("\n\n\n").join(query_chunks)
 
-        # 4) Paths with user base name + timestamp + required suffixes
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        ts = datetime.now().strftime("%H%M")
-        simple_path = os.path.join(desktop, f"NID export/{base}_{ts}_simple.txt")  # <- required suffix
-        query_path  = os.path.join(desktop, f"NID export/{base}_{ts}_query.txt")   # <- required suffix
+        # 4) Paths with user base name + timestamp (ensure export dir exists)
+        export_dir = _ensure_export_dir()
+        ts = datetime.now().strftime("%H-%M_%m-%d")
+        simple_path = os.path.join(export_dir, f"{base}_{ts}_simple.txt")
+        query_path  = os.path.join(export_dir, f"{base}_{ts}_query.txt")
 
         # 5) Write files
         ok1, msg1 = _write_text_to_path(comma_str, simple_path)
@@ -186,10 +213,21 @@ def create_export_nids_action(
                 f"(Copied CHUNK 1 to clipboard.)"
             )
         else:
+            details = "\n".join([msg1, msg2])
+            log_path = _write_error_log(details)
+
+            extra = f"\n\nError log: {log_path}" if log_path else ""
             try:
-                showText("\n".join([msg1, msg2]), title="Export NIDs Error", plain_text=True)
+                showText(
+                    details + extra,
+                    title="Export NIDs Error",
+                    plain_text=True,
+                )
             except Exception:
-                tooltip("Export completed with errors. See console/logs.")
+                if log_path:
+                    tooltip(f"Export completed with errors.\nError log: {log_path}")
+                else:
+                    tooltip("Export completed with errors (failed to write error log).")
 
     # Connect on creation
     action.triggered.connect(_run)  # type: ignore[attr-defined]

@@ -15,8 +15,8 @@ class ConfigDialog(QDialog):
     def __init__(self, addon_name: str, config_manager_cls, parent=None):
         super().__init__(parent or mw)
         self.setWindowTitle(f"{addon_name} Add-on Configuration")
-        self.setWindowFlags(Qt.Window)
-        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowFlags(Qt.WindowType.Window)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setGeometry(100, 100, 800, 500)
 
         self.addon_name = addon_name
@@ -74,7 +74,7 @@ class ConfigDialog(QDialog):
             }
         """)
 
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         left_widget = QWidget()
         left_widget.setLayout(left_panel)
 

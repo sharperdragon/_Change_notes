@@ -248,13 +248,13 @@ def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
 
     layout.addWidget(spin)
 
-    button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+    button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
     layout.addWidget(button_box)
 
     button_box.accepted.connect(dialog.accept)
     button_box.rejected.connect(dialog.reject)
 
-    if dialog.exec() == QDialog.Accepted:
+    if dialog.exec() == QDialog.DialogCode.Accepted:
         return spin.value(), True
     return None, False
 

@@ -23,7 +23,7 @@ except ImportError:
         _run_change_note_type = lambda browser, nids, mid: _change_note_type_fn(browser, nids, mid)
     except ImportError:
         from aqt.changenotetype import ChangeNotetypeDialog
-        _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec_()
+        _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec()
 
 
 
