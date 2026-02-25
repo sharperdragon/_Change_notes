@@ -1,18 +1,17 @@
 from aqt import mw
 import json
 import os
-import re, sys
+import re
 
-import html, re, unicodedata
+import html 
+import unicodedata
 from collections import defaultdict
 from difflib import SequenceMatcher
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-# pyright: reportMissingImports=false
-# mypy: disable_error_code=import
+
 from aqt.qt import  QInputDialog
-from aqt import mw
 from aqt.qt import QDialog, QVBoxLayout, QDialogButtonBox, QDoubleSpinBox
 
 

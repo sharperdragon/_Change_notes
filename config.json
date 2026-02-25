@@ -125,5 +125,11 @@
     "scheduling_merge_log_path": "merged_scheduling.log",
     "use_text_replacements": true,
     "tag_on_merge": "Scheduling::Merged"
+  },
+  "add_tags": {
+    "base_missed_tag": "##Missed-Qs",
+    "Q_Banks":[
+      "UWORLD", "COMQUEST"
+    ]
   }
 }

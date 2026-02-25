@@ -1,118 +1,173 @@
- 1. Current Architecture (diagnostic overview)
+# _Change_notes: Advanced Anki Add-on Suite for Tag, Note, and Media Management
 
-'''
+## Introduction
 
-# _Change_notes: Anki Add-on Suite for Tag, Note, and Media Management
+_Change_notes is a powerful, modular add-on suite designed to enhance and streamline the management of Anki collections at scale. It provides a comprehensive set of tools focused on tag deduplication and merging, note type batch conversion, schedule merging, media handling, and bulk tag operations. Built with flexibility and extensibility in mind, _Change_notes caters both to power users looking to maintain large decks efficiently and developers aiming to extend its capabilities.
 
-## Summary
-_Change_notes is a modular suite of advanced tools for managing tags, note types, scheduling, and media in Anki decks. It provides batch operations, fuzzy matching, deduplication, and merging utilities, all configurable via a centralized system. Designed for power users and developers, it streamlines large-scale collection maintenance and data hygiene tasks.
+The add-on emphasizes explicit workflows, detailed logging, and configurable behavior through JSON files or a GUI interface. It supports complex operations such as fuzzy matching for tags, conflict resolution in scheduling data, and media deduplication, all while maintaining data integrity and offering dry-run previews.
 
 ---
 
-## Overview and Purpose
+## Overview
 
-_Change_notes is built to address common pain points in large Anki collections:
-- **Tag deduplication and merging**
-- **Note type batch conversion**
-- **Schedule merging**
-- **Image and media management**
-- **Bulk tag addition and manipulation**
+_Change_notes addresses common pain points encountered when managing large Anki collections, including but not limited to:
 
-The suite is highly modular, allowing users to run individual tools or combine them for complex workflows. Each tool is configurable through JSON files or a GUI, with robust logging for transparency and troubleshooting.
+- Deduplicating and merging tags with fuzzy matching and user confirmation.
+- Batch conversion of note types with field mapping and validation.
+- Merging scheduling data to maintain consistent learning progress across notes.
+- Managing images and media references to reduce redundancy.
+- Adding, removing, or modifying tags in bulk with regex support.
+
+Each tool is designed as a standalone module yet integrates seamlessly into the suite, allowing users to combine operations into complex workflows. The configuration system supports global and per-tool settings, enabling tailored behavior for different collections or use cases.
+
+---
+
+## Workflows
+
+### Typical User Workflow
+
+1. **Backup First:** Always create a backup of your Anki collection before running any batch operations.
+2. **Configure Tools:** Use the config GUI or edit JSON files to set up your desired operations (e.g., tag merge maps, note type mappings).
+3. **Dry-Run Mode:** Run tools in dry-run mode to preview changes without affecting your collection.
+4. **Review Logs:** Examine detailed logs generated during dry runs to verify planned changes.
+5. **Execute Changes:** Run the tools in live mode to apply changes to your collection.
+6. **Validate Results:** Inspect your collection to ensure changes applied correctly and as expected.
+7. **Combine Tools:** For complex maintenance, chain multiple tools using provided combo runners or scripts.
+
+### Developer Workflow
+
+1. **Add Modules:** Create new Python modules under `modules/` following existing patterns.
+2. **Create Configs:** Add configuration JSON files in `modules/configs/`.
+3. **Implement Logging:** Ensure detailed logs are written in dedicated subfolders under `logs/`.
+4. **Register Tools:** Update the menu and UI registration in `config_manager.py`.
+5. **Document:** Provide module docstrings and update this README with new tool descriptions.
+6. **Test:** Use dry-run modes and logging to verify correctness before release.
+
+---
+
+## Naming Conventions and File Structure
+
+- **Modules:** Named with lowercase and underscores (e.g., `merge_tags.py`), grouped by functionality.
+- **Configs:** JSON files named with tool identifiers and `_config.json` suffix (e.g., `merge_tags_config.json`).
+- **Logs:** Stored under `logs/` with subfolders per module, log files named with timestamps (e.g., `merge_tags_run_YYYY-MM-DD.log`).
+- **Assets:** Static resources like text replacements or helper scripts are stored in `modules/assets/`.
+- **Submodules:** Organized as subfolders with `__init__.py` for package recognition.
+
+This consistent naming and organization facilitate easy navigation, maintenance, and extension of the add-on suite.
 
 ---
 
 ## Folder Structure
 
-```
+```text
 _Change_notes/
 │
+├── README.md
+├── __init__.py
+├── meta.json
 ├── config.json
+├── config.md
 ├── config_manager.py
 ├── config_ui.py
-├── meta.json
-├── mw_app.css
-├── print_length.py
-├── logs/
-│   └── merge_tags/
-│       └── ...            # Runtime logs per tool
 │
-├── modules/
-│   ├── utils.py
-│   ├── small_modules.py
-│   ├── add_tags.py
-│   ├── export_nids.py
-│   ├── batch_Note_type_change.py
-│   ├── change_note_types.py
-│   ├── assets/
-│   │   ├── scrub_match.py
-│   │   ├── scrub_match_sched.py
-│   │   └── text_replacements.txt
-│   ├── configs/
-│   │   ├── merge_tags_config.json
-│   │   ├── tag_dupes_config.json
-│   │   └── ...           # Configs per module
-│   ├── logs/
-│   ├── merge/
-│   │   ├── merge_schedule.py
-│   │   ├── merge_tags.py
-│   │   ├── tag_dupes.py
-│   │   ├── Mod_merge_imgs.py
-│   │   ├── logic_merge_tags.py
-│   │   ├── logic_merge_imgs.py
-│   │   ├── combo_runner.py
-│   │   └── logs/
-│   ├── merge_images_AND_tags/
-│   │   ├── combo_runner.py
-│   │   └── __init__.py
-│   ├── add_table_class/
-│   │   ├── main.py
-│   │   └── config_*
-│   └── Add_img_class/
-│       ├── larger_helper.py
-│       ├── config_*
-│       ├── logs/Add_img_class_log.txt
-│       └── vendor/PIL/
+├── configs/                               # EXPERIMENTAL (NOT currently functional)
+│   ├──
+│
+├── logs/
+│
+└── modules/
+    ├── utils.py
+    ├── merge_utils.py
+    ├── add_tags.py
+    ├── change_note_types.py
+    ├── del_empty_notes.py
+    ├── export_nids.py
+    ├── export_UW_qid_tags.py
+    ├── img_tags_merge.py
+    ├── merge_imgs.py
+    ├── merge_schedule.py
+    ├── merge_tags.py
+    └── tag_dupes.py
+    │
+    ├── logs/
+    │
+    ├── utils/
+    │   └── add_tags_utils.py
+    │
+    ├── assets/
+    │   ├── merge_imgs_BU.py
+    │   ├── merge_utils.py
+    │   ├── scrub_match.py
+    │   ├── scrub_match_sched.py
+    │   └── text_replacements.txt
+    │
+    ├── Add_img_class/
+    │   ├── config_manager.py
+    │   ├── config_ui.py
+    │   ├── config.json
+    │   ├── config.md
+    │   ├── larger_helper.py
+    │   ├── larger_imgs.txt
+    │   ├── logs/
+    │   └── vendor/
+    │
+    └── add_table_class/
+        ├── config_manager.py
+        ├── config_ui.py
+        ├── config.json
+        ├── config.md
+        └── main.py
 ```
 
 ---
 
 ## Core Module Descriptions
 
-| Module                   | Purpose                                                                 | Key Features                                             |
-|--------------------------|-------------------------------------------------------------------------|----------------------------------------------------------|
-| **Tag Dupes**            | Identify and merge duplicate/near-duplicate tags                        | Fuzzy matching, user review, batch merge                 |
-| **Merge Tags**           | Consolidate tags according to config or rules                           | Mapping, aliasing, undo support                          |
-| **Merge Schedule**       | Merge scheduling information between notes (e.g., for sync/merge tasks) | Field mapping, conflict resolution, audit logs           |
-| **Merge Images**         | Deduplicate and merge media/image references across notes               | Hashing, reference update, orphan cleanup                |
-| **Batch Note Type Change**| Change note types in bulk based on mapping or rules                    | Field mapping, type safety, dry-run mode                 |
-| **Add Tags**             | Add or manipulate tags across selected notes                            | Regex selection, batch add/remove, preview mode          |
+| Module                    | Purpose                                                                 | Key Features                                                      |
+|---------------------------|-------------------------------------------------------------------------|-------------------------------------------------------------------|
+| **Tag Dupes**             | Identify and merge duplicate or near-duplicate tags                     | Fuzzy matching, user review, batch merge                          |
+| **Merge Tags**            | Consolidate tags based on mapping or rules                              | Mapping, aliasing, undo support                                   |
+| **Merge Schedule**        | Merge scheduling data between notes (for sync or merge tasks)           | Field mapping, conflict resolution, audit logs                    |
+| **Merge Images**          | Deduplicate and merge media/image references across notes               | Hashing, reference update, orphan cleanup                         |
+| **Batch Note Type Change**| Change note types in bulk using mappings or rules                       | Field mapping, type safety, dry-run mode                          |
+| **Add Tags**              | Add or remove tags across selected notes                                | Regex selection, batch add/remove, preview mode                   |
+| **Add_img_class**         | Advanced image manipulation and classification within note fields       | PIL-backed processing, normalization, detailed logging            |
+| **add_table_class**       | Structured table insertion and modification in note fields              | HTML/Markdown tables, batch-safe operations, configurable layouts |
 
-Each core module is self-contained, with its own configuration and logging.
+## Internal Support Packages
+
+- `utils/` – shared helpers and safety checks  
+- `assets/` – static resources and scrub/replace rules  
+- `merge_utils.py` – shared merge logic (tags/images/schedule)
+
+Each module includes configuration files and produces detailed logs to facilitate auditing and troubleshooting.
 
 ---
 
 ## Configuration System
 
-The add-on uses a layered configuration system:
-- **Global config** (`config.json`): Controls general behavior, UI options, and defaults.
-- **Per-tool config** (`modules/configs/*.json`): Each tool has its own config for fine-grained control.
+_Change_notes employs a layered configuration approach to maximize flexibility:
 
-Configuration can be edited via:
-- The built-in config GUI (`config_ui.py`)
-- Direct JSON file editing
+- **Global Configuration (`config.json`):** Controls overall add-on behavior, UI settings, and default options.
+- **Tool-specific Configuration (`modules/configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
 
-**Example `merge_tags_config.json`:**
+Configuration can be edited using:
+
+- The built-in configuration GUI (`config_ui.py`) for interactive adjustment.
+- Direct editing of JSON files for advanced customization.
+
+**Example of `merge_tags_config.json`:**
+
 ```json
 {
-    "merge_map": {
-        "biology": "science",
-        "bio": "science",
-        "chem": "science"
-    },
-    "fuzzy_threshold": 0.85,
-    "dry_run": true,
-    "log_path": "logs/merge_tags/merge_tags_run_2024-05-22.log"
+  "merge_map": {
+    "biology": "science",
+    "bio": "science",
+    "chem": "science"
+  },
+  "fuzzy_threshold": 0.85,
+  "dry_run": true,
+  "log_path": "logs/merge_tags/merge_tags_run_2024-05-22.log"
 }
 ```
 
@@ -121,71 +176,39 @@ Configuration can be edited via:
 ## Usage Instructions
 
 ### For End Users
-1. **Install** the add-on in your Anki `addons21/` directory.
-2. **Configure** via the config GUI or edit JSON files as needed.
-3. **Access** tools via the Anki Tools menu or add-on submenu.
-4. **Run** the desired operation. Logs and dry-run previews are available for all destructive actions.
-5. **Review logs** in the `logs/` directory for results and troubleshooting.
+
+1. **Install** the add-on by placing it in your Anki `addons21/` directory.
+2. **Backup** your collection before running batch operations.
+3. **Configure** tools via the configuration GUI or by editing the JSON config files.
+4. **Access** the tools through the Anki Tools menu or the add-on submenu.
+5. **Run** tools in dry-run mode initially to preview changes without modifying data.
+6. **Review logs** located in the `logs/` directory to verify intended actions.
+7. **Execute** the operation in live mode to apply changes.
+8. **Validate** your collection post-operation to ensure correctness.
 
 ### For Developers
-- Each tool is a Python module with a main entry point.
-- Add new modules under `modules/`, with supporting config and logs as needed.
+
+- Develop new modules under `modules/` with clear separation of concerns.
+- Add configuration files in `modules/configs/`.
+- Implement detailed logging for transparency.
+- Register new tools in the menu system via `config_manager.py`.
+- Update this README with documentation for new modules.
 - Use shared utilities from `modules/utils.py` and `modules/small_modules.py`.
-- Register new tools in the central menu handler (see `config_manager.py`).
+- Test thoroughly with dry-run modes before deployment.
 
 ---
 
 ## Logging and Output Structure
 
-All tools write detailed logs to `logs/` or their module subfolders. Log files include:
-- Timestamps and run metadata
-- Dry-run vs. live mode
-- Actions taken (e.g., merged tags, changed note types)
-- Errors and warnings
+All tools generate detailed logs stored under the `logs/` directory or their respective module subfolders. Logs include:
 
-**Example log path:**  
+- Run timestamps and metadata.
+- Dry-run vs. live mode indicators.
+- Detailed actions performed (e.g., tags merged, note types changed).
+- Errors, warnings, and informational messages.
+
+**Example log file path:**  
 `logs/merge_tags/merge_tags_run_2024-05-22.log`
-
----
-
-## Developer Notes: Adding New Tools
-
-1. **Create a new module** under `modules/`, following the structure of existing tools.
-2. **Add a config file** in `modules/configs/`.
-3. **Implement logging** to a dedicated subfolder in `logs/`.
-4. **Register the tool** in the menu/UI system via `config_manager.py`.
-5. **Document** the tool in this README and in the module docstring.
-6. **(Optional)** Add GUI elements to `config_ui.py` for user configuration.
-
-**Tip:** Use utility functions from `modules/utils.py` to maintain consistency.
-
----
-
-## Compatibility Notes
-
-- **Anki Version:** Designed for Anki 2.1.50 and above (Qt5/Qt6 compatible).
-- **Platform:** Windows, macOS, Linux.
-- **Conflicts:** Avoid running with other tag/note-type manipulation add-ons simultaneously.
-- **Backups:** Always back up your collection before running batch operations.
-
----
-
-## Submodules
-
-### Add_img_class
-Located at: `modules/Add_img_class/`
-
-- **Purpose:** Advanced image manipulation and classification for note fields.
-- **Features:** Image resizing, format conversion, integration with PIL (Python Imaging Library).
-- **Config:** `config_*` files for image settings.
-- **Log:** `logs/Add_img_class_log.txt`
-
-### add_table_class
-Located at: `modules/add_table_class/`
-
-- **Purpose:** Adds or modifies table structures in note fields.
-- **Features:** Table formatting, field mapping, batch conversion.
-- **Config:** `config_*` files for table settings.
 
 ---
 
@@ -201,4 +224,14 @@ Located at: `modules/add_table_class/`
 
 ---
 
-For bug reports or feature requests, please open an issue or submit a pull request.
+## Support and Contributions
+
+For bug reports, feature requests, or contributions:
+
+- Open an issue on the repository.
+- Submit pull requests with clear descriptions and tests.
+- Follow coding and documentation standards consistent with existing modules.
+
+---
+
+Thank you for using _Change_notes. We hope it makes managing your Anki collections easier and more efficient.

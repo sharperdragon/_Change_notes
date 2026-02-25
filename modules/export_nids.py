@@ -1,5 +1,13 @@
 # pyright: reportMissingImports=false
 from __future__ import annotations
+
+
+import os
+import re
+from datetime import datetime
+from typing import  List, Sequence, Tuple
+
+
 """
 Export Selected NIDs – helper module (Anki 2.1.60+ / 25.x, Qt6)
 
@@ -17,9 +25,6 @@ Design:
 - Splits the Anki query into safe chunks to avoid SQLite expression depth limits; writes them into ONE file separated by two blank lines.
 """
 
-import os, re
-from datetime import datetime
-from typing import Iterable, List, Sequence, Tuple
 
 
 # Anki / Qt imports (use Anki shims to stay version-tolerant)

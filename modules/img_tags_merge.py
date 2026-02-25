@@ -6,9 +6,9 @@ from .utils import prompt_similarity_threshold
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
 from aqt import mw
-from aqt.qt import QMessageBox, QDialogButtonBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QDoubleSpinBox
-from aqt.utils import showInfo
-from aqt.browser import Browser
+from aqt.qt import QMessageBox
+
+
 from aqt.browser import Browser as AqtBrowser 
 
 
