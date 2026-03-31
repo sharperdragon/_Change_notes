@@ -25,7 +25,7 @@ from aqt.utils import showInfo, tooltip
 # ----------------------------
 
 TAG_PREFIX = "#Zank::#Step2_v12::#UWorld::Step"
-OUTPUT_DIR = Path("/Users/claytongoddard/Desktop")
+OUTPUT_DIR = Path.home() / "Desktop"
 TS_FORMAT = "%H-%M_%m-%d"  # your preferred timestamp format
 
 

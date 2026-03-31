@@ -1,0 +1,39 @@
+{
+  "base_missed_tag": [
+    "##Missed-Qs"
+  ],
+  "schedule_exhausted_policy": "unknown",
+  "rotation_schedule": [
+    {"label": "IM1", "start": "2025-06-30", "end": "2025-07-25"},
+    {"label": "FM2", "start": "2025-07-28", "end": "2025-08-22"},
+    {"label": "ACM", "start": "2025-08-25", "end": "2025-09-05"},
+    {"label": "OMM", "start": "2025-09-08", "end": "2025-09-18"},
+    {"label": "Surgery", "start": "2025-09-22", "end": "2025-10-17"},
+    {"label": "IM2", "start": "2025-10-20", "end": "2025-11-14"},
+    {"label": "FM1", "start": "2025-11-17", "end": "2025-12-12"},
+    {"label": "Winter-break", "start": "2025-12-13", "end": "2026-01-04"},
+    {"label": "Pediatrics", "start": "2026-01-05", "end": "2026-01-30"},
+    {"label": "OBGYN", "start": "2026-02-02", "end": "2026-02-27"},
+    {"label": "Psych", "start": "2026-03-02", "end": "2026-03-27"}
+  ],
+  "subset_1_name": "🛃UWorld",
+  "subset_tag_1": [
+    "##Missed-Qs::UW_Tests"
+  ],
+  "subset_2_name": "♿️COMQUEST",
+  "subset_tag_2": [
+    "##Missed-Qs::COMQUEST"
+  ],
+  "other_menu": {
+    "label": "Other",
+    "resources": [
+      "Kaplan",
+      "True-Learn",
+      "NBOME"
+    ]
+  },
+  "Q_Banks": [
+    "UWORLD",
+    "COMQUEST"
+  ]
+}

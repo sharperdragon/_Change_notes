@@ -1,0 +1,27 @@
+{
+  "missed_month_tag": [
+    "##Missed-Qs"
+  ],
+  "base_name": "📙Base Tag",
+  "missed_base_tag": [
+    "##Missed-Qs"
+  ],
+  "subset_1_name": "♦️UW-Test number",
+  "subset_tag_1": [
+    "##Missed-Qs::UW_Tests"
+  ],
+  "subset_2_name": "♿️COMQUEST",
+  "subset_tag_2": [
+    "##Missed-Qs::COMQUEST"
+  ],
+  "other_menu": {
+    "label": "Other",
+    "prefix": "##Missed-Qs::Other::",
+    "resources": [
+      "🫐 NBOME 🫐",
+      "Kaplan 🍠",
+      "True-Learn 🐟",
+      "Amboss 🦠"
+    ]
+  }
+}

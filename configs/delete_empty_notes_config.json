@@ -1,7 +1,10 @@
-
-"delete_empty_notes_config": {
+{
   "protected_notes": [
     "*Nord+",
-    "*Nord-focus+"
+    "*Nord-focus+",
+    "Cloze - Dracula",
+    "Basic □",
+    "Image Occlusion Enhanced",
+    "*Nord+Opt-Hint"
   ]
 }

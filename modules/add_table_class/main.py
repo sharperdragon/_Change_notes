@@ -1,24 +1,74 @@
+import json
 import os
 import re
 import traceback
+from pathlib import Path
 
 from aqt import mw
 from aqt.utils import showText, tooltip
 
-from .config_ui import ConfigDialog
-from .config_manager import ConfigManager
+from ...config_manager import ConfigManager
+from ...config_ui import ConfigDialog
 
-# ----------------------------
-# Module-level config & logging
-# ----------------------------
-CFG_NAMESPACE = "Add_table_class"
-try:
-    _cfg = ConfigManager(CFG_NAMESPACE).load()
-except Exception:
-    _cfg = {}
+CONFIG_SECTION = "add_table_class"
+LEGACY_CONFIG_SECTION = "Add_table_class"
+DEFAULT_CONFIG = {
+    "apply_to_existing_classes": True,
+    "log_path": "~/Desktop/anki_logs/Add_table_class_log.txt",
+}
 
-_LOG_PATH = os.path.expanduser(_cfg.get("log_path", "~/Desktop/anki_logs/Add_table_class_log.txt"))
-_APPLY_TO_EXISTING = bool(_cfg.get("apply_to_existing_classes", True))
+_RUNTIME_CONFIG = dict(DEFAULT_CONFIG)
+_LOG_PATH = os.path.expanduser(DEFAULT_CONFIG["log_path"])
+_APPLY_TO_EXISTING = bool(DEFAULT_CONFIG["apply_to_existing_classes"])
+
+
+def _parse_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off"}:
+            return False
+    return default
+
+
+def _load_local_legacy_config() -> dict:
+    config_path = Path(__file__).with_name("config.json")
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _reload_runtime_config():
+    global _RUNTIME_CONFIG
+    global _LOG_PATH
+    global _APPLY_TO_EXISTING
+
+    cfg = dict(DEFAULT_CONFIG)
+    cfg = ConfigManager.deep_merge_dicts(cfg, _load_local_legacy_config())
+    cfg = ConfigManager.deep_merge_dicts(cfg, ConfigManager(CONFIG_SECTION).load())
+
+    legacy_cfg = ConfigManager.get_effective_section(LEGACY_CONFIG_SECTION)
+    if legacy_cfg:
+        cfg = ConfigManager.deep_merge_dicts(cfg, legacy_cfg)
+
+    _RUNTIME_CONFIG = cfg
+    _LOG_PATH = os.path.expanduser(str(cfg.get("log_path", DEFAULT_CONFIG["log_path"])))
+    _APPLY_TO_EXISTING = _parse_bool(
+        cfg.get("apply_to_existing_classes", DEFAULT_CONFIG["apply_to_existing_classes"]),
+        default=True,
+    )
+
+
+_reload_runtime_config()
 
 
 def log(msg: str) -> None:
@@ -61,12 +111,18 @@ def add_class_main(browser):
       after removing any existing managed classes; if True (default), we always merge.
     """
     try:
+        _reload_runtime_config()
+
         # fresh log for each run
         try:
             open(_LOG_PATH, "w", encoding="utf-8").close()
         except Exception:
             pass
         log("add_class_main() triggered")
+        log(
+            f"Runtime config: apply_to_existing_classes={_APPLY_TO_EXISTING}, "
+            f"log_path={_LOG_PATH}"
+        )
 
         note_ids = browser.selectedNotes()
         log(f"{len(note_ids)} notes selected")
@@ -77,6 +133,11 @@ def add_class_main(browser):
 
         rows = [(nid, mw.col.get_note(nid)) for nid in note_ids]
         updated_any = False
+        tables_seen = 0
+        tables_updated = 0
+        tables_skipped_exclusion = 0
+        tables_skipped_existing = 0
+        tables_skipped_non_two_col = 0
 
         # --- helpers ---
         def _count_columns_in_table(table_html: str) -> int:
@@ -109,8 +170,14 @@ def add_class_main(browser):
                 Currently: add TARGET_CLASS if exactly 2 columns. Safe-merge with existing classes.
                 """
                 nonlocal updated  # ensure any change flags the enclosing note as updated
+                nonlocal tables_seen
+                nonlocal tables_updated
+                nonlocal tables_skipped_exclusion
+                nonlocal tables_skipped_existing
+                nonlocal tables_skipped_non_two_col
 
                 tb_html = tb_match.group(0)
+                tables_seen += 1
                 # Locate opening <table ...>
                 open_tag_match = re.search(r'<table\b[^>]*>', tb_html, re.IGNORECASE)
                 if not open_tag_match:
@@ -124,15 +191,24 @@ def add_class_main(browser):
                     existing_classes = m.group(2).split()
                     # Honor explicit exclusion tag
                     if EXCLUDE_CLASS in existing_classes:
+                        tables_skipped_exclusion += 1
                         try:
                             log(f"Skip table: has exclusion class '{EXCLUDE_CLASS}' → classes={existing_classes}")
                         except Exception:
                             pass
                         return tb_html
+                    if not _APPLY_TO_EXISTING:
+                        tables_skipped_existing += 1
+                        log(
+                            "Skip table: class exists and apply_to_existing_classes=False "
+                            f"→ classes={existing_classes}"
+                        )
+                        return tb_html
 
                 # Determine column count from first <tr>
                 col_count = _count_columns_in_table(tb_html)
                 if col_count != 2:
+                    tables_skipped_non_two_col += 1
                     try:
                         log(f"Skip table: detected {col_count} column(s) (only 2-col gets class).")
                     except Exception:
@@ -153,6 +229,7 @@ def add_class_main(browser):
                 # Only mark updated if attributes actually changed
                 if open_tag != new_open_tag:
                     updated = True
+                    tables_updated += 1
                     # Log comparison for debugging
                     log(f"Table cols={col_count} → class='{new_cls}'")
                     log(f"Comparing table open tag: '{open_tag}' vs '{new_open_tag}'")
@@ -195,10 +272,15 @@ def add_class_main(browser):
         else:
             log("ℹ️ No updates made to any notes.")
 
-        tooltip(
-            f"Table classification complete — tables in {notes_with_tables} note(s).",
-            period=3000,
+        summary = (
+            f"Table class run complete. Notes with tables={notes_with_tables}, "
+            f"tables seen={tables_seen}, updated={tables_updated}, "
+            f"skipped exclusion={tables_skipped_exclusion}, "
+            f"skipped existing={tables_skipped_existing}, "
+            f"skipped non-two-col={tables_skipped_non_two_col}."
         )
+        log(summary)
+        tooltip(summary, period=4500)
         return updated_any
 
     except Exception:
@@ -211,7 +293,7 @@ def add_class_main(browser):
 
 
 def open_config_gui():
-    dialog = ConfigDialog(CFG_NAMESPACE, ConfigManager)
+    dialog = ConfigDialog("_Change_notes", ConfigManager)
     dialog.exec()
 
 

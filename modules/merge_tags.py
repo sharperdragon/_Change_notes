@@ -1,10 +1,7 @@
-import re, sys
 from datetime import datetime
 from pathlib import Path
-from bs4 import BeautifulSoup
 from difflib import SequenceMatcher
 from PyQt6.QtWidgets import QInputDialog
-from collections import defaultdict
 
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
@@ -17,22 +14,14 @@ from ..config_manager import ConfigManager
 from .assets.scrub_match import (
     normalize
 )
-from .utils import prompt_similarity_threshold
-
-config_manager = ConfigManager("_Change_notes")
-config = ConfigManager("global_config", "merge_tags_config").load()
-config = config_manager.load()
-base_tag = config.get("base_tag", "TAGS_MERGED")
-date_suffix = datetime.now().strftime("%B_%d")
-merged_tag = f"{base_tag}::{date_suffix}"
 
 DEBUG_MODE = False
-
-# Read parents from the new key; fallback to deprecated key if needed
-_parents_new = config.get("merge_only_parents")
-_parents_old = config.get("merge_only_from_parents", [])
-ALLOWED_PARENTS = [p for p in (_parents_new if _parents_new is not None else _parents_old) or [] if p]
-ALLOWED_PARENTS_LOWER = [p.lower() for p in ALLOWED_PARENTS]
+config = {}
+base_tag = "TAGS_MERGED"
+merged_tag = f"{base_tag}::{datetime.now().strftime('%B_%d')}"
+ALLOWED_PARENTS = []
+ALLOWED_PARENTS_LOWER = []
+MERGE_SELECT_ONLY = False
 
 
 LOG_DIR = Path(mw.addonManager.addonsFolder()) / "_Change_notes" / "logs" / "merge_tags"
@@ -62,8 +51,30 @@ def _parse_bool(val, default=False):
 
 
 
-# Read new key; default is False, meaning "ignore parent filter"
-MERGE_SELECT_ONLY = _parse_bool(config.get("merge_select_only"), default=False)
+def _reload_runtime_config():
+    global config
+    global base_tag
+    global merged_tag
+    global ALLOWED_PARENTS
+    global ALLOWED_PARENTS_LOWER
+    global MERGE_SELECT_ONLY
+
+    global_cfg = ConfigManager("global_config").load()
+    section_cfg = ConfigManager("merge_tags_config").load()
+    config = ConfigManager.deep_merge_dicts(global_cfg, section_cfg)
+
+    base_tag = config.get("base_tag", "TAGS_MERGED")
+    date_suffix = datetime.now().strftime("%B_%d")
+    merged_tag = f"{base_tag}::{date_suffix}"
+
+    parents_new = config.get("merge_only_parents")
+    parents_old = config.get("merge_only_from_parents", [])
+    ALLOWED_PARENTS = [
+        p for p in (parents_new if parents_new is not None else parents_old) or [] if p
+    ]
+    ALLOWED_PARENTS_LOWER = [p.lower() for p in ALLOWED_PARENTS]
+
+    MERGE_SELECT_ONLY = _parse_bool(config.get("merge_select_only"), default=False)
 
 # Helper: case-insensitive parent check
 def _is_tag_in_parents(tag: str) -> bool:
@@ -95,6 +106,7 @@ def log_debug(msg):
         f.write(timestamped + "\n")
 
 # Log effective config (once per module import)
+_reload_runtime_config()
 log_debug(f"Config — MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, ALLOWED_PARENTS={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}")
 
 # --- Fuzzy matching helper ---
@@ -113,10 +125,10 @@ def prompt_fuzzy_threshold(default=None):
     return None
 
 def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
+    _reload_runtime_config()
     skipped_by_parent_filter = 0
     log_debug(f"Run start — threshold={threshold}, MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, parents={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}")
 
-    from anki.notes import Note
     col = browser.mw.col
     selected_nids = browser.selectedNotes()
     log_debug(f"Selected NIDs: {selected_nids}")
@@ -169,7 +181,8 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
         for note in notes:
             existing_allowed_tags = {tag for tag in note.tags if tag_is_allowed(tag)}
             if existing_allowed_tags != all_tags:
-                note.tags = sorted(all_tags.union({merged_tag}))
+                disallowed_existing = {tag for tag in note.tags if not tag_is_allowed(tag)}
+                note.tags = sorted(disallowed_existing.union(all_tags).union({merged_tag}))
                 note.flush()
                 updated += 1
                 log_debug(f"Updated tags for note {note.id} -> Tags: {note.tags}")
@@ -183,6 +196,7 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
 
 
 def unify_tags_main(browser: Browser | None = None):
+    _reload_runtime_config()
     if browser is None:
         browser = mw.form.browser
 
@@ -200,7 +214,7 @@ def unify_tags_main(browser: Browser | None = None):
     # Decide threshold (prompt or silent clamp)
     if ask_each:
         default_pct = max(min(int(default_fuzzy * 100), 100), 0)
-        t = prompt_similarity_threshold(default=default_pct)
+        t = prompt_fuzzy_threshold(default=default_pct)
         if t is None:
             return  # user canceled
         threshold = max(min(t, max_fuzzy), min_fuzzy)

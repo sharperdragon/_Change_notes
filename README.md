@@ -70,8 +70,7 @@ _Change_notes/
 ├── config_manager.py
 ├── config_ui.py
 │
-├── configs/                               # EXPERIMENTAL (NOT currently functional)
-│   ├──
+├── configs/                               # Default source for per-module config sections
 │
 ├── logs/
 │
@@ -149,7 +148,7 @@ Each module includes configuration files and produces detailed logs to facilitat
 _Change_notes employs a layered configuration approach to maximize flexibility:
 
 - **Global Configuration (`config.json`):** Controls overall add-on behavior, UI settings, and default options.
-- **Tool-specific Configuration (`modules/configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
+- **Tool-specific Configuration (`configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
 
 Configuration can be edited using:
 

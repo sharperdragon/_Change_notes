@@ -12,19 +12,20 @@ from .assets.scrub_match import (
 )
 from ..config_manager import ConfigManager
 
-config_manager = ConfigManager("global_config", "tag_dupes_config")
+config_manager = ConfigManager("tag_dupes_config")
 
 
 
-config = config_manager.load()
+config = {}
 
 DEBUG_MODE = False  # Set to True to enable verbose debug logging
 now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-DEBUG_LOG_PATH = (Path(__file__).parent / (config.get("log_folder") or "logs") / "tag_dupes" / f"debug_log_{now_str}.txt")
+DEBUG_LOG_PATH = Path(__file__).parent / "logs" / "tag_dupes" / f"debug_log_{now_str}.txt"
 
 def log_debug(msg: str, debug_mode=DEBUG_MODE):
     timestamped = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
     try:
+        DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(timestamped + "\n")
     except Exception as e:
@@ -44,14 +45,38 @@ def safe_cast_to_int(nid):
 
 
 
-BASE_TAG_LABEL = config.get("base_tag", "DUPE_Tagging")
+BASE_TAG_LABEL = "DUPE_Tagging"
 def is_valid_tag(tag):
     return all(c in string.ascii_letters + string.digits + "_-" for c in tag)
-FIELD_TO_COMPARE = config.get("comparison_field", "Text")
-TAG_UNMATCHED = config.get("tag_unmatched", "false").lower() == "true"
-MULTI_CHILD_LABEL = config.get("multi_tag_child", "multiple")
+FIELD_TO_COMPARE = "Text"
+TAG_UNMATCHED = False
+MULTI_CHILD_LABEL = "multiple"
 log_dir_path = (Path(__file__).parent / "logs" / "merge_tags").resolve()
 log_dir_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+
+
+def _reload_runtime_config():
+    global config
+    global BASE_TAG_LABEL
+    global FIELD_TO_COMPARE
+    global TAG_UNMATCHED
+    global MULTI_CHILD_LABEL
+    global DEBUG_LOG_PATH
+
+    config = config_manager.reload()
+    BASE_TAG_LABEL = config.get("base_tag", "DUPE_Tagging")
+    FIELD_TO_COMPARE = config.get("comparison_field", "Text")
+    TAG_UNMATCHED = str(config.get("tag_unmatched", "false")).lower() == "true"
+    if not TAG_UNMATCHED:
+        TAG_UNMATCHED = str(config.get("TAG UNMATCHED", "false")).lower() == "true"
+    MULTI_CHILD_LABEL = config.get("multi_tag_child", "multiple")
+    log_folder = config.get("log_folder") or "logs"
+    DEBUG_LOG_PATH = (
+        Path(__file__).parent / log_folder / "tag_dupes" / f"debug_log_{now_str}.txt"
+    )
+
+
+_reload_runtime_config()
 log_debug(f"Config: BASE_TAG_LABEL={BASE_TAG_LABEL}, FIELD_TO_COMPARE={FIELD_TO_COMPARE}, TAG_UNMATCHED={TAG_UNMATCHED}, MULTI_CHILD_LABEL={MULTI_CHILD_LABEL}, log_folder={(config.get('log_folder') or 'logs')}")
 log_debug(f"Log directory: {log_dir_path}")
 
@@ -69,6 +94,7 @@ def prompt_fuzzy_threshold(default=98):
 
 
 def run_tag_dupes(browser=None, debug=None):
+    _reload_runtime_config()
     if debug is None:
         debug = DEBUG_MODE
     if DEBUG_LOG_PATH.exists():
@@ -101,7 +127,12 @@ def run_tag_dupes(browser=None, debug=None):
 
     match_tag_label = f"{BASE_TAG_LABEL}_matchf{int(fuzzy_threshold * 100)}"
     multi_tag_label = f"{BASE_TAG_LABEL}_GT2_Match_f{int(fuzzy_threshold * 100)}"
-    unmatched_tag_label = f"{BASE_TAG_LABEL}_No-Matchf{int(fuzzy_threshold * 100)}"
+    configured_unmatched = str(config.get("unmatched_tag", "")).strip()
+    unmatched_tag_label = (
+        configured_unmatched
+        if configured_unmatched
+        else f"{BASE_TAG_LABEL}_No-Matchf{int(fuzzy_threshold * 100)}"
+    )
 
     # === MAIN EXECUTION ===
 

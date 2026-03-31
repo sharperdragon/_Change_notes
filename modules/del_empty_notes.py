@@ -1,52 +1,17 @@
-import os
-from collections import defaultdict
-from datetime import datetime
-
 from aqt import mw
-from aqt.qt import QAction, QInputDialog, QMenu
-from aqt.browser import Browser
-from aqt.utils import showInfo
-from aqt import gui_hooks
 from ..config_manager import ConfigManager
 
-config_manager = ConfigManager("batch_note_change_config", "global_config")
-
-# Load merged config from config_manager
-config = config_manager.load()
-# Compatibility shim: Tries multiple import paths to ensure compatibility with different Anki versions' change note type dialogs
-try:
-    from aqt.dialogs import changeNoteType as _change_note_type_fn
-    _run_change_note_type = lambda browser, nids, mid: _change_note_type_fn(browser, nids, mid)
-except ImportError:
-    try:
-        from aqt.change import changeNoteType as _change_note_type_fn
-        _run_change_note_type = lambda browser, nids, mid: _change_note_type_fn(browser, nids, mid)
-    except ImportError:
-        from aqt.changenotetype import ChangeNotetypeDialog
-        _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec()
+config_manager = ConfigManager("delete_empty_notes_config")
 
 
 def delete_empty_note_types():
     from fnmatch import fnmatch
-    from pathlib import Path
-    import json
     from aqt.utils import showInfo, showText, askUser
 
     col = mw.col
 
-    # --- Load protected patterns from file or merged config ---
-    protected = []
-    try:
-        cfg_path = Path("/Users/claytongoddard/Library/Application Support/Anki2/addons21/_Change_notes/config.json")
-        if cfg_path.exists():
-            data = json.loads(cfg_path.read_text(encoding="utf-8"))
-            protected = list(data.get("delete_empty_notes_config", {}).get("protected_notes", []))
-    except Exception:
-        # fall through to config dict if file missing/malformed
-        pass
-
-    if not protected:
-        protected = list(config.get("delete_empty_notes_config", {}).get("protected_notes", []))
+    # Use effective section config (defaults from configs/ + profile override).
+    protected = list(config_manager.reload().get("protected_notes", []))
 
     models = col.models.all()
     to_delete_names = []

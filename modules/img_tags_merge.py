@@ -1,4 +1,4 @@
-from ..config_manager import ConfigManager 
+from ..config_manager import ConfigManager
 from .merge_imgs import run_merge_images
 from .merge_tags import unify_tags_on_duplicates
 from .utils import prompt_similarity_threshold
@@ -9,14 +9,42 @@ from aqt import mw
 from aqt.qt import QMessageBox
 
 
-from aqt.browser import Browser as AqtBrowser 
+from aqt.browser import Browser as AqtBrowser
 
 
-# ?  = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-# ?  =============================================================================================
-config_manager = ConfigManager("_Change_notes")
-config = config_manager.load()
-CONFIG = config
+DEFAULT_CONFIG = {
+    "global_fuzzy_opts": {
+        "default_fuzz": 0.96,
+        "min_fuzz": 0.78,
+        "max_fuzz": 1.00,
+    },
+    "merge_images_and_tags_config": {},
+}
+CONFIG = {}
+
+
+def _reload_runtime_config():
+    global CONFIG
+
+    global_fuzzy_opts = ConfigManager("global_fuzzy_opts").load()
+    merge_images_and_tags_cfg = ConfigManager("merge_images_and_tags_config").load()
+    legacy_root_cfg = ConfigManager("_Change_notes").load()
+
+    merged_cfg = ConfigManager.deep_merge_dicts(DEFAULT_CONFIG, {})
+    if isinstance(global_fuzzy_opts, dict) and global_fuzzy_opts:
+        merged_cfg["global_fuzzy_opts"] = global_fuzzy_opts
+    elif isinstance(legacy_root_cfg.get("global_fuzzy_opts"), dict):
+        merged_cfg["global_fuzzy_opts"] = legacy_root_cfg["global_fuzzy_opts"]
+
+    if isinstance(merge_images_and_tags_cfg, dict) and merge_images_and_tags_cfg:
+        merged_cfg["merge_images_and_tags_config"] = merge_images_and_tags_cfg
+    elif isinstance(legacy_root_cfg.get("merge_images_and_tags_config"), dict):
+        merged_cfg["merge_images_and_tags_config"] = legacy_root_cfg["merge_images_and_tags_config"]
+
+    CONFIG = merged_cfg
+
+
+_reload_runtime_config()
 
 def cfg(path: str, default=None):
     node = CONFIG
@@ -37,6 +65,8 @@ def _f(path: str, default):
 
 
 def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None = None, tag_threshold: float | None = None):
+    _reload_runtime_config()
+
     if isinstance(selected, AqtBrowser) and browser is None:
         browser, selected = selected, None
 

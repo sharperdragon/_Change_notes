@@ -1,5 +1,5 @@
 # Add missing imports
-import os, re, json, time
+import os, re, time
 from html import unescape
 from urllib.parse import urlsplit
 from collections import defaultdict
@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 # mypy: disable_error_code=import
 from aqt import mw
 from aqt.qt import QMessageBox, QDialogButtonBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QDoubleSpinBox
+from aqt.utils import tooltip
 from .utils import (
     extract_images,
     extract_srcs,
@@ -16,11 +17,12 @@ from .utils import (
     group_notes_by_similarity,
     prompt_similarity_threshold
 )
+from ..config_manager import ConfigManager
 
 SKETCHY_PREFIX = "https://dashboard.sketchy.com"
 SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
 
-config = {
+DEFAULT_CONFIG = {
     "default_threshold": 0.90,
     "min_threshold": 0.80,
     "ask_threshold_each_time": True,
@@ -37,7 +39,7 @@ config = {
         "Extra6",
         "Extra7",
         "Button",
-        "Display",
+        "Front",
     ],
 
     "merge_behavior": {
@@ -60,7 +62,7 @@ config = {
     },
 }
 
-CONFIG = config
+CONFIG = {}
 
 
 def cfg(path: str, default=None):
@@ -75,7 +77,18 @@ def cfg(path: str, default=None):
 # Add-on path and caches
 addon_path = Path(mw.addonManager.addonsFolder()) / "_Change_notes"
 FIELD_NAMES_BY_MID: dict[int, list[str]] = {}
-SCAN_FIELDS = set(cfg("fields_to_scan_for_images", []))
+SCAN_FIELDS = set()
+
+
+def _reload_runtime_config():
+    global CONFIG
+    global SCAN_FIELDS
+    section = ConfigManager("merge_images_config").load()
+    CONFIG = ConfigManager.deep_merge_dicts(DEFAULT_CONFIG, section)
+    SCAN_FIELDS = set(cfg("fields_to_scan_for_images", []))
+
+
+_reload_runtime_config()
 
 def extract_all_imgs(fields_html: list[str]) -> list[tuple[int, str, tuple[int,int]]]:
     """
@@ -340,6 +353,7 @@ def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
     return None, False
 
 def run_merge_images(note_ids: list[int], browser=None, threshold: float | None = None):
+    _reload_runtime_config()
     if not note_ids:
         QMessageBox.information(mw, "Unify Images", "No notes selected.")
         return
@@ -689,7 +703,10 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
         if enable_popup and log_entries:
             show_log_window("\n\n".join(log_entries))
         else:
-            show_log_window("No images were merged and no taggable group actions were logged.")
+            tooltip(
+                "Merge Images: 0 merges. Popup disabled by config; see log output settings.",
+                period=3500,
+            )
         return
 
     # Write logs to Desktop or addon logs dir based on config
@@ -707,6 +724,11 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
         if enable_popup:
             show_log_window("\n\n".join(log_entries))
+
+    tooltip(
+        f"Merge Images complete: merged={merged}, tagged_same={len(same_tagged_nids)}.",
+        period=3500,
+    )
 
 def show_log_window(log_text):
     dlg = QDialog(mw)
@@ -758,6 +780,7 @@ def collect_used_donors_for_block(missing_imgs, donor_notes):
                     break
 
 def merge_images_main(selected=None, browser=None):
+    _reload_runtime_config()
     # --- Resolve browser ---
     if browser is None:
         browser = mw.form.browser

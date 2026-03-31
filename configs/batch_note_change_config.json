@@ -1,5 +1,4 @@
-
-"batch_note_change_config": {
+{
   "hide_menu_when_one_type_selected": false,
   "allow_single_type_override": true,
   "last_target_model": "*Nord+",

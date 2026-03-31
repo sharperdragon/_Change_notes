@@ -36,12 +36,6 @@ from .modules.merge_schedule import run_merge_scheduling
 from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
 from .modules.tag_dupes import run_tag_dupes
 
-config_manager = ConfigManager("_Change_notes")
-
-# Load merged config from config_manager
-config = config_manager.load()
-
-
 # Prompt for threshold and run tag unification if threshold is set
 def run_merge_tags_with_threshold(browser: Browser):
     threshold = prompt_fuzzy_threshold()
@@ -58,7 +52,7 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     menu.addSeparator()
 
     # Add tag menu items after existing menu actions (directly to root menu)
-    add_tag_menu_items(browser, menu, config)
+    add_tag_menu_items(browser, menu)
 
     # gui_hooks.browser_menus_did_init.append(_add_img_class_menu_action)
     menu.addSeparator()
@@ -150,11 +144,20 @@ def inject_tools_menu(menu):
     # Create "Change Note Types" submenu in Tools > Add-ons
     change_menu = QMenu("Change Note Types", menu)
 
+    def focus_browser_or_prompt():
+        browser = getattr(mw, "browser", None)
+        if browser:
+            browser.activateWindow()
+            browser.raise_()
+        else:
+            showInfo("Open the Browser and select notes first.")
+
     batch = QAction("Batch Change Note Type…", mw)
-    batch.triggered.connect(lambda: mw.browser.activateWindow() or mw.browser.raise_())
+    batch.triggered.connect(focus_browser_or_prompt)
     change_menu.addAction(batch)
+
     resolve = QAction("Resolve Duplicates in Browser", mw)
-    resolve.triggered.connect(lambda: mw.browser.activateWindow() or mw.browser.raise_())
+    resolve.triggered.connect(focus_browser_or_prompt)
     change_menu.addAction(resolve)
 
     classify_tables = QAction("Classify Tables on Selected Notes…", mw)
@@ -181,7 +184,7 @@ except ImportError:
 # Opens the GUI config dialog for managing field-mapping profiles and other add-on settings.
 def open_config_gui():
     # Launch GUI config dialog for field-mapping setup
-    dialog = ConfigDialog("Change_note-types", ConfigManager)
+    dialog = ConfigDialog("_Change_notes", ConfigManager)
     dialog.exec()
 
 

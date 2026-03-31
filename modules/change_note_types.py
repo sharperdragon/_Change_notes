@@ -1,5 +1,3 @@
-
-from .utils import save_config
 from ..config_manager import ConfigManager
 
 from aqt import mw
@@ -9,7 +7,7 @@ from aqt.utils import showInfo
 from aqt import gui_hooks
 
 
-config_manager = ConfigManager("batch_note_change_config", "global_config")
+config_manager = ConfigManager("batch_note_change_config")
 
 # Load merged config from config_manager
 config = config_manager.load()
@@ -31,6 +29,8 @@ except ImportError:
 # Opens a dialog to batch-change note types of selected notes in the Anki browser.
 # Also applies optional field-mapping profiles saved in the config.
 def change_selected_notes(browser: Browser):
+    global config
+    config = config_manager.reload()
     # Get selected note IDs from browser
     nids = browser.selectedNotes()
     if not nids:
@@ -58,7 +58,7 @@ def change_selected_notes(browser: Browser):
         return
 
     config["last_target_model"] = target_name
-    save_config(config)
+    config_manager.save_config(config)
 
     # Retrieve saved field-mapping profiles
     mapping_keys = list(config.get("field_mappings", {}).keys())
@@ -78,7 +78,7 @@ def change_selected_notes(browser: Browser):
     # If a mapping profile is chosen, store selection
     if mapping_profile:
         config["last_mapping_profile"] = mapping_profile
-        save_config(config)
+        config_manager.save_config(config)
 
     # Get model ID of selected note type
     mid = col.models.by_name(target_name)["id"]
@@ -97,4 +97,3 @@ def change_selected_notes(browser: Browser):
                     continue
                 note.fields[flds.index(tgt)] = note.fields[flds.index(src)]
             note.flush()
-
