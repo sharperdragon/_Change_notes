@@ -77,7 +77,7 @@ _Change_notes/
 └── modules/
     ├── utils.py
     ├── merge_utils.py
-    ├── add_tags.py
+    ├── add_missed_tags.py
     ├── change_note_types.py
     ├── del_empty_notes.py
     ├── export_nids.py

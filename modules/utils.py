@@ -25,6 +25,23 @@ from .shared.text_similarity import (
     strip_html,
 )
 
+__all__ = [
+    "clean_img_tag",
+    "combine_morphemes",
+    "extract_images",
+    "extract_srcs",
+    "group_notes_by_similarity",
+    "is_similar",
+    "load_replacements",
+    "normalize",
+    "normalize_cloze_content",
+    "strip_html",
+    "get_config_section",
+    "load_config",
+    "save_config",
+    "get_field_index_from_config",
+    "prompt_similarity_threshold",
+]
 
 _ADDON_ROOT = Path(__file__).resolve().parents[1]
 _CONFIG_PATH = _ADDON_ROOT / "config.json"
@@ -112,9 +129,7 @@ def prompt_similarity_threshold(
 
     lay.addWidget(spin)
 
-    btns = QDialogButtonBox(
-        QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-    )
+    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
     btns.accepted.connect(dlg.accept)
     btns.rejected.connect(dlg.reject)
     lay.addWidget(btns)
@@ -132,4 +147,3 @@ def prompt_similarity_threshold(
         val = max(min(val, maximum), minimum)
 
     return val, True
-

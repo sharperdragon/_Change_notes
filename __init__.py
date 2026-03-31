@@ -24,8 +24,8 @@ from PyQt6.QtWidgets import QLabel, QWidgetAction
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
 from .modules.Add_img_class import main as add_img_class_main
+from .modules.add_missed_tags import add_tag_menu_items
 from .modules.add_table_class.main import add_class_main
-from .modules.add_tags import add_tag_menu_items
 from .modules.change_note_types import change_selected_notes
 from .modules.del_empty_notes import delete_empty_note_types
 from .modules.export_nids import create_export_nids_action
@@ -35,6 +35,7 @@ from .modules.merge_imgs import merge_images_main
 from .modules.merge_schedule import run_merge_scheduling
 from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
 from .modules.tag_dupes import run_tag_dupes
+
 
 # Prompt for threshold and run tag unification if threshold is set
 def run_merge_tags_with_threshold(browser: Browser):
@@ -48,7 +49,6 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     selected = browser.selectedNotes()
     if not selected:
         return
-    col = browser.mw.col
     menu.addSeparator()
 
     # Add tag menu items after existing menu actions (directly to root menu)
@@ -162,9 +162,11 @@ def inject_tools_menu(menu):
 
     classify_tables = QAction("Classify Tables on Selected Notes…", mw)
     classify_tables.triggered.connect(
-        lambda: add_class_main(mw.browser)
-        if getattr(mw, "browser", None)
-        else showInfo("Open the Browser and select notes first.")
+        lambda: (
+            add_class_main(mw.browser)
+            if getattr(mw, "browser", None)
+            else showInfo("Open the Browser and select notes first.")
+        )
     )
     change_menu.addAction(classify_tables)
 
@@ -194,4 +196,7 @@ def custom_styled_action(text, parent, triggered_fn):
     f = QFont()
     f.setPointSize(15)  # bigger font just for this item
     label.setFont(f)
+    return action
+    label.setFont(f)
+    return action
     return action

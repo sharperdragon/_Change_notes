@@ -9,8 +9,13 @@ from aqt.utils import showInfo, tooltip
 from ..config_manager import ConfigManager
 
 # ! ----------------------------- CONFIG SECTIONS -----------------------------
-CONFIG_SECTION = "add_tags"
+CONFIG_SECTION = "add_missed_tags"
 LEGACY_CONFIG_SECTION = "tag_selected_notes_config"
+LEGACY_MODULE_CONFIG_SECTION = "add_tags"
+LEGACY_CONFIG_SECTIONS = [
+    LEGACY_CONFIG_SECTION,
+    LEGACY_MODULE_CONFIG_SECTION,
+]
 SCHEDULE_POLICY_UNKNOWN = "unknown"
 SCHEDULE_POLICY_NEXT = "next"
 # ! -------------------------------------------------------------------------
@@ -193,10 +198,15 @@ def _reload_runtime_config():
     global ROTATION_SCHEDULE
     global SCHEDULE_EXHAUSTED_POLICY
 
-    legacy_cfg = ConfigManager(LEGACY_CONFIG_SECTION).load()
+    legacy_cfg: dict[str, Any] = {}
+    for section_name in LEGACY_CONFIG_SECTIONS:
+        section_data = ConfigManager(section_name).load()
+        if isinstance(section_data, dict):
+            legacy_cfg = ConfigManager.deep_merge_dicts(legacy_cfg, section_data)
+
     section_cfg = ConfigManager(CONFIG_SECTION).load()
     merged_cfg = ConfigManager.deep_merge_dicts(
-        legacy_cfg if isinstance(legacy_cfg, dict) else {},
+        legacy_cfg,
         section_cfg if isinstance(section_cfg, dict) else {},
     )
 
