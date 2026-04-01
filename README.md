@@ -37,9 +37,9 @@ Each tool is designed as a standalone module yet integrates seamlessly into the 
 ### Developer Workflow
 
 1. **Add Modules:** Create new Python modules under `modules/` following existing patterns.
-2. **Create Configs:** Add configuration JSON files in `modules/configs/`.
+2. **Create Configs:** Add configuration JSON files in `configs/`.
 3. **Implement Logging:** Ensure detailed logs are written in dedicated subfolders under `logs/`.
-4. **Register Tools:** Update the menu and UI registration in `config_manager.py`.
+4. **Register Tools:** Update menu and UI registration in `__init__.py` and the target module(s).
 5. **Document:** Provide module docstrings and update this README with new tool descriptions.
 6. **Test:** Use dry-run modes and logging to verify correctness before release.
 
@@ -71,12 +71,14 @@ _Change_notes/
 ├── config_ui.py
 │
 ├── configs/                               # Default source for per-module config sections
+│   └── add_custom_tags.json
 │
 ├── logs/
 │
 └── modules/
     ├── utils.py
     ├── merge_utils.py
+    ├── add_custom_tags.py
     ├── add_missed_tags.py
     ├── change_note_types.py
     ├── del_empty_notes.py
@@ -129,7 +131,8 @@ _Change_notes/
 | **Merge Schedule**        | Merge scheduling data between notes (for sync or merge tasks)           | Field mapping, conflict resolution, audit logs                    |
 | **Merge Images**          | Deduplicate and merge media/image references across notes               | Hashing, reference update, orphan cleanup                         |
 | **Batch Note Type Change**| Change note types in bulk using mappings or rules                       | Field mapping, type safety, dry-run mode                          |
-| **Add Tags**              | Add or remove tags across selected notes                                | Regex selection, batch add/remove, preview mode                   |
+| **Add Missed Tags**       | Add missed-question tags from context menu actions                      | Rotation/month-aware tagging, source-specific presets             |
+| **Add Custom Tags**       | Add user-defined preset tags from a dedicated context submenu           | Config-driven labels/tags, batch apply to selected notes          |
 | **Add_img_class**         | Advanced image manipulation and classification within note fields       | PIL-backed processing, normalization, detailed logging            |
 | **add_table_class**       | Structured table insertion and modification in note fields              | HTML/Markdown tables, batch-safe operations, configurable layouts |
 
@@ -149,6 +152,7 @@ _Change_notes employs a layered configuration approach to maximize flexibility:
 
 - **Global Configuration (`config.json`):** Controls overall add-on behavior, UI settings, and default options.
 - **Tool-specific Configuration (`configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
+- **Custom Tag Presets (`add_custom_tags` section):** Defines the top-level Custom Tags submenu label and tag presets.
 
 Configuration can be edited using:
 
@@ -170,6 +174,24 @@ Configuration can be edited using:
 }
 ```
 
+**Example of `add_custom_tags` section:**
+
+```json
+{
+  "submenu_label": "Custom Tags",
+  "presets": [
+    {
+      "label": "ADRs",
+      "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
+    },
+    {
+      "label": "DO_Med",
+      "tags": ["#Custom::DO_Med"]
+    }
+  ]
+}
+```
+
 ---
 
 ## Usage Instructions
@@ -188,11 +210,11 @@ Configuration can be edited using:
 ### For Developers
 
 - Develop new modules under `modules/` with clear separation of concerns.
-- Add configuration files in `modules/configs/`.
+- Add configuration files in `configs/`.
 - Implement detailed logging for transparency.
-- Register new tools in the menu system via `config_manager.py`.
+- Register new tools in the menu system via `__init__.py` and module menu hook functions.
 - Update this README with documentation for new modules.
-- Use shared utilities from `modules/utils.py` and `modules/small_modules.py`.
+- Use shared utilities from `modules/utils.py` and `modules/shared/`.
 - Test thoroughly with dry-run modes before deployment.
 
 ---

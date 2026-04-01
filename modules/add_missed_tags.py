@@ -429,7 +429,7 @@ def add_base_plain_action(browser, menu):
     menu.addAction(action)
 
 
-def add_tag_menu_items(browser, menu):
+def add_missed_tag_menu_items(browser, menu):
     _reload_runtime_config()
 
     tag_menu = QMenu(" 📝 Apply Tags ", browser)
