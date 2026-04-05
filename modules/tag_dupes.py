@@ -1,12 +1,12 @@
 # pyright: reportMissingImports=false
-import  time, datetime, string
+import hashlib
+import string
+import time
+from datetime import datetime
 from pathlib import Path
-from ..config_manager import ConfigManager
 from PyQt6.QtWidgets import QInputDialog
 from aqt import mw
 from aqt.utils import showInfo
-from datetime import datetime
-import hashlib
 from .assets.scrub_match import (
     group_similar_notes_by_content,
 )
@@ -271,7 +271,7 @@ def run_tag_dupes(browser=None, debug=None):
         if unmatched_nids:
             f.write(", ".join(str(nid) for nid in map(safe_cast_to_int, unmatched_nids) if nid is not None) + ",\n")
 
-    log_debug(f"🧾 Summary:", debug_mode=debug)
+    log_debug("🧾 Summary:", debug_mode=debug)
     log_debug(f"• Triple-matched note count: {len(triple_match_nids)}", debug_mode=debug)
     log_debug(f"• Unmatched note count: {len(unmatched_nids)}", debug_mode=debug)
     log_debug(f"📄 Full details in: {tag_dupes_log_dir / desktop_log_filename}", debug_mode=debug)

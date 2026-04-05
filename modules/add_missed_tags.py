@@ -60,8 +60,8 @@ AMBOSS_NUMBER_STYLE = "rotation_then_number"
 AMBOSS_REMOVE_FROM_OTHER_MENU = True
 
 # ? Special actions
-KEY_TAG_BASE = "#Custom::#Shelf"
-KEY_INFO_SUFFIX = "*KEY"
+KEY_TAG_BASE = "#Custom::#KEY"
+
 CORRECT_GUESS_TAGS = ["#Custom::correct_marked"]
 CORRECT_GUESS_INCLUDE_ROTATION = True
 CORRECT_GUESS_ROTATION_LOWERCASE = True
@@ -84,6 +84,40 @@ PROMPT_BEHAVIOR_BASE_PLUS_ROTATION = "base_plus_rotation"
 PROMPT_BEHAVIOR_BASE_ONLY = "base_only"
 PROMPT_STYLE_ROTATION_THEN_NUMBER = "rotation_then_number"
 PROMPT_STYLE_RANGE_THEN_NUMBER = "range_then_number"
+
+# ? UI labels/messages (optional config overrides)
+DEFAULT_MISSED_TAGS_MENU_LABEL = "Missed Tags ❌"
+DEFAULT_MSG_NO_NOTES_SELECTED = "❌ No notes selected."
+DEFAULT_MSG_INVALID_TEST_NUMBER = "❌ Please enter a valid integer test number."
+DEFAULT_ACTION_LABEL_BASE = "♦️Base"
+DEFAULT_ACTION_LABEL_MULTI_MISSED = "2x Missed 📌"
+DEFAULT_ACTION_LABEL_DYNAMIC_TEST_PROMPT = "♦️Missed Test #"
+DEFAULT_ACTION_LABEL_KEY_INFO = "Key Info 🗝️"
+DEFAULT_ACTION_LABEL_CORRECT_GUESS = "Guessed Correct 🎫"
+DEFAULT_PROMPT_TITLE_GENERIC = "Enter Test Number"
+DEFAULT_PROMPT_LABEL_GENERIC = "Test #:"
+
+MISSED_TAGS_MENU_LABEL = DEFAULT_MISSED_TAGS_MENU_LABEL
+MSG_NO_NOTES_SELECTED = DEFAULT_MSG_NO_NOTES_SELECTED
+MSG_INVALID_TEST_NUMBER = DEFAULT_MSG_INVALID_TEST_NUMBER
+ACTION_LABEL_BASE = DEFAULT_ACTION_LABEL_BASE
+ACTION_LABEL_MULTI_MISSED = DEFAULT_ACTION_LABEL_MULTI_MISSED
+ACTION_LABEL_DYNAMIC_TEST_PROMPT = DEFAULT_ACTION_LABEL_DYNAMIC_TEST_PROMPT
+ACTION_LABEL_KEY_INFO = DEFAULT_ACTION_LABEL_KEY_INFO
+ACTION_LABEL_CORRECT_GUESS = DEFAULT_ACTION_LABEL_CORRECT_GUESS
+PROMPT_TITLE_GENERIC = DEFAULT_PROMPT_TITLE_GENERIC
+PROMPT_LABEL_GENERIC = DEFAULT_PROMPT_LABEL_GENERIC
+
+UI_KEY_MENU_LABEL = "menu_label"
+UI_KEY_MSG_NO_NOTES_SELECTED = "message_no_notes_selected"
+UI_KEY_MSG_INVALID_TEST_NUMBER = "message_invalid_test_number"
+UI_KEY_ACTION_LABEL_BASE = "action_label_base"
+UI_KEY_ACTION_LABEL_MULTI_MISSED = "action_label_multi_missed"
+UI_KEY_ACTION_LABEL_DYNAMIC_TEST_PROMPT = "action_label_dynamic_test_prompt"
+UI_KEY_ACTION_LABEL_KEY_INFO = "action_label_key_info"
+UI_KEY_ACTION_LABEL_CORRECT_GUESS = "action_label_correct_guess"
+UI_KEY_PROMPT_TITLE_GENERIC = "prompt_title_generic"
+UI_KEY_PROMPT_LABEL_GENERIC = "prompt_label_generic"
 
 # ? Exclude list for “auto-missed” context
 EXCLUDE_AUTO_MISS = [
@@ -197,6 +231,16 @@ def _reload_runtime_config():
     global OTHER_RESOURCES
     global ROTATION_SCHEDULE
     global SCHEDULE_EXHAUSTED_POLICY
+    global MISSED_TAGS_MENU_LABEL
+    global MSG_NO_NOTES_SELECTED
+    global MSG_INVALID_TEST_NUMBER
+    global ACTION_LABEL_BASE
+    global ACTION_LABEL_MULTI_MISSED
+    global ACTION_LABEL_DYNAMIC_TEST_PROMPT
+    global ACTION_LABEL_KEY_INFO
+    global ACTION_LABEL_CORRECT_GUESS
+    global PROMPT_TITLE_GENERIC
+    global PROMPT_LABEL_GENERIC
 
     legacy_cfg: dict[str, Any] = {}
     for section_name in LEGACY_CONFIG_SECTIONS:
@@ -244,6 +288,31 @@ def _reload_runtime_config():
         policy = SCHEDULE_POLICY_UNKNOWN
     SCHEDULE_EXHAUSTED_POLICY = policy
 
+    ui_cfg = merged_cfg.get("ui", {})
+    if not isinstance(ui_cfg, dict):
+        ui_cfg = {}
+
+    def _ui_text(key: str, fallback: str) -> str:
+        raw = ui_cfg.get(key, merged_cfg.get(key, fallback))
+        text = str(raw).strip()
+        return text or fallback
+
+    MISSED_TAGS_MENU_LABEL = _ui_text(UI_KEY_MENU_LABEL, DEFAULT_MISSED_TAGS_MENU_LABEL)
+    MSG_NO_NOTES_SELECTED = _ui_text(UI_KEY_MSG_NO_NOTES_SELECTED, DEFAULT_MSG_NO_NOTES_SELECTED)
+    MSG_INVALID_TEST_NUMBER = _ui_text(UI_KEY_MSG_INVALID_TEST_NUMBER, DEFAULT_MSG_INVALID_TEST_NUMBER)
+    ACTION_LABEL_BASE = _ui_text(UI_KEY_ACTION_LABEL_BASE, DEFAULT_ACTION_LABEL_BASE)
+    ACTION_LABEL_MULTI_MISSED = _ui_text(UI_KEY_ACTION_LABEL_MULTI_MISSED, DEFAULT_ACTION_LABEL_MULTI_MISSED)
+    ACTION_LABEL_DYNAMIC_TEST_PROMPT = _ui_text(
+        UI_KEY_ACTION_LABEL_DYNAMIC_TEST_PROMPT,
+        DEFAULT_ACTION_LABEL_DYNAMIC_TEST_PROMPT,
+    )
+    ACTION_LABEL_KEY_INFO = _ui_text(UI_KEY_ACTION_LABEL_KEY_INFO, DEFAULT_ACTION_LABEL_KEY_INFO)
+    ACTION_LABEL_CORRECT_GUESS = _ui_text(
+        UI_KEY_ACTION_LABEL_CORRECT_GUESS, DEFAULT_ACTION_LABEL_CORRECT_GUESS
+    )
+    PROMPT_TITLE_GENERIC = _ui_text(UI_KEY_PROMPT_TITLE_GENERIC, DEFAULT_PROMPT_TITLE_GENERIC)
+    PROMPT_LABEL_GENERIC = _ui_text(UI_KEY_PROMPT_LABEL_GENERIC, DEFAULT_PROMPT_LABEL_GENERIC)
+
 
 _reload_runtime_config()
 
@@ -261,10 +330,10 @@ def _set_rotation_warning(message: str):
 def get_rotation_key_info_tag() -> str:
     """Return the KEY info tag for the current/next rotation, using numbered segment.
 
-    Example: '#Custom::#Shelf::07_FM1::*KEY'
+    Example: '#Custom::#KEY::07_FM1'
     """
-    segment = get_rotation_segment()
-    return f"{KEY_TAG_BASE}::{segment}::{KEY_INFO_SUFFIX}"
+    rot_segment = get_rotation_segment()
+    return f"{KEY_TAG_BASE}::{rot_segment}"
 
 
 def get_current_or_next_rotation_meta():
@@ -379,6 +448,13 @@ def _add_tag_safe(note, tag: str):
         note.addTag(tag)
 
 
+def _save_note_safe(col, note):
+    try:
+        col.update_note(note)
+    except Exception:
+        note.flush()
+
+
 # ! Centralized tag applier: adds rotation (always) and month (unless excluded)
 def apply_tags_to_selected_notes(browser, tag_list: list[str], action_key: str):
     _reload_runtime_config()
@@ -411,7 +487,7 @@ def apply_tags_to_selected_notes(browser, tag_list: list[str], action_key: str):
         for tag in final_tags:
             if tag not in current:
                 _add_tag_safe(note, tag)
-        note.flush()
+        _save_note_safe(col, note)
 
     browser.model.reset()
     msg = f"✅ Applied {len(final_tags)} tags to {len(nids)} notes."
@@ -422,7 +498,7 @@ def apply_tags_to_selected_notes(browser, tag_list: list[str], action_key: str):
 
 # $ Add a plain "Base" action (no test/rotation/month)
 def add_base_plain_action(browser, menu):
-    action = QAction("♦️Base", browser)
+    action = QAction(ACTION_LABEL_BASE, browser)
     action.triggered.connect(
         lambda _: apply_tags_to_selected_notes(browser, MISSED_BASE_TAG, action_key=ACTION_KEY_BASE_PLAIN)
     )
@@ -432,7 +508,7 @@ def add_base_plain_action(browser, menu):
 def add_missed_tag_menu_items(browser, menu):
     _reload_runtime_config()
 
-    tag_menu = QMenu(" 📝 Apply Tags ", browser)
+    tag_menu = QMenu(MISSED_TAGS_MENU_LABEL, browser)
     tag_menu.setStyleSheet("""
         QMenu::item {
             padding-top: 4.5px;
@@ -500,7 +576,7 @@ def add_amboss_tag(browser, menu):
 
 def add_multi_tag(browser, menu):
     multi_tag = base_tag_path(MULTI_MISS_TAG)
-    multi_tag_label = f"{'2x Missed 📌':<24}"
+    multi_tag_label = f"{ACTION_LABEL_MULTI_MISSED:<24}"
     add_static_action(browser, menu, multi_tag_label, [multi_tag], action_key="multi_missed")
 
 
@@ -576,7 +652,7 @@ def add_other_resources_actions(browser, menu):
 
         def on_click(_, rtag=resource_tag):
             if not browser.selectedNotes():
-                showInfo("❌ No notes selected.")
+                showInfo(MSG_NO_NOTES_SELECTED)
                 return
             # -> e.g. "##Missed-Qs::Other::Kaplan"
             tags_to_apply = MISSED_BASE_TAG + [rtag]
@@ -587,7 +663,7 @@ def add_other_resources_actions(browser, menu):
 
 
 def prompt_and_apply_test_tag(browser, base_tag: str, action_key: str):
-    test_num, ok = QInputDialog.getText(browser, "Enter Test Number", "Test #:")
+    test_num, ok = QInputDialog.getText(browser, PROMPT_TITLE_GENERIC, PROMPT_LABEL_GENERIC)
     if ok and test_num.strip():
         try:
             test_input = int(test_num.strip())
@@ -597,7 +673,7 @@ def prompt_and_apply_test_tag(browser, base_tag: str, action_key: str):
             full_number_tag = f"{base_tag}::{range_tag}::{test_input:02d}"
             apply_tags_to_selected_notes(browser, [full_number_tag], action_key=action_key)
         except ValueError:
-            showInfo("❌ Please enter a valid integer test number.")
+            showInfo(MSG_INVALID_TEST_NUMBER)
 
 
 # $ Factory: build a test-number prompt handler bound to a base_tag + action_key
@@ -605,8 +681,8 @@ def make_test_prompt_handler(
     browser,
     base_tag: str,
     action_key: str,
-    title: str = "Enter Test Number",
-    label: str = "Test #:",
+    title: str | None = None,
+    label: str | None = None,
     blank_behavior: str = "base_plus_rotation",
     number_style: str = "range_then_number",
 ):
@@ -621,8 +697,10 @@ def make_test_prompt_handler(
     """
 
     def on_trigger():
+        prompt_title = (title or PROMPT_TITLE_GENERIC).strip() or PROMPT_TITLE_GENERIC
+        prompt_label = (label or PROMPT_LABEL_GENERIC).strip() or PROMPT_LABEL_GENERIC
         # Prompt with no placeholder/default text
-        test_num, ok = QInputDialog.getText(browser, title, label)
+        test_num, ok = QInputDialog.getText(browser, prompt_title, prompt_label)
         if not ok:
             return
         test_num = (test_num or "").strip()
@@ -653,7 +731,7 @@ def make_test_prompt_handler(
                     formatted_tag = f"{base_tag}::{range_tag}::{tn:02d}"
 
         if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
+            showInfo(MSG_NO_NOTES_SELECTED)
             return
         apply_tags_to_selected_notes(browser, [formatted_tag], action_key=action_key)
 
@@ -669,7 +747,7 @@ def add_static_action(browser, menu, set_name: str, tags: list[str], action_key:
 
 
 def add_dynamic_test_prompt(browser, menu, base_tag: str, action_key: str):
-    action = QAction("♦️Missed Test #", browser)
+    action = QAction(ACTION_LABEL_DYNAMIC_TEST_PROMPT, browser)
     action.triggered.connect(
         lambda _, base_tag=base_tag, k=action_key: prompt_and_apply_test_tag(browser, base_tag, action_key=k)
     )
@@ -677,11 +755,11 @@ def add_dynamic_test_prompt(browser, menu, base_tag: str, action_key: str):
 
 
 def add_key_info_action(browser, menu):
-    action = QAction("Key Info 🗝️", browser)
+    action = QAction(ACTION_LABEL_KEY_INFO, browser)
 
     def on_click():
         if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
+            showInfo(MSG_NO_NOTES_SELECTED)
             return
         key_tag = get_rotation_key_info_tag()
         apply_tags_to_selected_notes(
@@ -693,7 +771,7 @@ def add_key_info_action(browser, menu):
 
 
 def add_correct_guess_action(browser, menu):
-    action = QAction("Guessed Correct 🎫", browser)
+    action = QAction(ACTION_LABEL_CORRECT_GUESS, browser)
     action.triggered.connect(
         lambda _: apply_tags_to_selected_notes(
             browser, get_correct_guess_tags(), action_key=ACTION_KEY_CORRECT_GUESS

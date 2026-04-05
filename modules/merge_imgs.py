@@ -1,5 +1,7 @@
 # Add missing imports
-import os, re, time
+import os
+import re
+import time
 from html import unescape
 from urllib.parse import urlsplit
 from collections import defaultdict
@@ -486,15 +488,8 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
             for note in model_group:
                 updated_fields = list(note.fields)
-                changed = False
-                all_existing_imgs = set()
                 field_names = get_field_names(note)
-                for i, f in enumerate(note.fields):
-                    field_name = field_names[i]
-                    if field_name not in SCAN_FIELDS:
-                        continue
-                    all_existing_imgs.update(extract_images(f))
-                all_existing_srcs = extract_srcs(all_existing_imgs)
+                changed = False
                 used_donors = set()
 
                 for i, images in field_to_images.items():

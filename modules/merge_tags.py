@@ -133,7 +133,6 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
     selected_nids = browser.selectedNotes()
     log_debug(f"Selected NIDs: {selected_nids}")
     field_name = config.get("comparison_field", "Text")
-    norm_to_nids = {}
 
     # Build map of normalized text -> NIDs
     nid_to_norm = {}

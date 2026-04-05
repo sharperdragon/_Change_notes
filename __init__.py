@@ -23,115 +23,21 @@ from PyQt6.QtWidgets import QLabel, QWidgetAction
 
 from .config_manager import ConfigManager
 from .config_ui import ConfigDialog
-from .modules.add_custom_tags import add_custom_tag_menu_items
-from .modules.Add_img_class import main as add_img_class_main
-from .modules.add_missed_tags import add_missed_tag_menu_items
+from .menu_compiler import compile_browser_context_menu
 from .modules.add_table_class.main import add_class_main
-from .modules.change_note_types import change_selected_notes
-from .modules.del_empty_notes import delete_empty_note_types
-from .modules.export_nids import create_export_nids_action
-from .modules.export_UW_qid_tags import run_export_for_selected_notes
-from .modules.img_tags_merge import merge_imgs_and_tags
-from .modules.merge_imgs import merge_images_main
-from .modules.merge_schedule import run_merge_scheduling
-from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
-from .modules.tag_dupes import run_tag_dupes
 
-
-# Prompt for threshold and run tag unification if threshold is set
-def run_merge_tags_with_threshold(browser: Browser):
-    threshold = prompt_fuzzy_threshold()
-    if threshold is not None:
-        unify_tags_on_duplicates(browser, threshold)
+# ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
+CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
+# ! -----------------------------------------------------------------------------
 
 
 # Injects right-click browser menu options
 def on_browser_will_show_context_menu(browser: Browser, menu):
-    selected = browser.selectedNotes()
-    if not selected:
-        return
-    menu.addSeparator()
-
-    # Add tag menu items after existing menu actions (directly to root menu)
-    add_missed_tag_menu_items(browser, menu)
-    add_custom_tag_menu_items(browser, menu)
-
-    # gui_hooks.browser_menus_did_init.append(_add_img_class_menu_action)
-    menu.addSeparator()
-
-    # Export NIDs (adds two Desktop files + copies query to clipboard)
-    export_action = create_export_nids_action(parent=browser, mw=mw, browser=browser)
-    menu.addAction(export_action)
-
-    # Export UWorld Step QID tags (deduped + sorted + clipboard + Desktop file)
-    export_uw_qids_action = QAction("Export UW QID tag(s) 🧿", browser)
-    export_uw_qids_action.triggered.connect(lambda: run_export_for_selected_notes(browser))
-    menu.addAction(export_uw_qids_action)
-
-    # Context menu → runs add_table_class on currently selected notes.
-    classify_imgs_action = QAction("Add IMG class 🏞️", browser)
-    classify_imgs_action.triggered.connect(lambda: add_img_class_main(browser))
-    menu.addAction(classify_imgs_action)
-
-    # Context menu → runs add_table_class on currently selected notes.
-    classify_tables_action = QAction("📊 Add Table class (columns)", browser)
-    classify_tables_action.triggered.connect(lambda: add_class_main(browser))
-    menu.addAction(classify_tables_action)
-
-    # Create a submenu for all edit-related actions
-    edit_menu = QMenu("Edit Menu 📝", menu)
-    edit_menu.setObjectName("editMenu")
-    added_edit = False
-
-    # Create a submenu for all merge-related actions
-    merge_menu = QMenu("Merge Menu 🚧", menu)
-    merge_menu.setObjectName("mergeMenu")
-    added_merge = False
-
-    unify_Img_and_tags_action = QAction("🍃Merge Imgs+Tags", browser)
-    unify_Img_and_tags_action.triggered.connect(lambda _=None: merge_imgs_and_tags(browser=browser))
-    merge_menu.addAction(unify_Img_and_tags_action)
-    added_merge = True
-
-    merge_imgs_action = QAction("🧬 Merge Images", browser)
-    merge_imgs_action.triggered.connect(lambda: merge_images_main(selected, browser))
-    merge_menu.addAction(merge_imgs_action)
-    added_merge = True
-
-    unify_tags_action = QAction("🔀 Merge Tags⊹", browser)
-    unify_tags_action.triggered.connect(lambda: run_merge_tags_with_threshold(browser))
-    merge_menu.addAction(unify_tags_action)
-    added_merge = True
-
-    merge_sched_action = QAction("🛻 Merge Schedule", browser)
-    merge_sched_action.triggered.connect(lambda: run_merge_scheduling(browser))
-    merge_menu.addAction(merge_sched_action)
-    added_merge = True
-
-    tag_dupes_action = QAction("Tag Dupes 🔖", browser)
-    tag_dupes_action.triggered.connect(lambda: run_tag_dupes(browser, debug=True))
-    edit_menu.addAction(tag_dupes_action)
-    added_edit = True
-
-    delete_empty_action = QAction("❌ Empty Note Types࿏", browser)
-    delete_empty_action.triggered.connect(delete_empty_note_types)
-    edit_menu.addAction(delete_empty_action)
-    added_edit = True
-
-    action = QAction("Batch Change Note Types", browser)
-    action.triggered.connect(lambda: change_selected_notes(browser))
-    edit_menu.addAction(action)
-    added_edit = True
-
-    # Only add the merge submenu if at least one merge action was added
-    if added_merge:
-        menu.addSeparator()
-        menu.addMenu(merge_menu)
-
-    # Add the edit submenu if at least one edit action was added
-    if added_edit:
-        menu.addMenu(edit_menu)
-        menu.addSeparator()
+    compile_browser_context_menu(
+        browser,
+        menu,
+        custom_tags_menu_label=CUSTOM_TAGS_MENU_LABEL,
+    )
 
 
 # Ensures the browser context menu is only hooked once

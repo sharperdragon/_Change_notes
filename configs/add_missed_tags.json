@@ -1,0 +1,21 @@
+{
+  "base_missed_tag": [
+    "##Missed-Qs"
+  ],
+  "Q_Banks": [
+    "UWORLD",
+    "COMQUEST"
+  ],
+  "ui": {
+    "menu_label": "Missed Tags ❌",
+    "message_no_notes_selected": "❌ No notes selected.",
+    "message_invalid_test_number": "❌ Please enter a valid integer test number.",
+    "action_label_base": "♦️Base",
+    "action_label_multi_missed": "2x Missed 📌",
+    "action_label_dynamic_test_prompt": "♦️Missed Test #",
+    "action_label_key_info": "Key Info 🗝️",
+    "action_label_correct_guess": "Guessed Correct 🎫",
+    "prompt_title_generic": "Enter Test Number",
+    "prompt_label_generic": "Test #:"
+  }
+}

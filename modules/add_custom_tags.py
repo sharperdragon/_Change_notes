@@ -13,20 +13,16 @@ CONFIG_SECTION = "add_custom_tags"
 # ! ------------------------------------------------------------------------
 
 # ! --------------------------- USER-TUNABLE DEFAULTS ---------------------------
-DEFAULT_SUBMENU_LABEL = " 🎛️ Custom Tags"
-DEFAULT_PRESETS = [
-    {
-        "label": "Drug ADRs 😵",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"],
-    },
-    {
-        "label": "D.O. Med 🌬️",
-        "tags": ["#Custom::DO_Med"],
-    },
-]
+DEFAULT_SUBMENU_LABEL = "Custom Tags"
+DEFAULT_MSG_NO_NOTES_SELECTED = "❌ No notes selected."
+DEFAULT_MSG_APPLIED_TEMPLATE = "✅ Applied {tag_count} tag(s) to {note_count} notes."
+# ! -----------------------------------------------------------------------------
 
-MSG_NO_NOTES_SELECTED = "❌ No notes selected."
-MSG_APPLIED_TEMPLATE = "✅ Applied {tag_count} tag(s) to {note_count} notes."
+# ! --------------------------- OPTIONAL CONFIG KEYS ---------------------------
+CONFIG_KEY_SUBMENU_LABEL = "submenu_label"
+CONFIG_KEY_PRESETS = "presets"
+CONFIG_KEY_MSG_NO_NOTES_SELECTED = "message_no_notes_selected"
+CONFIG_KEY_MSG_APPLIED_TEMPLATE = "message_applied_template"
 # ! -----------------------------------------------------------------------------
 
 
@@ -61,20 +57,30 @@ def _normalize_presets(raw: Any) -> list[dict[str, list[str]]]:
     return normalized
 
 
-def _load_runtime_config() -> tuple[str, list[dict[str, list[str]]]]:
+def _load_runtime_config(
+    menu_label_override: str | None = None,
+) -> tuple[str, list[dict[str, list[str]]], str, str]:
     section_cfg = ConfigManager(CONFIG_SECTION).load()
     if not isinstance(section_cfg, dict):
         section_cfg = {}
 
-    submenu_label = str(section_cfg.get("submenu_label", DEFAULT_SUBMENU_LABEL)).strip()
-    if not submenu_label:
+    configured_submenu_label = str(section_cfg.get(CONFIG_KEY_SUBMENU_LABEL, "")).strip()
+    if isinstance(menu_label_override, str) and menu_label_override.strip():
+        submenu_label = menu_label_override.strip()
+    elif configured_submenu_label:
+        submenu_label = configured_submenu_label
+    else:
         submenu_label = DEFAULT_SUBMENU_LABEL
 
-    presets = _normalize_presets(section_cfg.get("presets", DEFAULT_PRESETS))
-    if not presets:
-        presets = _normalize_presets(DEFAULT_PRESETS)
+    configured_no_notes = str(section_cfg.get(CONFIG_KEY_MSG_NO_NOTES_SELECTED, "")).strip()
+    configured_applied_template = str(section_cfg.get(CONFIG_KEY_MSG_APPLIED_TEMPLATE, "")).strip()
+    msg_no_notes_selected = configured_no_notes or DEFAULT_MSG_NO_NOTES_SELECTED
+    msg_applied_template = configured_applied_template or DEFAULT_MSG_APPLIED_TEMPLATE
 
-    return submenu_label, presets
+    # Presets come from config only; no hardcoded fallback presets.
+    presets = _normalize_presets(section_cfg.get(CONFIG_KEY_PRESETS, []))
+
+    return submenu_label, presets, msg_no_notes_selected, msg_applied_template
 
 
 def _add_tag_safe(note, tag: str):
@@ -84,10 +90,23 @@ def _add_tag_safe(note, tag: str):
         note.addTag(tag)
 
 
-def _apply_tags_to_selected_notes(browser, tags: list[str]):
+def _save_note_safe(col, note):
+    try:
+        col.update_note(note)
+    except Exception:
+        note.flush()
+
+
+def _apply_tags_to_selected_notes(
+    browser,
+    tags: list[str],
+    *,
+    msg_no_notes_selected: str,
+    msg_applied_template: str,
+):
     nids = browser.selectedNotes()
     if not nids:
-        showInfo(MSG_NO_NOTES_SELECTED)
+        showInfo(msg_no_notes_selected)
         return
 
     # Deduplicate while preserving order
@@ -108,14 +127,21 @@ def _apply_tags_to_selected_notes(browser, tags: list[str]):
         for tag in final_tags:
             if tag not in current_tags:
                 _add_tag_safe(note, tag)
-        note.flush()
+        _save_note_safe(col, note)
 
     browser.model.reset()
-    tooltip(MSG_APPLIED_TEMPLATE.format(tag_count=len(final_tags), note_count=len(nids)))
+    tooltip(msg_applied_template.format(tag_count=len(final_tags), note_count=len(nids)))
 
 
-def add_custom_tag_menu_items(browser, parent_menu):
-    submenu_label, presets = _load_runtime_config()
+def add_custom_tag_menu_items(
+    browser,
+    parent_menu,
+    *,
+    menu_label: str | None = None,
+):
+    submenu_label, presets, msg_no_notes_selected, msg_applied_template = _load_runtime_config(
+        menu_label_override=menu_label
+    )
     if not presets:
         return
 
@@ -127,7 +153,12 @@ def add_custom_tag_menu_items(browser, parent_menu):
 
         action = QAction(label, browser)
         action.triggered.connect(
-            lambda _=None, preset_tags=tags: _apply_tags_to_selected_notes(browser, preset_tags)
+            lambda _=None, preset_tags=tags: _apply_tags_to_selected_notes(
+                browser,
+                preset_tags,
+                msg_no_notes_selected=msg_no_notes_selected,
+                msg_applied_template=msg_applied_template,
+            )
         )
         custom_menu.addAction(action)
 

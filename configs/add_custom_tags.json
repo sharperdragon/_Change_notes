@@ -1,5 +1,7 @@
 {
   "submenu_label": "Custom Tags",
+  "message_no_notes_selected": "❌ No notes selected.",
+  "message_applied_template": "✅ Applied {tag_count} tag(s) to {note_count} notes.",
   "presets": [
     {
       "label": "ADRs",

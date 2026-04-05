@@ -71,7 +71,9 @@ _Change_notes/
 ├── config_ui.py
 │
 ├── configs/                               # Default source for per-module config sections
-│   └── add_custom_tags.json
+│   ├── add_custom_tags.json
+│   ├── add_missed_tags.json
+│   └── add_tags.json                      # Legacy compatibility defaults
 │
 ├── logs/
 │
@@ -153,6 +155,7 @@ _Change_notes employs a layered configuration approach to maximize flexibility:
 - **Global Configuration (`config.json`):** Controls overall add-on behavior, UI settings, and default options.
 - **Tool-specific Configuration (`configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
 - **Custom Tag Presets (`add_custom_tags` section):** Defines the top-level Custom Tags submenu label and tag presets.
+- **Missed Tags (`add_missed_tags` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_tags` and `tag_selected_notes_config`.
 
 Configuration can be edited using:
 
@@ -179,6 +182,8 @@ Configuration can be edited using:
 ```json
 {
   "submenu_label": "Custom Tags",
+  "message_no_notes_selected": "❌ No notes selected.",
+  "message_applied_template": "✅ Applied {tag_count} tag(s) to {note_count} notes.",
   "presets": [
     {
       "label": "ADRs",
@@ -189,6 +194,20 @@ Configuration can be edited using:
       "tags": ["#Custom::DO_Med"]
     }
   ]
+}
+```
+
+**Example of `add_missed_tags` UI overrides:**
+
+```json
+{
+  "add_missed_tags": {
+    "ui": {
+      "menu_label": "Missed Tags ❌",
+      "message_no_notes_selected": "❌ No notes selected.",
+      "message_invalid_test_number": "❌ Please enter a valid integer test number."
+    }
+  }
 }
 ```
 

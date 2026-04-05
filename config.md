@@ -1,139 +1,154 @@
-# 🔄 Change Notes Add-on: Configuration Guide
+# Change Notes Add-on Configuration Guide
 
-This document explains the settings in `config.json` for the **Change Notes** add-on, which includes batch note type conversion, tag merging, and optional UI overrides.
+This file explains the top-level sections in `config.json`.
 
----
+If the right pane in Anki's config editor looks broken, keep this file in simple markdown format (headings, bullets, fenced code) and avoid markdown tables.
 
-## 🔧 Core Settings
+## General Notes
 
-| Key                           | Description                                                                 |
-|--------------------------------|-----------------------------------------------------------------------------|
-| `hide_menu_when_one_type_selected` | Hides the note type dropdown if there's only one type in the current context. | `false` by default. |
-| `allow_single_type_override`  | Allows the user to override the only detected note type and manually select another. | Helpful for correcting misidentified notes. |
-| `last_target_model`           | Stores the last selected model name to auto-populate the target note type field. | Example: `*Nord+` |
-| `last_mapping_profile`        | Stores the name of the last field-mapping profile used, so it can be restored on reopen. | Default: `""` |
+- `config.json` is the full default configuration shipped with the add-on.
+- Profile-specific changes are saved by Anki as overrides.
+- Values in one section only affect that section's feature.
 
----
+## `batch_note_change_config`
 
-## 🗺️ Field Mapping
+Controls batch note type conversion.
 
-| Key            | Description |
-|----------------|-------------|
-| `field_mappings` | A dictionary mapping source fields to target fields. You can define preset mappings to accelerate batch note changes. |
-| **Example**     | ```json\n"field_mappings": {\n  "Text": "Front",\n  "Extra": "Back"\n}\n``` |
+- `hide_menu_when_one_type_selected`: Hide type dropdown when only one type is detected.
+- `allow_single_type_override`: Allow manual override when only one type is detected.
+- `last_target_model`: Last selected target note type.
+- `field_mappings`: Source-to-target field map.
+- `batch_size`: Notes processed per batch.
+- `show_progress`: Show a progress bar during conversion.
+- `last_mapping_profile`: Last used mapping profile name.
+- `auto_confirm_mappings`: Skip manual mapping confirmation.
+- `tag_on_change`: Tag applied after conversion.
+- `enable_backup`: Enable backup before conversion.
+- `backup_directory`: Backup destination path.
 
----
+## `tag_dupes_config`
 
-## ⚙️ Batch Processing
+Controls duplicate-like note tagging.
 
-| Key          | Description                                                                 |
-|---------------|-----------------------------------------------------------------------------|
-| `batch_size` | Number of notes processed per batch. Adjust if you're hitting performance or timeout issues. |
-| `show_progress` | If `true`, a progress bar will be shown during the batch conversion. |
+- `comparison_field`: Field used for duplicate comparison.
+- `base_tag`: Base tag for matched groups.
+- `multi_tag_child`: Tag used for groups with multiple matches.
+- `TAG UNMATCHED`: If `"true"`, unmatched notes are tagged.
+- `unmatched_tag`: Tag applied to unmatched notes.
+- `log_folder`: Optional log folder override.
 
----
+## `merge_tags_config`
 
-## 📌 Example Config
+Controls fuzzy grouping and tag merging.
+
+- `default_fuzzy`: Fuzzy threshold for grouping.
+- `base_tag`: Base tag for merged groups.
+- `log_folder`: Optional log folder override.
+- `merge_select_only`: Merge only selected notes.
+- `merge_only_parents`: Restrict merging to configured parent tags.
+
+## `merge_scheduling`
+
+Controls scheduling merge behavior.
+
+- `merge_similarity_threshold`: Similarity threshold for merge candidates.
+- `default_fuzzy`: Default fuzzy threshold.
+- `min_fuzzy`: Lower fuzzy bound.
+- `merge_field_index`: Field index used for comparison.
+- `scheduling_merge_log_path`: Log file name/path.
+- `use_text_replacements`: Apply text replacements before comparison.
+- `tag_on_merge`: Tag added to merged notes.
+
+## `merge_images_config`
+
+Controls image merge behavior.
+
+- `default_threshold`: Default merge threshold.
+- `min_threshold`, `max_threshold`: Threshold bounds.
+- `ask_threshold_each_time`: Prompt for threshold each run.
+- `allowed_models`: Optional allow-list of note types.
+- `excluded_tags`: Skip notes with these tags.
+- `fields_to_scan_for_images`: Fields scanned for image content.
+- `merge_behavior`: Merge formatting controls.
+- `logging`: Logging options.
+- `tagging`: Tags applied based on merge result.
+
+## `merge_images_and_tags_config`
+
+Controls combined image+tag merge settings.
+
+- `default_fuzzy`: Default fuzzy threshold.
+- `min_fuzzy`: Lower fuzzy bound.
+- `base_tag`: Base tag for merged results.
+- `log_folder`: Optional log folder override.
+
+## `delete_empty_notes_config`
+
+Controls note type cleanup safeguards.
+
+- `protected_notes`: Note types that should never be removed.
+
+## `tag_selected_notes_config`
+
+Legacy compatibility section for selected-note tagging.
+
+- `base_name`: Label for the base tag action.
+- `missed_base_tag`: Base tag list.
+- `missed_month_tag`: Monthly tag list.
+- `subset_1_name`, `subset_2_name`: Menu labels.
+- `subset_tag_1`, `subset_tag_2`: Tags applied by subset actions.
+- `other_menu`: Label/prefix/resources for extra menu entries.
+
+`add_missed_tags` is the canonical section; this section is still merged for backward compatibility.
+
+## `add_custom_tags`
+
+Controls custom tag presets.
+
+- `submenu_label`: Label shown in the browser context menu.
+- `message_no_notes_selected`: Message shown when no notes are selected.
+- `message_applied_template`: Tooltip template after applying tags (`{tag_count}`, `{note_count}` supported).
+- `presets`: List of preset objects with `label` and `tags`.
+
+## `add_missed_tags`
+
+Controls missed-question tagging.
+
+- `base_missed_tag`: Root tag for missed questions.
+- `Q_Banks`: Question bank labels.
+- `ui.menu_label`: Root browser-menu label.
+- `ui.message_no_notes_selected`: Shared no-selection message.
+- `ui.message_invalid_test_number`: Invalid test-number message.
+- `ui.action_label_base`: Label for the base action.
+- `ui.action_label_multi_missed`: Label for the multi-missed action.
+- `ui.action_label_dynamic_test_prompt`: Label for the dynamic prompt action.
+- `ui.action_label_key_info`: Label for the key-info action.
+- `ui.action_label_correct_guess`: Label for the correct-guess action.
+- `ui.prompt_title_generic`: Generic prompt title.
+- `ui.prompt_label_generic`: Generic prompt label.
+
+Legacy sections `add_tags` and `tag_selected_notes_config` are still merged for compatibility; `add_missed_tags` overrides them when keys overlap.
+
+## `global_config`
+
+Shared defaults used by multiple modules.
+
+- `default_fuzzy`: Default fuzzy threshold.
+- `default_note_type`: Default note type fallback.
+- `log_folder`: Default log folder.
+
+## `global_fuzzy_opts`
+
+Global fuzzy threshold bounds.
+
+- `default_fuzz`: Default fuzzy score.
+- `min_fuzz`: Minimum allowed score.
+- `max_fuzz`: Maximum allowed score.
+
+## Example Snippet
 
 ```json
 {
-    "hide_menu_when_one_type_selected": false,
-    "allow_single_type_override": true,
-    "last_target_model": "*Nord+",
-    "field_mappings": {
-        "Text": "Front",
-        "Extra": "Back"
-    },
-    "batch_size": 200,
-    "show_progress": true,
-    "last_mapping_profile": "Basic_to_Nord"
-}
-# 🛠️ Change Notes Add-on: Complete Configuration Guide
-
-This guide documents all configuration blocks inside `config.json`, used by the Change Notes Add-on Suite. These include batch note-type conversion, fuzzy tag merging, duplicate detection, and cleanup utilities.
-
-Each config block may merge with global defaults (`global_config`) during runtime.
-
----
-
-## 🌐 `global_config`
-
-**Applies to**: All modules
-
-| Key                | Description                                                    | Example         |
-|---------------------|----------------------------------------------------------------|------------------|
-| `default_fuzzy`     | Default similarity threshold for fuzzy matching (`0–1.0`)     | `"0.99"`         |
-| `default_note_type` | Default model name fallback                                   | `"*Nord+"`       |
-| `log_folder`        | Default folder for logs and outputs                           | `"logs"`         |
-
----
-
-## 🔁 `batch_note_change_config`
-
-**Applies to**: Batch note type conversion and field mapping
-
-| Key                              | Description                                                           | Example                  |
-|----------------------------------|-----------------------------------------------------------------------|---------------------------|
-| `hide_menu_when_one_type_selected` | Hide dropdown if only one note type is found                         | `false`                   |
-| `allow_single_type_override`     | Allow override when only one note type exists                         | `true`                    |
-| `last_target_model`              | Last selected model for dropdown                                      | `"*Nord+"`                |
-| `field_mappings`                 | Field map: source field → target field                                | `{ "Text": "Front" }`     |
-| `batch_size`                     | Notes processed per batch                                             | `200`                     |
-| `show_progress`                  | Show a progress bar during conversion                                 | `true`                    |
-| `last_mapping_profile`           | Last saved mapping profile name                                       | `""`                      |
-| `auto_confirm_mappings`          | Automatically accept field mappings                                   | `false`                   |
-| `tag_on_change`                  | Tag applied to updated notes                                          | `"NoteType::Changed"`     |
-| `enable_backup`                  | Backup notes before changes                                           | `true`                    |
-| `backup_directory`               | Directory where backups are saved                                     | `"~/Anki_Backups/NoteTypeChange"` |
-
----
-
-## 🧠 `merge_tags_config`
-
-**Applies to**: Fuzzy grouping of similar notes and merging their tags
-
-| Key            | Description                                                         | Example        |
-|----------------|---------------------------------------------------------------------|----------------|
-| `default_fuzzy`| Similarity threshold to group notes                                 | `"0.99"`       |
-| `base_tag`     | Base tag prefix for grouped notes                                   | `"TAGS_MERGED"`|
-| `log_folder`   | Log directory override (fallback to global if empty)                | `""`           |
-
----
-
-## 📌 `tag_dupes_config`
-
-**Applies to**: Fuzzy matching and tagging of near-duplicate notes
-
-| Key              | Description                                                        | Example         |
-|------------------|--------------------------------------------------------------------|------------------|
-| `comparison_field`| Note field to use for comparison                                  | `"Text"`         |
-| `base_tag`        | Base tag applied to matched groups                                | `"Main_dupe"`    |
-| `multi_tag_child` | Extra tag for groups of 3+ notes                                  | `"multiple"`     |
-| `TAG UNMATCHED`   | If `"true"`, adds tag to unmatched notes                          | `"true"`         |
-| `unmatched_tag`   | Tag applied to unmatched notes                                     | `"unmatched"`    |
-| `log_folder`      | Log folder (empty means fallback to global setting)               | `""`             |
-
----
-
-## 🚫 `delete_unused_config`
-
-**Applies to**: Safe deletion / cleanup behavior
-
-| Key              | Description                                                        | Example                          |
-|------------------|--------------------------------------------------------------------|----------------------------------|
-| `protected_notes`| List of model names to exclude from deletion or processing         | `["*Nord+", "*Nord-focus+"]`     |
-
----
-
-## 🧪 Full Example
-
-```json
-{
-  "global_config": {
-    "default_fuzzy": "0.99",
-    "default_note_type": "*Nord+",
-    "log_folder": "logs"
-  },
   "batch_note_change_config": {
     "hide_menu_when_one_type_selected": false,
     "allow_single_type_override": true,
@@ -143,28 +158,7 @@ Each config block may merge with global defaults (`global_config`) during runtim
       "Extra": "Back"
     },
     "batch_size": 200,
-    "show_progress": true,
-    "last_mapping_profile": "",
-    "auto_confirm_mappings": false,
-    "tag_on_change": "NoteType::Changed",
-    "enable_backup": true,
-    "backup_directory": "~/Anki_Backups/NoteTypeChange"
-  },
-  "merge_tags_config": {
-    "default_fuzzy": "0.99",
-    "base_tag": "TAGS_MERGED",
-    "log_folder": ""
-  },
-  "tag_dupes_config": {
-    "comparison_field": "Text",
-    "base_tag": "Main_dupe",
-    "multi_tag_child": "multiple",
-    "TAG UNMATCHED": "true",
-    "unmatched_tag": "unmatched",
-    "log_folder": ""
-  },
-  "delete_unused_config": {
-    "protected_notes": ["*Nord+", "*Nord-focus+"]
+    "show_progress": true
   }
 }
 ```

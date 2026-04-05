@@ -1,10 +1,9 @@
+# pyright: reportMissingImports=false
 from ..config_manager import ConfigManager
 
-from aqt import mw
-from aqt.qt import QAction, QInputDialog, QMenu
+from aqt.qt import QInputDialog
 from aqt.browser import Browser
 from aqt.utils import showInfo
-from aqt import gui_hooks
 
 
 config_manager = ConfigManager("batch_note_change_config")
@@ -14,14 +13,17 @@ config = config_manager.load()
 # Compatibility shim: Tries multiple import paths to ensure compatibility with different Anki versions' change note type dialogs
 try:
     from aqt.dialogs import changeNoteType as _change_note_type_fn
-    _run_change_note_type = lambda browser, nids, mid: _change_note_type_fn(browser, nids, mid)
+    def _run_change_note_type(browser, nids, mid):
+        return _change_note_type_fn(browser, nids, mid)
 except ImportError:
     try:
         from aqt.change import changeNoteType as _change_note_type_fn
-        _run_change_note_type = lambda browser, nids, mid: _change_note_type_fn(browser, nids, mid)
+        def _run_change_note_type(browser, nids, mid):
+            return _change_note_type_fn(browser, nids, mid)
     except ImportError:
         from aqt.changenotetype import ChangeNotetypeDialog
-        _run_change_note_type = lambda browser, nids, mid: ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec()
+        def _run_change_note_type(browser, nids, mid):
+            return ChangeNotetypeDialog(browser, browser.mw, nids, mid).exec()
 
 
 

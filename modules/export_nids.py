@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime
-from typing import  List, Sequence, Tuple
+from typing import Any, List, Sequence, Tuple
 
 
 """
@@ -49,6 +49,9 @@ except Exception:
 
 
 _FNAME_SAFE = re.compile(r'[^\w\-. ]+', re.UNICODE)
+CHUNK_SIZE = 850  # keep chunk size configurable at the top of the script
+
+
 def _sanitize_filename(name: str) -> str:
     s = name.strip()
     s = _FNAME_SAFE.sub('_', s)           # remove illegal chars
@@ -58,7 +61,7 @@ def _sanitize_filename(name: str) -> str:
 
 # ---------- Core helpers ----------
 
-def _get_selected_nids(browser: QWidget) -> List[int]:
+def _get_selected_nids(browser: Any) -> List[int]:
     """
     Return the selected Note IDs (NIDs) from the Browser.
 
@@ -145,9 +148,9 @@ def _write_error_log(details: str) -> str:
 # ---------- Public entry point you call from __init__ ----------
 
 def create_export_nids_action(
-    parent: QWidget,
+    parent: Any,
     mw,  # aqt.mw – kept untyped to avoid mypy/pyright noise in mixed envs
-    browser: QWidget,
+    browser: Any,
     *,
     title: str = "Export Selected NIDs…",
 ):
@@ -183,7 +186,6 @@ def create_export_nids_action(
         # 3) Build content strings (unchanged logic)
         comma_str = ", ".join(str(n) for n in nids)
 
-        CHUNK_SIZE = 850  # keep the tripled chunk size
         def _chunks(seq, size):
             for i in range(0, len(seq), size):
                 yield seq[i:i+size]
@@ -237,4 +239,3 @@ def create_export_nids_action(
     # Connect on creation
     action.triggered.connect(_run)  # type: ignore[attr-defined]
     return action
-
