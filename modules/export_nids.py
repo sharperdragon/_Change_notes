@@ -78,20 +78,6 @@ def _get_selected_nids(browser: Any) -> List[int]:
     return []
 
 
-def _write_nids_to_path(nids: Sequence[int], path: str) -> Tuple[bool, str]:
-    """
-    Write NIDs to disk, one per line. Returns (ok, message).
-    """
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            for nid in nids:
-                f.write(f"{nid}\n")
-        return True, f"Saved {len(nids)} NIDs to:\n{path}"
-    except Exception as e:
-        return False, f"Failed to save NIDs: {e!r}"
-
-
-
 def _copy_nids_to_clipboard(nids_or_text) -> None:
     """
     Copy to the system clipboard. Accepts either:

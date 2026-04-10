@@ -9,8 +9,8 @@ into Anki's Browser right-click menu.
 from aqt import mw
 from aqt.qt import QAction, QMenu
 
-from .modules.Add_img_class import main as add_img_class_main
 from .modules.add_custom_tags import add_custom_tag_menu_items
+from .modules.Add_img_class import main as add_img_class_main
 from .modules.add_missed_tags import add_missed_tag_menu_items
 from .modules.add_table_class.main import add_class_main
 from .modules.change_note_types import change_selected_notes

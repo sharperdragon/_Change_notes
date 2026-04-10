@@ -72,7 +72,8 @@ _Change_notes/
 │
 ├── configs/                               # Default source for per-module config sections
 │   ├── add_custom_tags.json
-│   ├── add_missed_tags.json
+│   ├── tag_missed_qid_notes.json          # Canonical missed-tags section
+│   ├── add_missed_tags.json               # Legacy missed-tags compatibility
 │   └── add_tags.json                      # Legacy compatibility defaults
 │
 ├── logs/
@@ -94,11 +95,7 @@ _Change_notes/
     │
     ├── logs/
     │
-    ├── utils/
-    │   └── add_tags_utils.py
-    │
     ├── assets/
-    │   ├── merge_imgs_BU.py
     │   ├── merge_utils.py
     │   ├── scrub_match.py
     │   ├── scrub_match_sched.py
@@ -155,7 +152,7 @@ _Change_notes employs a layered configuration approach to maximize flexibility:
 - **Global Configuration (`config.json`):** Controls overall add-on behavior, UI settings, and default options.
 - **Tool-specific Configuration (`configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
 - **Custom Tag Presets (`add_custom_tags` section):** Defines the top-level Custom Tags submenu label and tag presets.
-- **Missed Tags (`add_missed_tags` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_tags` and `tag_selected_notes_config`.
+- **Missed Tags (`tag_missed_qid_notes` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_missed_tags`, `add_tags`, and `tag_selected_notes_config`.
 
 Configuration can be edited using:
 
@@ -182,8 +179,6 @@ Configuration can be edited using:
 ```json
 {
   "submenu_label": "Custom Tags",
-  "message_no_notes_selected": "❌ No notes selected.",
-  "message_applied_template": "✅ Applied {tag_count} tag(s) to {note_count} notes.",
   "presets": [
     {
       "label": "ADRs",
@@ -197,14 +192,15 @@ Configuration can be edited using:
 }
 ```
 
-**Example of `add_missed_tags` UI overrides:**
+Custom-tag no-selection and success messages are hardcoded in `modules/add_custom_tags.py` and are not configurable.
+
+**Example of `tag_missed_qid_notes` UI overrides:**
 
 ```json
 {
-  "add_missed_tags": {
+  "tag_missed_qid_notes": {
     "ui": {
       "menu_label": "Missed Tags ❌",
-      "message_no_notes_selected": "❌ No notes selected.",
       "message_invalid_test_number": "❌ Please enter a valid integer test number."
     }
   }

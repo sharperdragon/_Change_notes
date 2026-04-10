@@ -10,14 +10,15 @@ from aqt.utils import showInfo
 from aqt.browser import Browser
 
 # Dynamically add the modules directory to sys.path
-from ..config_manager import ConfigManager 
+from ..config_manager import ConfigManager
 from .assets.scrub_match import (
     normalize
 )
+from .shared.defaults import MERGE_TAGS_DEFAULTS
 
 DEBUG_MODE = False
 config = {}
-base_tag = "TAGS_MERGED"
+base_tag = MERGE_TAGS_DEFAULTS["base_tag"]
 merged_tag = f"{base_tag}::{datetime.now().strftime('%B_%d')}"
 ALLOWED_PARENTS = []
 ALLOWED_PARENTS_LOWER = []
@@ -63,7 +64,7 @@ def _reload_runtime_config():
     section_cfg = ConfigManager("merge_tags_config").load()
     config = ConfigManager.deep_merge_dicts(global_cfg, section_cfg)
 
-    base_tag = config.get("base_tag", "TAGS_MERGED")
+    base_tag = config.get("base_tag", MERGE_TAGS_DEFAULTS["base_tag"])
     date_suffix = datetime.now().strftime("%B_%d")
     merged_tag = f"{base_tag}::{date_suffix}"
 
@@ -74,7 +75,10 @@ def _reload_runtime_config():
     ]
     ALLOWED_PARENTS_LOWER = [p.lower() for p in ALLOWED_PARENTS]
 
-    MERGE_SELECT_ONLY = _parse_bool(config.get("merge_select_only"), default=False)
+    MERGE_SELECT_ONLY = _parse_bool(
+        config.get("merge_select_only", MERGE_TAGS_DEFAULTS["merge_select_only"]),
+        default=MERGE_TAGS_DEFAULTS["merge_select_only"],
+    )
 
 # Helper: case-insensitive parent check
 def _is_tag_in_parents(tag: str) -> bool:
@@ -114,7 +118,7 @@ log_debug(f"Config — MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, ALLOWED_PARENTS={A
 def prompt_fuzzy_threshold(default=None):
     """Prompt user for fuzzy threshold (0–100) using a popup input dialog."""
     if default is None:
-        default = int(float(config.get("default_fuzzy", 0.98)) * 100)
+        default = int(float(config.get("default_fuzzy", MERGE_TAGS_DEFAULTS["prompt_default_fuzzy"])) * 100)
     val, ok = QInputDialog.getInt(
         mw, "Set Fuzzy Match Threshold",
         "Select fuzzy match threshold (0 = loose, 100 = strict):",
@@ -132,7 +136,7 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
     col = browser.mw.col
     selected_nids = browser.selectedNotes()
     log_debug(f"Selected NIDs: {selected_nids}")
-    field_name = config.get("comparison_field", "Text")
+    field_name = config.get("comparison_field", MERGE_TAGS_DEFAULTS["comparison_field"])
 
     # Build map of normalized text -> NIDs
     nid_to_norm = {}
@@ -205,10 +209,13 @@ def unify_tags_main(browser: Browser | None = None):
         return
 
     # ? UI config fetch
-    default_fuzzy = float(config.get("default_fuzzy", 0.97))
-    min_fuzzy = float(config.get("min_fuzzy", 0.80))
-    max_fuzzy = float(config.get("max_fuzzy", 1.0))
-    ask_each = _parse_bool(config.get("ask_fuzzy_each_time"), default=True)
+    default_fuzzy = float(config.get("default_fuzzy", MERGE_TAGS_DEFAULTS["run_default_fuzzy"]))
+    min_fuzzy = float(config.get("min_fuzzy", MERGE_TAGS_DEFAULTS["min_fuzzy"]))
+    max_fuzzy = float(config.get("max_fuzzy", MERGE_TAGS_DEFAULTS["max_fuzzy"]))
+    ask_each = _parse_bool(
+        config.get("ask_fuzzy_each_time", MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"]),
+        default=MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"],
+    )
 
     # Decide threshold (prompt or silent clamp)
     if ask_each:

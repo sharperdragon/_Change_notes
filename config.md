@@ -88,46 +88,81 @@ Controls note type cleanup safeguards.
 
 - `protected_notes`: Note types that should never be removed.
 
-## `tag_selected_notes_config`
+## `tag_missed_qid_notes`
 
-Legacy compatibility section for selected-note tagging.
+Canonical section for missed-question tagging.
 
-- `base_name`: Label for the base tag action.
-- `missed_base_tag`: Base tag list.
-- `missed_month_tag`: Monthly tag list.
-- `subset_1_name`, `subset_2_name`: Menu labels.
-- `subset_tag_1`, `subset_tag_2`: Tags applied by subset actions.
-- `other_menu`: Label/prefix/resources for extra menu entries.
-
-`add_missed_tags` is the canonical section; this section is still merged for backward compatibility.
+This section combines previous behavior from `add_missed_tags` and
+`tag_selected_notes_config`. Legacy sections are still merged for compatibility.
 
 ## `add_custom_tags`
 
 Controls custom tag presets.
 
 - `submenu_label`: Label shown in the browser context menu.
-- `message_no_notes_selected`: Message shown when no notes are selected.
-- `message_applied_template`: Tooltip template after applying tags (`{tag_count}`, `{note_count}` supported).
 - `presets`: List of preset objects with `label` and `tags`.
+- `presets[].group`: Optional single-level submenu name; presets sharing a group render under that submenu.
 
-## `add_missed_tags`
+Custom-tag no-selection/success messages are hardcoded in `modules/add_custom_tags.py` and are not configurable.
 
-Controls missed-question tagging.
+### Missed Tags Schema
 
-- `base_missed_tag`: Root tag for missed questions.
-- `Q_Banks`: Question bank labels.
-- `ui.menu_label`: Root browser-menu label.
-- `ui.message_no_notes_selected`: Shared no-selection message.
-- `ui.message_invalid_test_number`: Invalid test-number message.
-- `ui.action_label_base`: Label for the base action.
-- `ui.action_label_multi_missed`: Label for the multi-missed action.
-- `ui.action_label_dynamic_test_prompt`: Label for the dynamic prompt action.
-- `ui.action_label_key_info`: Label for the key-info action.
-- `ui.action_label_correct_guess`: Label for the correct-guess action.
-- `ui.prompt_title_generic`: Generic prompt title.
-- `ui.prompt_label_generic`: Generic prompt label.
+Controls missed-question tagging using an action-grouped schema.
 
-Legacy sections `add_tags` and `tag_selected_notes_config` are still merged for compatibility; `add_missed_tags` overrides them when keys overlap.
+- `ui.menu_label`: Root menu label.
+- `rotation.schedule`: Rotation windows used for rotation-aware tags (`label`, `start`, `end`).
+- `rotation.exhausted_policy`: Rotation fallback strategy (`unknown` or `next`).
+- `rotation.parent_tag_segment`, `rotation.winter_break_label`, `rotation.post_rotation_label`: Rotation tag segment controls.
+- `actions.base`: Base action (`label`, `tags`).
+- `actions.uworld`: UWorld action (`label`, `base_tags`, `default_tag_prefix`, `test_range_block_size`).
+- `actions.nbme`: NBME action (`label`, `base_tags`, `default_tag_prefix`).
+- `actions.amboss`: Amboss action (`label`, `base_tag`, `blank_behavior`, `number_style`, `remove_from_other_menu`).
+- `actions.multi_missed`: 2x Missed action (`label`, `tag_segment`).
+- `actions.key_info`: Key Info action (`label`, `tag_base`).
+- `actions.correct_guess`: Correct-Guess action (`label`, `tags`, `include_rotation`, `rotation_lowercase`, `unknown_segment`).
+- `actions.other`: Other resources action group (`resources`, `tag_suffix`).
+- `Q_Banks`: Legacy/informational field only (currently not used by runtime behavior).
+
+Prompt dialog titles/labels and validation/no-selection messages are intentionally defined in code (`modules/add_missed_tags.py`) rather than config.
+
+### Legacy Compatibility Mapping
+
+Legacy keys are still accepted and normalized into the canonical action-grouped structure.
+
+| Legacy key | Canonical key |
+| --- | --- |
+| `base_missed_tag`, `missed_base_tag` | `actions.base.tags` |
+| `subset_1_name` | `actions.uworld.label` |
+| `subset_tag_1`, `subset_1_tag` | `actions.uworld.base_tags` |
+| `subset_2_name` | `actions.nbme.label` |
+| `subset_tag_2`, `subset_2_tag` | `actions.nbme.base_tags` |
+| `test_range_block_size` | `actions.uworld.test_range_block_size` |
+| `rotation_schedule` | `rotation.schedule` |
+| `schedule_exhausted_policy` | `rotation.exhausted_policy` |
+| `tags.rotation_parent_segment` | `rotation.parent_tag_segment` |
+| `tags.winter_break_label` | `rotation.winter_break_label` |
+| `tags.post_rotation_label` | `rotation.post_rotation_label` |
+| `tags.default_test_tag_prefix` | `actions.uworld.default_tag_prefix` |
+| `tags.default_nbme_tag_prefix`, `tags.default_comquest_tag_prefix` | `actions.nbme.default_tag_prefix` |
+| `tags.multi_miss_tag` | `actions.multi_missed.tag_segment` |
+| `tags.key_tag_base` | `actions.key_info.tag_base` |
+| `tags.other_suffix` | `actions.other.tag_suffix` |
+| `other_menu.resources`, `other_resources` | `actions.other.resources` |
+| `ui.action_label_base` | `actions.base.label` |
+| `ui.action_label_multi_missed` | `actions.multi_missed.label` |
+| `ui.action_label_key_info` | `actions.key_info.label` |
+| `ui.action_label_correct_guess` | `actions.correct_guess.label` |
+| `amboss.top_level_name` | `actions.amboss.label` |
+| `amboss.base_tag` | `actions.amboss.base_tag` |
+| `amboss.blank_behavior` | `actions.amboss.blank_behavior` |
+| `amboss.number_style` | `actions.amboss.number_style` |
+| `amboss.remove_from_other_menu` | `actions.amboss.remove_from_other_menu` |
+| `correct_guess.tags` | `actions.correct_guess.tags` |
+| `correct_guess.include_rotation` | `actions.correct_guess.include_rotation` |
+| `correct_guess.rotation_lowercase` | `actions.correct_guess.rotation_lowercase` |
+| `correct_guess.unknown_segment` | `actions.correct_guess.unknown_segment` |
+
+Legacy sections `add_missed_tags`, `add_tags`, and `tag_selected_notes_config` are still merged for compatibility. The canonical `tag_missed_qid_notes` section wins when keys overlap.
 
 ## `global_config`
 

@@ -1,6 +1,7 @@
 from ..config_manager import ConfigManager
 from .merge_imgs import run_merge_images
 from .merge_tags import unify_tags_on_duplicates
+from .shared.defaults import IMG_TAGS_MERGE_DEFAULTS, clone_defaults
 from .utils import prompt_similarity_threshold
 
 # pyright: reportMissingImports=false
@@ -11,15 +12,6 @@ from aqt.qt import QMessageBox
 
 from aqt.browser import Browser as AqtBrowser
 
-
-DEFAULT_CONFIG = {
-    "global_fuzzy_opts": {
-        "default_fuzz": 0.96,
-        "min_fuzz": 0.78,
-        "max_fuzz": 1.00,
-    },
-    "merge_images_and_tags_config": {},
-}
 CONFIG = {}
 
 
@@ -30,7 +22,7 @@ def _reload_runtime_config():
     merge_images_and_tags_cfg = ConfigManager("merge_images_and_tags_config").load()
     legacy_root_cfg = ConfigManager("_Change_notes").load()
 
-    merged_cfg = ConfigManager.deep_merge_dicts(DEFAULT_CONFIG, {})
+    merged_cfg = clone_defaults(IMG_TAGS_MERGE_DEFAULTS)
     if isinstance(global_fuzzy_opts, dict) and global_fuzzy_opts:
         merged_cfg["global_fuzzy_opts"] = global_fuzzy_opts
     elif isinstance(legacy_root_cfg.get("global_fuzzy_opts"), dict):
@@ -97,9 +89,9 @@ def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None 
     # --- Decide thresholds (prompt once if needed) ---
     if threshold is None and tag_threshold is None:
         # Pull unified fuzzy settings from global_fuzzy_opts
-        default_threshold = _f("global_fuzzy_opts.default_fuzz", 0.96)
-        min_threshold     = _f("global_fuzzy_opts.min_fuzz", 0.78)
-        max_threshold     = _f("global_fuzzy_opts.max_fuzz", 1.00)
+        default_threshold = _f("global_fuzzy_opts.default_fuzz", IMG_TAGS_MERGE_DEFAULTS["global_fuzzy_opts"]["default_fuzz"])
+        min_threshold     = _f("global_fuzzy_opts.min_fuzz", IMG_TAGS_MERGE_DEFAULTS["global_fuzzy_opts"]["min_fuzz"])
+        max_threshold     = _f("global_fuzzy_opts.max_fuzz", IMG_TAGS_MERGE_DEFAULTS["global_fuzzy_opts"]["max_fuzz"])
 
         t, ok = prompt_similarity_threshold(
             default=default_threshold,

@@ -7,12 +7,9 @@ from aqt import mw
 from aqt.utils import tooltip
 
 from ..config_manager import ConfigManager
+from .shared.defaults import MERGE_SCHEDULE_DEFAULTS
 
-
-DEFAULT_SIMILARITY_THRESHOLD = 0.94
-DEFAULT_ABORT_ON_CANCEL = True
-DEFAULT_MULTI_CARD_POLICY = "skip"
-MULTI_CARD_POLICIES = {"skip", "first_card", "all_cards"}
+MULTI_CARD_POLICIES = set(MERGE_SCHEDULE_DEFAULTS["multi_card_policies"])
 
 
 def _parse_bool(value, default=False):
@@ -31,7 +28,7 @@ def _parse_bool(value, default=False):
     return default
 
 
-def _parse_threshold(value, default=DEFAULT_SIMILARITY_THRESHOLD) -> float:
+def _parse_threshold(value, default=MERGE_SCHEDULE_DEFAULTS["merge_similarity_threshold"]) -> float:
     try:
         parsed = float(value)
     except Exception:
@@ -42,8 +39,8 @@ def _parse_threshold(value, default=DEFAULT_SIMILARITY_THRESHOLD) -> float:
 
 
 def _normalize_multi_card_policy(value) -> str:
-    policy = str(value or DEFAULT_MULTI_CARD_POLICY).strip().lower()
-    return policy if policy in MULTI_CARD_POLICIES else DEFAULT_MULTI_CARD_POLICY
+    policy = str(value or MERGE_SCHEDULE_DEFAULTS["multi_card_policy"]).strip().lower()
+    return policy if policy in MULTI_CARD_POLICIES else MERGE_SCHEDULE_DEFAULTS["multi_card_policy"]
 
 
 def _earliest_review_id(card_id: int) -> int:
@@ -74,15 +71,15 @@ def run_merge_by_similarity(
     from .assets.scrub_match_sched import normalize, prompt_threshold_with_cancel
 
     default_threshold = _parse_threshold(
-        config_section.get("merge_similarity_threshold", DEFAULT_SIMILARITY_THRESHOLD),
-        default=DEFAULT_SIMILARITY_THRESHOLD,
+        config_section.get("merge_similarity_threshold", MERGE_SCHEDULE_DEFAULTS["merge_similarity_threshold"]),
+        default=MERGE_SCHEDULE_DEFAULTS["merge_similarity_threshold"],
     )
     abort_on_cancel = _parse_bool(
-        config_section.get("abort_on_cancel", DEFAULT_ABORT_ON_CANCEL),
-        default=DEFAULT_ABORT_ON_CANCEL,
+        config_section.get("abort_on_cancel", MERGE_SCHEDULE_DEFAULTS["abort_on_cancel"]),
+        default=MERGE_SCHEDULE_DEFAULTS["abort_on_cancel"],
     )
     multi_card_policy = _normalize_multi_card_policy(
-        config_section.get("multi_card_policy", DEFAULT_MULTI_CARD_POLICY)
+        config_section.get("multi_card_policy", MERGE_SCHEDULE_DEFAULTS["multi_card_policy"])
     )
 
     threshold, accepted = prompt_threshold_with_cancel(default=default_threshold)

@@ -20,9 +20,9 @@
   "subset_tag_1": [
     "##Missed-Qs::UW_Tests"
   ],
-  "subset_2_name": "♿️COMQUEST",
+  "subset_2_name": "🧠 NBME",
   "subset_tag_2": [
-    "##Missed-Qs::COMQUEST"
+    "##Missed-Qs::NBME"
   ],
   "other_menu": {
     "label": "Other",
@@ -34,6 +34,6 @@
   },
   "Q_Banks": [
     "UWORLD",
-    "COMQUEST"
+    "NBME"
   ]
 }

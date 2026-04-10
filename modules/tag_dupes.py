@@ -11,6 +11,7 @@ from .assets.scrub_match import (
     group_similar_notes_by_content,
 )
 from ..config_manager import ConfigManager
+from .shared.defaults import TAG_DUPES_DEFAULTS
 
 config_manager = ConfigManager("tag_dupes_config")
 
@@ -19,7 +20,7 @@ config_manager = ConfigManager("tag_dupes_config")
 config = {}
 
 DEBUG_MODE = False  # Set to True to enable verbose debug logging
-now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+now_str = datetime.now().strftime("%m%d_%H%M%S")
 DEBUG_LOG_PATH = Path(__file__).parent / "logs" / "tag_dupes" / f"debug_log_{now_str}.txt"
 
 def log_debug(msg: str, debug_mode=DEBUG_MODE):
@@ -45,12 +46,12 @@ def safe_cast_to_int(nid):
 
 
 
-BASE_TAG_LABEL = "DUPE_Tagging"
+BASE_TAG_LABEL = TAG_DUPES_DEFAULTS["base_tag"]
 def is_valid_tag(tag):
     return all(c in string.ascii_letters + string.digits + "_-" for c in tag)
-FIELD_TO_COMPARE = "Text"
-TAG_UNMATCHED = False
-MULTI_CHILD_LABEL = "multiple"
+FIELD_TO_COMPARE = TAG_DUPES_DEFAULTS["comparison_field"]
+TAG_UNMATCHED = TAG_DUPES_DEFAULTS["tag_unmatched"]
+MULTI_CHILD_LABEL = TAG_DUPES_DEFAULTS["multi_tag_child"]
 log_dir_path = (Path(__file__).parent / "logs" / "merge_tags").resolve()
 log_dir_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
 
@@ -64,13 +65,15 @@ def _reload_runtime_config():
     global DEBUG_LOG_PATH
 
     config = config_manager.reload()
-    BASE_TAG_LABEL = config.get("base_tag", "DUPE_Tagging")
-    FIELD_TO_COMPARE = config.get("comparison_field", "Text")
-    TAG_UNMATCHED = str(config.get("tag_unmatched", "false")).lower() == "true"
+    tag_unmatched_default = "true" if TAG_DUPES_DEFAULTS["tag_unmatched"] else "false"
+
+    BASE_TAG_LABEL = config.get("base_tag", TAG_DUPES_DEFAULTS["base_tag"])
+    FIELD_TO_COMPARE = config.get("comparison_field", TAG_DUPES_DEFAULTS["comparison_field"])
+    TAG_UNMATCHED = str(config.get("tag_unmatched", tag_unmatched_default)).lower() == "true"
     if not TAG_UNMATCHED:
-        TAG_UNMATCHED = str(config.get("TAG UNMATCHED", "false")).lower() == "true"
-    MULTI_CHILD_LABEL = config.get("multi_tag_child", "multiple")
-    log_folder = config.get("log_folder") or "logs"
+        TAG_UNMATCHED = str(config.get("TAG UNMATCHED", tag_unmatched_default)).lower() == "true"
+    MULTI_CHILD_LABEL = config.get("multi_tag_child", TAG_DUPES_DEFAULTS["multi_tag_child"])
+    log_folder = config.get("log_folder") or TAG_DUPES_DEFAULTS["log_folder"]
     DEBUG_LOG_PATH = (
         Path(__file__).parent / log_folder / "tag_dupes" / f"debug_log_{now_str}.txt"
     )
@@ -81,7 +84,7 @@ log_debug(f"Config: BASE_TAG_LABEL={BASE_TAG_LABEL}, FIELD_TO_COMPARE={FIELD_TO_
 log_debug(f"Log directory: {log_dir_path}")
 
 
-def prompt_fuzzy_threshold(default=98):
+def prompt_fuzzy_threshold(default=TAG_DUPES_DEFAULTS["prompt_fuzzy_threshold"]):
     val, ok = QInputDialog.getInt(
         mw,
         "Set Fuzzy Match Threshold",

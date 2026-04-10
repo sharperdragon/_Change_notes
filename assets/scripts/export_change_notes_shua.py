@@ -16,24 +16,27 @@ TARGET_EXPORT_DIR = Path(
 )
 CONFIG_ROOT_KEY = "_change_notes_shua"
 CLEAN_TARGET = True
-FILES_TO_COPY = (
+BASE_FILES_TO_COPY = (
     "modules/add_custom_tags.py",
     "modules/add_missed_tags.py",
     "configs/add_custom_tags.json",
-    "configs/add_missed_tags.json",
 )
+CANONICAL_MISSED_TAGS_SECTION = "tag_missed_qid_notes"
+LEGACY_MISSED_TAGS_SECTION = "add_missed_tags"
+CANONICAL_MISSED_TAGS_CONFIG_REL = "configs/tag_missed_qid_notes.json"
+LEGACY_MISSED_TAGS_CONFIG_REL = "configs/add_missed_tags.json"
 SOURCE_CONFIG_MANAGER_FILE = "config_manager.py"
 SOURCE_LEGACY_CONFIG_FILE = "config.json"
 TARGET_INIT_FILE = "__init__.py"
 TARGET_CONFIG_MANAGER_FILE = "config_manager.py"
 TARGET_CONFIG_FILE = "config.json"
 CUSTOM_TAGS_MENU_LABEL = "Custom Tags"
-TARGET_CONFIG_SECTIONS = ("add_custom_tags", "add_missed_tags")
+TARGET_CONFIG_SECTIONS = ("add_custom_tags", CANONICAL_MISSED_TAGS_SECTION)
 CUSTOM_TAGS_ONLY_PRESET_LABEL = "Key 🔑"
 CUSTOM_TAGS_ONLY_PRESET_TAG = "#Custom::#KEY"
 TRUE_LEARN_RESOURCE_LABEL = "True-Learn"
-DEFAULT_SUBSET_2_NAME = "♿️COMQUEST"
-DEFAULT_SUBSET_2_TAG = "##Missed-Qs::COMQUEST"
+DEFAULT_SUBSET_2_NAME = "🧠NBME"
+DEFAULT_SUBSET_2_TAG = "##Missed-Qs::NBME"
 # -----------------------------------------------------------------------------
 
 
@@ -46,11 +49,29 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _resolve_missed_tags_config_source(source_root: Path) -> Path:
+    canonical_path = source_root / CANONICAL_MISSED_TAGS_CONFIG_REL
+    if canonical_path.exists():
+        return canonical_path
+
+    legacy_path = source_root / LEGACY_MISSED_TAGS_CONFIG_REL
+    if legacy_path.exists():
+        return legacy_path
+
+    raise FileNotFoundError(
+        f"Missing missed-tags config file. Checked: {canonical_path} and {legacy_path}"
+    )
+
+
 def _ensure_required_sources_exist(source_root: Path) -> None:
     missing: list[str] = []
-    for rel in (*FILES_TO_COPY, SOURCE_CONFIG_MANAGER_FILE):
+    for rel in (*BASE_FILES_TO_COPY, SOURCE_CONFIG_MANAGER_FILE):
         if not (source_root / rel).exists():
             missing.append(rel)
+    try:
+        _resolve_missed_tags_config_source(source_root)
+    except FileNotFoundError as exc:
+        missing.append(str(exc))
     if missing:
         details = "\n".join(f"- {item}" for item in missing)
         raise FileNotFoundError(f"Missing required source files:\n{details}")
@@ -63,11 +84,16 @@ def _cleanup_and_prepare_target(target_root: Path) -> None:
 
 
 def _copy_selected_files(source_root: Path, target_root: Path) -> None:
-    for rel in FILES_TO_COPY:
+    for rel in BASE_FILES_TO_COPY:
         src = source_root / rel
         dst = target_root / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
+
+    missed_src = _resolve_missed_tags_config_source(source_root)
+    missed_dst = target_root / CANONICAL_MISSED_TAGS_CONFIG_REL
+    missed_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(missed_src, missed_dst)
 
 
 def _build_export_init(custom_tags_menu_label: str) -> str:
@@ -86,9 +112,9 @@ TRUE_LEARN_RESOURCE_LABEL = "{TRUE_LEARN_RESOURCE_LABEL}"
 
 def add_limited_missed_tag_menu_items(browser, menu):
     """Render only the six allowed Missed Tags actions for the export addon."""
-    missed_tags_module._reload_runtime_config()
+    cfg = missed_tags_module.load_runtime_config()
 
-    tag_menu = QMenu(missed_tags_module.MISSED_TAGS_MENU_LABEL, browser)
+    tag_menu = QMenu(cfg.missed_tags_menu_label, browser)
     tag_menu.setStyleSheet(
         """
         QMenu::item {{
@@ -103,18 +129,17 @@ def add_limited_missed_tag_menu_items(browser, menu):
     """
     )
 
-    missed_tags_module.add_uworld_tags(browser, tag_menu)
-    missed_tags_module.add_amboss_tag(browser, tag_menu)
-    missed_tags_module.add_base_plain_action(browser, tag_menu)
-    missed_tags_module.add_multi_tag(browser, tag_menu)
-    missed_tags_module.add_correct_guess_action(browser, tag_menu)
-
-    original_resources = list(missed_tags_module.OTHER_RESOURCES)
-    try:
-        missed_tags_module.OTHER_RESOURCES = [TRUE_LEARN_RESOURCE_LABEL]
-        missed_tags_module.add_other_resources_actions(browser, tag_menu)
-    finally:
-        missed_tags_module.OTHER_RESOURCES = original_resources
+    missed_tags_module.add_uworld_tags(browser, tag_menu, cfg)
+    missed_tags_module.add_amboss_tag(browser, tag_menu, cfg)
+    missed_tags_module.add_base_plain_action(browser, tag_menu, cfg)
+    missed_tags_module.add_multi_tag(browser, tag_menu, cfg)
+    missed_tags_module.add_correct_guess_action(browser, tag_menu, cfg)
+    missed_tags_module.add_other_resources_actions(
+        browser,
+        tag_menu,
+        cfg,
+        resources_override=[TRUE_LEARN_RESOURCE_LABEL],
+    )
 
     if tag_menu.actions():
         menu.addSeparator()
@@ -149,7 +174,15 @@ def _build_export_config_manager(source_config_manager_text: str, config_root_ke
 
 def _build_minimal_config(source_root: Path) -> dict[str, Any]:
     config_defaults: dict[str, Any] = {}
+
+    missed_defaults = _read_json(_resolve_missed_tags_config_source(source_root))
+    if not isinstance(missed_defaults, dict):
+        raise ValueError("Expected JSON object in missed-tags config source")
+    config_defaults[CANONICAL_MISSED_TAGS_SECTION] = missed_defaults
+
     for section in TARGET_CONFIG_SECTIONS:
+        if section == CANONICAL_MISSED_TAGS_SECTION:
+            continue
         section_path = source_root / "configs" / f"{section}.json"
         section_payload = _read_json(section_path)
         if not isinstance(section_payload, dict):
@@ -161,7 +194,12 @@ def _build_minimal_config(source_root: Path) -> dict[str, Any]:
         source_payload = _read_json(source_legacy_config)
         if isinstance(source_payload, dict):
             for section in TARGET_CONFIG_SECTIONS:
-                section_payload = source_payload.get(section)
+                if section == CANONICAL_MISSED_TAGS_SECTION:
+                    section_payload = source_payload.get(CANONICAL_MISSED_TAGS_SECTION)
+                    if not isinstance(section_payload, dict):
+                        section_payload = source_payload.get(LEGACY_MISSED_TAGS_SECTION)
+                else:
+                    section_payload = source_payload.get(section)
                 if isinstance(section_payload, dict):
                     config_defaults[section] = section_payload
 
@@ -197,33 +235,20 @@ def _restrict_export_custom_tags_config(target_root: Path) -> None:
 
 
 def _ensure_subset2_defaults_in_missed_tags(target_root: Path) -> None:
-    module_path = target_root / "modules" / "add_missed_tags.py"
-    if not module_path.exists():
+    config_path = target_root / CANONICAL_MISSED_TAGS_CONFIG_REL
+    if not config_path.exists():
         return
 
-    text = module_path.read_text(encoding="utf-8")
-    has_subset2_name = "SUBSET_2_NAME =" in text
-    has_subset2_tag = "SUBSET_2_TAG =" in text
-    if has_subset2_name and has_subset2_tag:
+    payload = _read_json(config_path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object in {config_path}")
+
+    if "subset_2_name" in payload and "subset_tag_2" in payload:
         return
 
-    anchor = 'SUBSET_1_TAG = ["##Missed-Qs::UW_Tests"]\n'
-    insertion_lines: list[str] = []
-    if not has_subset2_name:
-        insertion_lines.append(f'SUBSET_2_NAME = "{DEFAULT_SUBSET_2_NAME}"')
-    if not has_subset2_tag:
-        insertion_lines.append(f'SUBSET_2_TAG = ["{DEFAULT_SUBSET_2_TAG}"]')
-    insertion = "\n".join(insertion_lines) + "\n"
-
-    if anchor in text:
-        text = text.replace(anchor, anchor + insertion, 1)
-    else:
-        marker = "# ? Other resources"
-        if marker not in text:
-            raise ValueError("Could not place SUBSET_2 defaults in exported add_missed_tags.py")
-        text = text.replace(marker, insertion + "\n" + marker, 1)
-
-    module_path.write_text(text, encoding="utf-8")
+    payload.setdefault("subset_2_name", DEFAULT_SUBSET_2_NAME)
+    payload.setdefault("subset_tag_2", [DEFAULT_SUBSET_2_TAG])
+    _write_json(config_path, payload)
 
 
 def _write_generated_files(source_root: Path, target_root: Path) -> None:

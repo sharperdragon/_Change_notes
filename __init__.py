@@ -18,16 +18,13 @@ from aqt import gui_hooks, mw
 from aqt.browser import Browser
 from aqt.qt import QAction, QMenu
 from aqt.utils import showInfo
-from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import QLabel, QWidgetAction
 
-from .config_manager import ConfigManager
-from .config_ui import ConfigDialog
 from .menu_compiler import compile_browser_context_menu
 from .modules.add_table_class.main import add_class_main
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
 CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
+ADDON_MODULE_NAME = __name__
 # ! -----------------------------------------------------------------------------
 
 
@@ -91,20 +88,16 @@ except ImportError:
     pass  # Older Anki versions don't support addon menu hook
 
 
-# Opens the GUI config dialog for managing field-mapping profiles and other add-on settings.
-def open_config_gui():
-    # Launch GUI config dialog for field-mapping setup
-    dialog = ConfigDialog("_Change_notes", ConfigManager)
-    dialog.exec()
+def _clear_stale_config_action():
+    """Ensure Anki uses the built-in config editor for this add-on."""
+    addon_manager = getattr(mw, "addonManager", None)
+    if addon_manager is None:
+        return
+
+    for attr_name in ("_configActions", "_config_actions"):
+        config_actions = getattr(addon_manager, attr_name, None)
+        if isinstance(config_actions, dict):
+            config_actions.pop(ADDON_MODULE_NAME, None)
 
 
-def custom_styled_action(text, parent, triggered_fn):
-    action = QWidgetAction(parent)
-    label = QLabel(text)
-    f = QFont()
-    f.setPointSize(15)  # bigger font just for this item
-    label.setFont(f)
-    return action
-    label.setFont(f)
-    return action
-    return action
+_clear_stale_config_action()

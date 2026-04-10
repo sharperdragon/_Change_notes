@@ -1,0 +1,127 @@
+{
+  "ui": {
+    "menu_label": "Missed Tags ❌"
+  },
+  "rotation": {
+    "schedule": [
+      {
+        "label": "IM1",
+        "start": "2025-06-30",
+        "end": "2025-07-25"
+      },
+      {
+        "label": "FM2",
+        "start": "2025-07-28",
+        "end": "2025-08-22"
+      },
+      {
+        "label": "ACM",
+        "start": "2025-08-25",
+        "end": "2025-09-05"
+      },
+      {
+        "label": "OMM",
+        "start": "2025-09-08",
+        "end": "2025-09-18"
+      },
+      {
+        "label": "Surgery",
+        "start": "2025-09-22",
+        "end": "2025-10-17"
+      },
+      {
+        "label": "IM2",
+        "start": "2025-10-20",
+        "end": "2025-11-14"
+      },
+      {
+        "label": "FM1",
+        "start": "2025-11-17",
+        "end": "2025-12-12"
+      },
+      {
+        "label": "Winter-break",
+        "start": "2025-12-13",
+        "end": "2026-01-04"
+      },
+      {
+        "label": "Pediatrics",
+        "start": "2026-01-05",
+        "end": "2026-01-30"
+      },
+      {
+        "label": "OBGYN",
+        "start": "2026-02-02",
+        "end": "2026-02-27"
+      },
+      {
+        "label": "Psych",
+        "start": "2026-03-02",
+        "end": "2026-03-27"
+      }
+    ],
+    "exhausted_policy": "unknown",
+    "parent_tag_segment": "Rotation",
+    "winter_break_label": "Winter-break",
+    "post_rotation_label": "Dedicated"
+  },
+  "actions": {
+    "base": {
+      "label": "♦️Base",
+      "tags": [
+        "##Missed-Qs"
+      ]
+    },
+    "uworld": {
+      "label": "🛃UWorld",
+      "base_tags": [
+        "##Missed-Qs::UW_Tests"
+      ],
+      "default_tag_prefix": "UW_Tests",
+      "test_range_block_size": 25
+    },
+    "nbme": {
+      "label": "🧠NBME",
+      "base_tags": [
+        "##Missed-Qs::NBME"
+      ],
+      "default_tag_prefix": "NBME"
+    },
+    "amboss": {
+      "label": "🦠Amboss",
+      "base_tag": "##Missed-Qs::Amboss",
+      "blank_behavior": "base_plus_rotation",
+      "number_style": "rotation_then_number",
+      "remove_from_other_menu": true
+    },
+    "multi_missed": {
+      "label": "2x Missed 📌",
+      "tag_segment": "2x"
+    },
+    "key_info": {
+      "label": "Key Info 🗝️",
+      "tag_base": "#Custom::#KEY"
+    },
+    "correct_guess": {
+      "label": "Guessed Correct 🎫",
+      "tags": [
+        "#Custom::correct_marked"
+      ],
+      "include_rotation": true,
+      "rotation_lowercase": true,
+      "unknown_segment": "unknown"
+    },
+    "other": {
+      "resources": [
+        "Kaplan",
+        "True-Learn",
+        "NBOME"
+      ],
+      "tag_suffix": "Other"
+    }
+  },
+  "Q_Banks": [
+    "UWORLD",
+    "NBME"
+  ]
+}

@@ -7,23 +7,41 @@ from aqt.qt import QAction, QMenu
 from aqt.utils import showInfo, tooltip
 
 from ..config_manager import ConfigManager
+from .shared.defaults import ADD_CUSTOM_TAGS_DEFAULTS
 
 # ! ----------------------------- CONFIG SECTION -----------------------------
 CONFIG_SECTION = "add_custom_tags"
 # ! ------------------------------------------------------------------------
 
-# ! --------------------------- USER-TUNABLE DEFAULTS ---------------------------
-DEFAULT_SUBMENU_LABEL = "Custom Tags"
-DEFAULT_MSG_NO_NOTES_SELECTED = "❌ No notes selected."
-DEFAULT_MSG_APPLIED_TEMPLATE = "✅ Applied {tag_count} tag(s) to {note_count} notes."
-# ! -----------------------------------------------------------------------------
-
 # ! --------------------------- OPTIONAL CONFIG KEYS ---------------------------
 CONFIG_KEY_SUBMENU_LABEL = "submenu_label"
 CONFIG_KEY_PRESETS = "presets"
-CONFIG_KEY_MSG_NO_NOTES_SELECTED = "message_no_notes_selected"
-CONFIG_KEY_MSG_APPLIED_TEMPLATE = "message_applied_template"
+CONFIG_KEY_GROUP = "group"
 # ! -----------------------------------------------------------------------------
+
+# ! --------------------- USER-TUNABLE BUILT-IN CUSTOM ACTIONS -------------------
+MANAGEMENT_TREATMENT_LABEL = "Management Tx"
+MANAGEMENT_TREATMENT_TAG = "#Custom::#Management::#Treatment"
+# ! -----------------------------------------------------------------------------
+
+# ! ------------------------- USER-TUNABLE UI STYLING ----------------------------
+CUSTOM_MENU_STYLESHEET = """
+    QMenu::item {
+        padding-top: 4.5px;
+        padding-bottom: 4.5px;
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+    QMenu::item:selected {
+        background-color: rgba(120, 160, 255, 60);  /* subtle hover highlight */
+    }
+"""
+# ! -----------------------------------------------------------------------------
+
+# ! ----------------------- HARDCODED UI MESSAGES -----------------------
+MSG_NO_NOTES_SELECTED = "❌ No notes selected."
+MSG_APPLIED_TEMPLATE = "✅ Applied {tag_count} tag(s) to {note_count} notes."
+# ! --------------------------------------------------------------------
 
 
 def _to_string_list(value: Any) -> list[str]:
@@ -38,11 +56,18 @@ def _to_string_list(value: Any) -> list[str]:
     return []
 
 
-def _normalize_presets(raw: Any) -> list[dict[str, list[str]]]:
+def _normalize_group(value: Any) -> str | None:
+    if value is None:
+        return None
+    group = str(value).strip()
+    return group or None
+
+
+def _normalize_presets(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
 
-    normalized: list[dict[str, list[str]]] = []
+    normalized: list[dict[str, Any]] = []
     for preset in raw:
         if not isinstance(preset, dict):
             continue
@@ -52,14 +77,26 @@ def _normalize_presets(raw: Any) -> list[dict[str, list[str]]]:
         if not label or not tags:
             continue
 
-        normalized.append({"label": label, "tags": tags})
+        normalized_preset: dict[str, Any] = {"label": label, "tags": tags}
+        group = _normalize_group(preset.get(CONFIG_KEY_GROUP))
+        if group:
+            normalized_preset["group"] = group
+        normalized.append(normalized_preset)
 
     return normalized
 
 
+def _preset_list_contains_tag(presets: list[dict[str, Any]], tag: str) -> bool:
+    for preset in presets:
+        tags = preset.get("tags", [])
+        if any(str(existing).strip() == tag for existing in tags):
+            return True
+    return False
+
+
 def _load_runtime_config(
     menu_label_override: str | None = None,
-) -> tuple[str, list[dict[str, list[str]]], str, str]:
+) -> tuple[str, list[dict[str, Any]], str, str]:
     section_cfg = ConfigManager(CONFIG_SECTION).load()
     if not isinstance(section_cfg, dict):
         section_cfg = {}
@@ -70,17 +107,12 @@ def _load_runtime_config(
     elif configured_submenu_label:
         submenu_label = configured_submenu_label
     else:
-        submenu_label = DEFAULT_SUBMENU_LABEL
-
-    configured_no_notes = str(section_cfg.get(CONFIG_KEY_MSG_NO_NOTES_SELECTED, "")).strip()
-    configured_applied_template = str(section_cfg.get(CONFIG_KEY_MSG_APPLIED_TEMPLATE, "")).strip()
-    msg_no_notes_selected = configured_no_notes or DEFAULT_MSG_NO_NOTES_SELECTED
-    msg_applied_template = configured_applied_template or DEFAULT_MSG_APPLIED_TEMPLATE
+        submenu_label = ADD_CUSTOM_TAGS_DEFAULTS["submenu_label"]
 
     # Presets come from config only; no hardcoded fallback presets.
     presets = _normalize_presets(section_cfg.get(CONFIG_KEY_PRESETS, []))
 
-    return submenu_label, presets, msg_no_notes_selected, msg_applied_template
+    return submenu_label, presets, MSG_NO_NOTES_SELECTED, MSG_APPLIED_TEMPLATE
 
 
 def _add_tag_safe(note, tag: str):
@@ -142,12 +174,22 @@ def add_custom_tag_menu_items(
     submenu_label, presets, msg_no_notes_selected, msg_applied_template = _load_runtime_config(
         menu_label_override=menu_label
     )
-    if not presets:
-        return
 
     custom_menu = QMenu(submenu_label, browser)
+    custom_menu.setStyleSheet(CUSTOM_MENU_STYLESHEET)
 
+    root_presets: list[dict[str, Any]] = []
+    grouped_presets: dict[str, list[dict[str, Any]]] = {}
     for preset in presets:
+        group_name = str(preset.get(CONFIG_KEY_GROUP, "")).strip()
+        if not group_name:
+            root_presets.append(preset)
+            continue
+        if group_name not in grouped_presets:
+            grouped_presets[group_name] = []
+        grouped_presets[group_name].append(preset)
+
+    def _add_preset_action(target_menu: QMenu, preset: dict[str, Any]) -> None:
         label = preset["label"]
         tags = list(preset["tags"])
 
@@ -160,7 +202,30 @@ def add_custom_tag_menu_items(
                 msg_applied_template=msg_applied_template,
             )
         )
-        custom_menu.addAction(action)
+        target_menu.addAction(action)
+
+    for preset in root_presets:
+        _add_preset_action(custom_menu, preset)
+
+    if not _preset_list_contains_tag(presets, MANAGEMENT_TREATMENT_TAG):
+        management_action = QAction(MANAGEMENT_TREATMENT_LABEL, browser)
+        management_action.triggered.connect(
+            lambda _=None: _apply_tags_to_selected_notes(
+                browser,
+                [MANAGEMENT_TREATMENT_TAG],
+                msg_no_notes_selected=msg_no_notes_selected,
+                msg_applied_template=msg_applied_template,
+            )
+        )
+        custom_menu.addAction(management_action)
+
+    for group_name, group_items in grouped_presets.items():
+        group_menu = QMenu(group_name, browser)
+        group_menu.setStyleSheet(CUSTOM_MENU_STYLESHEET)
+        for preset in group_items:
+            _add_preset_action(group_menu, preset)
+        if group_menu.actions():
+            custom_menu.addMenu(group_menu)
 
     if custom_menu.actions():
         parent_menu.addSeparator()

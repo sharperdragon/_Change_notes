@@ -8,18 +8,14 @@ from aqt import mw
 from aqt.utils import showText, tooltip
 
 from ...config_manager import ConfigManager
-from ...config_ui import ConfigDialog
+from ..shared.defaults import ADD_TABLE_CLASS_DEFAULTS, clone_defaults
 
 CONFIG_SECTION = "add_table_class"
 LEGACY_CONFIG_SECTION = "Add_table_class"
-DEFAULT_CONFIG = {
-    "apply_to_existing_classes": True,
-    "log_path": "~/Desktop/anki_logs/Add_table_class_log.txt",
-}
 
-_RUNTIME_CONFIG = dict(DEFAULT_CONFIG)
-_LOG_PATH = os.path.expanduser(DEFAULT_CONFIG["log_path"])
-_APPLY_TO_EXISTING = bool(DEFAULT_CONFIG["apply_to_existing_classes"])
+_RUNTIME_CONFIG = clone_defaults(ADD_TABLE_CLASS_DEFAULTS)
+_LOG_PATH = os.path.expanduser(ADD_TABLE_CLASS_DEFAULTS["log_path"])
+_APPLY_TO_EXISTING = bool(ADD_TABLE_CLASS_DEFAULTS["apply_to_existing_classes"])
 
 
 def _parse_bool(value, default=False):
@@ -52,7 +48,7 @@ def _reload_runtime_config():
     global _LOG_PATH
     global _APPLY_TO_EXISTING
 
-    cfg = dict(DEFAULT_CONFIG)
+    cfg = clone_defaults(ADD_TABLE_CLASS_DEFAULTS)
     cfg = ConfigManager.deep_merge_dicts(cfg, _load_local_legacy_config())
     cfg = ConfigManager.deep_merge_dicts(cfg, ConfigManager(CONFIG_SECTION).load())
 
@@ -61,9 +57,9 @@ def _reload_runtime_config():
         cfg = ConfigManager.deep_merge_dicts(cfg, legacy_cfg)
 
     _RUNTIME_CONFIG = cfg
-    _LOG_PATH = os.path.expanduser(str(cfg.get("log_path", DEFAULT_CONFIG["log_path"])))
+    _LOG_PATH = os.path.expanduser(str(cfg.get("log_path", ADD_TABLE_CLASS_DEFAULTS["log_path"])))
     _APPLY_TO_EXISTING = _parse_bool(
-        cfg.get("apply_to_existing_classes", DEFAULT_CONFIG["apply_to_existing_classes"]),
+        cfg.get("apply_to_existing_classes", ADD_TABLE_CLASS_DEFAULTS["apply_to_existing_classes"]),
         default=True,
     )
 
@@ -290,11 +286,6 @@ def add_class_main(browser):
             plain_text=True,
         )
         return False
-
-
-def open_config_gui():
-    dialog = ConfigDialog("_Change_notes", ConfigManager)
-    dialog.exec()
 
 
 def initialize_addon():
