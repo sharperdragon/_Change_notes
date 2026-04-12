@@ -45,7 +45,7 @@ HELP_DOC_PRE_BORDER_ALPHA = 0.24
 HELP_DOC_LINK_DECORATION = "none"
 
 STATUS_DEFAULT_TEXT = (
-    "Defaults source: configs/*.json | Edits are local until Save All or closing this window."
+    "Defaults source: config.json (root) | Edits are local until Save All or closing this window."
 )
 STATUS_NO_SECTIONS_TEXT = "No config sections found in configured category mappings."
 RELOAD_CONFIRM_TEXT = "Discard unsaved editor changes and reload saved config?"
@@ -497,7 +497,7 @@ class ConfigDialog(QDialog):
         if self.config_manager.last_load_errors:
             errs = "; ".join(self.config_manager.last_load_errors[:MAX_STATUS_WARNINGS])
             self.status_label.setText(
-                prefix + f"Section '{section_key}'. Defaults from configs/*.json. Load warnings: {errs}"
+                prefix + f"Section '{section_key}'. Defaults from config.json. Load warnings: {errs}"
             )
             return
 

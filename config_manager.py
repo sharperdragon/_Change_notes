@@ -11,9 +11,23 @@ from aqt import mw
 
 
 class ConfigManager:
-    """Load effective config from `configs/` defaults + profile overrides."""
+    """Load and normalize add-on config using root config.json defaults."""
 
     ROOT_ADDON_NAME = "_Change_notes"
+
+    # Legacy section keys that now map to canonical section keys.
+    LEGACY_SECTION_RENAMES = {
+        "merge_scheduling_config": "merge_scheduling",
+        "Add_img_class": "add_img_class",
+        "Add_table_class": "add_table_class",
+    }
+
+    MISSED_TAGS_CANONICAL_SECTION = "tag_missed_qid_notes"
+    MISSED_TAGS_LEGACY_SECTIONS = (
+        "add_missed_tags",
+        "tag_selected_notes_config",
+        "add_tags",
+    )
 
     def __init__(self, addon_name: str, global_config_name: str = None):
         self.addon_name = addon_name
@@ -33,101 +47,135 @@ class ConfigManager:
         return Path(__file__).resolve().parent
 
     @classmethod
-    def _configs_dir(cls) -> Path:
-        return cls._addon_root() / "configs"
-
-    @classmethod
-    def _legacy_config_path(cls) -> Path:
+    def _default_config_path(cls) -> Path:
         return cls._addon_root() / "config.json"
 
     @classmethod
-    def _read_json_file(cls, path: Path) -> tuple[Any, str | None]:
-        """Read JSON, tolerating historical fragment format in configs/*.json."""
-        raw = path.read_text(encoding="utf-8").strip()
-        if not raw:
-            return {}, None
-
-        try:
-            return json.loads(raw), None
-        except json.JSONDecodeError as exc:
-            try:
-                wrapped = "{\n" + raw + "\n}"
-                return json.loads(wrapped), f"{path.name}: wrapped legacy fragment ({exc.msg})"
-            except json.JSONDecodeError as wrapped_exc:
-                raise ValueError(f"{path.name}: invalid JSON ({wrapped_exc.msg}) at line {wrapped_exc.lineno}") from wrapped_exc
+    def _load_runtime_config_raw(cls) -> dict:
+        current = mw.addonManager.getConfig(cls.ROOT_ADDON_NAME) or {}
+        return current if isinstance(current, dict) else {}
 
     @classmethod
-    def _normalize_section_payload(cls, section_hint: str, payload: Any) -> tuple[str, dict]:
-        if not isinstance(payload, dict):
-            raise ValueError(f"{section_hint}: expected JSON object at top level.")
-
-        if len(payload) == 1:
-            only_key, only_val = next(iter(payload.items()))
-            if isinstance(only_val, dict):
-                return str(only_key), only_val
-
-        return section_hint, payload
-
-    @classmethod
-    def _load_legacy_defaults(cls) -> dict:
-        path = cls._legacy_config_path()
+    def _load_default_config_with_errors(cls) -> tuple[dict, list[str]]:
+        path = cls._default_config_path()
         if not path.exists():
-            return {}
+            return {}, [f"Missing default config file: {path}"]
+
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            return {}, [f"{path.name}: invalid JSON ({exc.msg}) at line {exc.lineno}"]
+        except Exception as exc:
+            return {}, [f"{path.name}: failed to read defaults ({exc})"]
+
+        if not isinstance(payload, dict):
+            return {}, [f"{path.name}: expected top-level JSON object"]
+
+        return payload, []
 
     @classmethod
-    def load_defaults_from_configs(cls) -> tuple[dict, list[str]]:
-        """Compile section defaults from configs/*.json with legacy-section fallback."""
-        defaults: dict = {}
-        errors: list[str] = []
-        configs_dir = cls._configs_dir()
+    def load_default_config(cls) -> dict:
+        defaults, _ = cls._load_default_config_with_errors()
+        return defaults
 
-        if not configs_dir.exists():
-            legacy_defaults = cls._load_legacy_defaults()
-            return legacy_defaults, [f"Missing configs directory: {configs_dir} (using legacy config.json defaults)"]
+    @classmethod
+    def _merge_legacy_into_canonical(
+        cls,
+        payload: dict,
+        *,
+        legacy_key: str,
+        canonical_key: str,
+    ) -> bool:
+        if legacy_key not in payload:
+            return False
 
-        for path in sorted(configs_dir.glob("*.json")):
-            if path.name.startswith("."):
+        changed = False
+        legacy_value = payload.pop(legacy_key)
+        changed = True
+
+        canonical_value = payload.get(canonical_key)
+        if isinstance(legacy_value, dict):
+            merged = copy.deepcopy(legacy_value)
+            if isinstance(canonical_value, dict):
+                # Canonical values win when the same key exists in both payloads.
+                merged = cls.deep_merge_dicts(merged, canonical_value)
+            if payload.get(canonical_key) != merged:
+                payload[canonical_key] = merged
+                changed = True
+        elif canonical_key not in payload:
+            payload[canonical_key] = copy.deepcopy(legacy_value)
+            changed = True
+
+        return changed
+
+    @classmethod
+    def _migrate_missed_tags_sections(cls, payload: dict) -> bool:
+        changed = False
+        merged_legacy: dict = {}
+
+        for legacy_key in cls.MISSED_TAGS_LEGACY_SECTIONS:
+            if legacy_key not in payload:
                 continue
-            section_hint = path.stem
-            try:
-                payload, warning = cls._read_json_file(path)
-                if warning:
-                    errors.append(warning)
-                section_key, section_data = cls._normalize_section_payload(section_hint, payload)
-                defaults[section_key] = section_data
-            except Exception as exc:
-                errors.append(str(exc))
 
-        # Legacy compatibility: keep config.json only as fallback for sections
-        # not defined in configs/*.json.
-        legacy_defaults = cls._load_legacy_defaults()
-        if isinstance(legacy_defaults, dict):
-            for key, value in legacy_defaults.items():
-                if key in defaults:
-                    continue
-                if isinstance(key, str) and isinstance(value, dict):
-                    defaults[key] = copy.deepcopy(value)
-                    errors.append(
-                        f"{key}: loaded from legacy config.json fallback (section missing in configs/)"
-                    )
+            legacy_value = payload.pop(legacy_key)
+            changed = True
+            if isinstance(legacy_value, dict):
+                merged_legacy = cls.deep_merge_dicts(merged_legacy, legacy_value)
 
-        return defaults, errors
+        if not merged_legacy:
+            return changed
+
+        canonical_value = payload.get(cls.MISSED_TAGS_CANONICAL_SECTION)
+        if isinstance(canonical_value, dict):
+            # Canonical values win when overlapping with merged legacy values.
+            merged_canonical = cls.deep_merge_dicts(merged_legacy, canonical_value)
+        else:
+            merged_canonical = merged_legacy
+
+        if payload.get(cls.MISSED_TAGS_CANONICAL_SECTION) != merged_canonical:
+            payload[cls.MISSED_TAGS_CANONICAL_SECTION] = merged_canonical
+            changed = True
+
+        return changed
+
+    @classmethod
+    def migrate_legacy_config(cls, current_config: dict) -> dict:
+        if not isinstance(current_config, dict):
+            return {}
+
+        migrated = copy.deepcopy(current_config)
+        for legacy_key, canonical_key in cls.LEGACY_SECTION_RENAMES.items():
+            cls._merge_legacy_into_canonical(
+                migrated,
+                legacy_key=legacy_key,
+                canonical_key=canonical_key,
+            )
+
+        cls._migrate_missed_tags_sections(migrated)
+        return migrated
+
+    @classmethod
+    def load_normalized_config(cls) -> tuple[dict, list[str]]:
+        defaults, errors = cls._load_default_config_with_errors()
+        current = cls._load_runtime_config_raw()
+
+        migrated = cls.migrate_legacy_config(current)
+        normalized = cls.deep_merge_missing(migrated, defaults)
+
+        if normalized != current:
+            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, normalized)
+
+        return normalized if isinstance(normalized, dict) else {}, errors
 
     @classmethod
     def load_user_overrides(cls) -> dict:
-        overrides = mw.addonManager.getConfig(cls.ROOT_ADDON_NAME) or {}
-        return overrides if isinstance(overrides, dict) else {}
+        """Return normalized active config stored by Anki."""
+        normalized, _ = cls.load_normalized_config()
+        return normalized
 
     @classmethod
     def load_effective_config(cls) -> tuple[dict, list[str]]:
-        defaults, errors = cls.load_defaults_from_configs()
-        overrides = cls.load_user_overrides()
-        return cls.deep_merge_dicts(defaults, overrides), errors
+        return cls.load_normalized_config()
 
     @classmethod
     def list_sections(cls) -> list[str]:
@@ -136,7 +184,7 @@ class ConfigManager:
 
     @classmethod
     def get_default_section(cls, section: str) -> dict:
-        defaults, _ = cls.load_defaults_from_configs()
+        defaults = cls.load_default_config()
         data = defaults.get(section, {})
         return copy.deepcopy(data) if isinstance(data, dict) else {}
 
@@ -148,9 +196,9 @@ class ConfigManager:
 
     @classmethod
     def get_effective_section(cls, section: str) -> dict:
-        defaults = cls.get_default_section(section)
-        overrides = cls.get_override_section(section)
-        return cls.deep_merge_dicts(defaults, overrides)
+        effective, _ = cls.load_effective_config()
+        data = effective.get(section, {})
+        return copy.deepcopy(data) if isinstance(data, dict) else {}
 
     @classmethod
     def get_effective_section_with_aliases(
@@ -188,8 +236,8 @@ class ConfigManager:
     def load_config(self):
         """
         Backward-compatible load behavior:
-        - addon_name == _Change_notes: full effective config.
-        - addon_name == section key: effective section.
+        - addon_name == _Change_notes: full normalized config.
+        - addon_name == section key: normalized section config.
         - with global_config_name: deep-merge global section + target section.
         """
         effective, errors = self.load_effective_config()
@@ -212,7 +260,7 @@ class ConfigManager:
         return section_dict
 
     def save_config(self, new_config):
-        """Save config as overrides (full-root or section-level)."""
+        """Save config as active config (root) or section-level payload."""
         if not isinstance(new_config, dict):
             raise ValueError("Configuration must be a JSON object.")
 
@@ -243,4 +291,22 @@ class ConfigManager:
                 result[key] = ConfigManager.deep_merge_dicts(result[key], value)
             else:
                 result[key] = copy.deepcopy(value)
+        return result
+
+    @staticmethod
+    def deep_merge_missing(user_cfg: Any, default_cfg: Any) -> Any:
+        """Recursively add only missing keys from defaults into user config."""
+        if not isinstance(default_cfg, dict):
+            return copy.deepcopy(user_cfg)
+
+        if not isinstance(user_cfg, dict):
+            return copy.deepcopy(default_cfg)
+
+        result = copy.deepcopy(user_cfg)
+        for key, default_value in default_cfg.items():
+            if key not in result:
+                result[key] = copy.deepcopy(default_value)
+            elif isinstance(default_value, dict) and isinstance(result.get(key), dict):
+                result[key] = ConfigManager.deep_merge_missing(result[key], default_value)
+
         return result

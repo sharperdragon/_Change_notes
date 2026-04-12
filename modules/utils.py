@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
-
 from aqt import mw
 from aqt.qt import QDialog, QDialogButtonBox, QDoubleSpinBox, QVBoxLayout
 
@@ -43,23 +39,28 @@ __all__ = [
     "prompt_similarity_threshold",
 ]
 
-_ADDON_ROOT = Path(__file__).resolve().parents[1]
-_CONFIG_PATH = _ADDON_ROOT / "config.json"
+# ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
+ROOT_ADDON_NAME = "_Change_notes"
+# ! -----------------------------------------------------------------------------
 
 
 def _load_config_raw():
-    """Load effective config, preferring root ConfigManager."""
+    """Load normalized runtime config, preferring root ConfigManager."""
     try:
         if ConfigManager is not None:
-            data = ConfigManager("_Change_notes").load()
+            data = ConfigManager(ROOT_ADDON_NAME).load()
             if isinstance(data, dict):
                 return data
     except Exception:
         pass
 
+    addon_manager = getattr(mw, "addonManager", None)
+    if addon_manager is None:
+        return {}
+
     try:
-        with open(_CONFIG_PATH, "r", encoding="utf-8") as file:
-            return json.load(file)
+        fallback_data = addon_manager.getConfig(ROOT_ADDON_NAME) or {}
+        return fallback_data if isinstance(fallback_data, dict) else {}
     except Exception:
         return {}
 
@@ -76,12 +77,17 @@ def load_config():
 
 
 def save_config(config):
+    if not isinstance(config, dict):
+        raise ValueError("Configuration must be a JSON object.")
+
     if ConfigManager is not None:
-        ConfigManager("_Change_notes").save_config(config)
+        ConfigManager(ROOT_ADDON_NAME).save_config(config)
         return
-    config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
-    with open(config_path, "w", encoding="utf-8") as file:
-        json.dump(config, file, indent=4)
+
+    addon_manager = getattr(mw, "addonManager", None)
+    if addon_manager is None:
+        return
+    addon_manager.writeConfig(ROOT_ADDON_NAME, config)
 
 
 def get_field_index_from_config(note_type_name, field_name):

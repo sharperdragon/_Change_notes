@@ -27,7 +27,7 @@ from .modules.tag_dupes import run_tag_dupes
 DEFAULT_CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
 MENU_LABEL_EXPORT_UW_QIDS = "Export UW QID tag(s) 🧿"
 MENU_LABEL_ADD_IMG_CLASS = "Add IMG class 🏞️"
-MENU_LABEL_ADD_TABLE_CLASS = "📊 Add Table class (columns)"
+MENU_LABEL_ADD_TABLE_CLASS = "📊 Add Table class (col)"
 MENU_LABEL_EDIT_MENU = "Edit Menu 📝"
 MENU_LABEL_MERGE_MENU = "Merge Menu 🚧"
 MENU_LABEL_MERGE_IMGS_TAGS = "🍃Merge Imgs+Tags"

@@ -1,7 +1,7 @@
 """Shared fallback defaults for _Change_notes modules.
 
 These values are Python-side guard defaults used when config keys are missing
-or malformed. User-editable defaults still live in `configs/*.json`.
+or malformed. User-editable defaults live in the root `config.json`.
 """
 
 from __future__ import annotations

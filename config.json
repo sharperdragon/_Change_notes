@@ -1,16 +1,8 @@
 {
   "global_config": {
-    "default_fuzzy": "0.95",
+    "default_fuzzy": 0.95,
     "default_note_type": "*Nord+",
     "log_folder": "logs"
-  },
-  "tag_dupes_config": {
-    "comparison_field": "Text",
-    "base_tag": "Main_dupe",
-    "multi_tag_child": "multiple",
-    "TAG UNMATCHED": "true",
-    "unmatched_tag": "unmatched",
-    "log_folder": ""
   },
   "global_fuzzy_opts": {
     "default_fuzz": 0.97,
@@ -18,11 +10,16 @@
     "max_fuzz": 1.0
   },
   "merge_tags_config": {
+    "comparison_field": "Text",
     "default_fuzzy": 0.96,
+    "min_fuzzy": 0.8,
+    "max_fuzzy": 1.0,
+    "ask_fuzzy_each_time": true,
     "base_tag": "TAGS_MERGED",
     "log_folder": "",
-    "merge_select_only": "False",
-    "merge_only_parents": ["", "", ""]
+    "merge_select_only": false,
+    "merge_only_parents": [],
+    "merge_only_from_parents": []
   },
   "merge_images_config": {
     "default_threshold": 0.97,
@@ -30,7 +27,9 @@
     "max_threshold": 1.0,
     "ask_threshold_each_time": true,
     "allowed_models": [],
-    "excluded_tags": ["First_Aid"],
+    "excluded_tags": [
+      "First_Aid"
+    ],
     "fields_to_scan_for_images": [
       "Extra",
       "Extra2",
@@ -45,7 +44,8 @@
     "merge_behavior": {
       "wrap_images_in_div": true,
       "insert_new_line_between_images": true,
-      "append_to_existing_field": true
+      "append_to_existing_field": true,
+      "copy_sketchy_links": true
     },
     "logging": {
       "enable_log_popup": true,
@@ -55,7 +55,8 @@
     "tagging": {
       "add_to_merged": "IMG_Uni::received",
       "add_to_donor": "IMG_Uni::donor",
-      "add_to_unchanged": "IMG_Uni::same"
+      "add_to_unchanged": "IMG_Uni::same",
+      "no_images_found": "IMG_Uni::no_images"
     }
   },
   "merge_images_and_tags_config": {
@@ -64,8 +65,34 @@
     "base_tag": "Tag+IMG_MERGED",
     "log_folder": ""
   },
+  "merge_scheduling": {
+    "merge_similarity_threshold": 85,
+    "default_fuzzy": 0.95,
+    "min_fuzzy": 0.81,
+    "merge_field_index": 0,
+    "scheduling_merge_log_path": "merged_scheduling.log",
+    "use_text_replacements": true,
+    "tag_on_merge": "Scheduling::Merged",
+    "abort_on_cancel": true,
+    "multi_card_policy": "skip"
+  },
+  "tag_dupes_config": {
+    "comparison_field": "Text",
+    "base_tag": "Main_dupe",
+    "multi_tag_child": "multiple",
+    "tag_unmatched": true,
+    "TAG UNMATCHED": "true",
+    "unmatched_tag": "unmatched",
+    "log_folder": ""
+  },
   "delete_empty_notes_config": {
-    "protected_notes": ["*Nord+", "*Nord-focus+", "Cloze - Dracula", "Basic □", "Image Occlusion Enhanced"]
+    "protected_notes": [
+      "*Nord+",
+      "*Nord-focus+",
+      "Cloze - Dracula",
+      "Basic □",
+      "Image Occlusion Enhanced"
+    ]
   },
   "batch_note_change_config": {
     "hide_menu_when_one_type_selected": false,
@@ -80,36 +107,9 @@
     "enable_backup": true,
     "backup_directory": "~/Anki_Backups/NoteTypeChange"
   },
-  "merge_scheduling": {
-    "merge_similarity_threshold": 85,
-    "default_fuzzy": 0.95,
-    "min_fuzzy": 0.81,
-    "merge_field_index": 0,
-    "scheduling_merge_log_path": "merged_scheduling.log",
-    "use_text_replacements": true,
-    "tag_on_merge": "Scheduling::Merged"
-  },
-  "tag_selected_notes_config": {
-    "missed_month_tag": ["##Missed-Qs"],
-    "base_name": "📙Base Tag",
-    "missed_base_tag": ["##Missed-Qs"],
-    "subset_1_name": " 🗺️ UW-Test",
-    "subset_tag_1": ["##Missed-Qs::UW_Tests"],
-    "subset_2_name": " 🧠 NBME",
-    "subset_tag_2": ["##Missed-Qs::NBME"],
-    "other_menu": {
-      "label": "Other",
-      "prefix": "##Missed-Qs::Other::",
-      "resources": ["🫐 NBOME 🫐", "Kaplan 🍠", "True-Learn 🐟", "Amboss 🦠"]
-    }
-  },
   "add_custom_tags": {
     "submenu_label": " 🎛️ Custom Tags",
     "presets": [
-      {
-        "label": "Drug ADRs 😵",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
-      },
       {
         "label": "Key 🔑",
         "tags": ["#Custom::#KEY"]
@@ -119,29 +119,167 @@
         "tags": ["#Custom::DO_Med"]
       },
       {
-        "label": "Indication",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::Indication"]
-      },
-      {
         "label": "Imaging",
         "tags": ["#Custom::#Imaging"]
       },
       {
+        "label": "Memorize",
+        "tags": ["#Custom::#KEY::*Memorize"]
+      },
+      {
+        "label": "Drug ADRs 😵",
+        "group": "Drugs",
+        "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
+      },
+      {
+        "label": "Indication",
+        "group": "Drugs",
+        "tags": ["#Custom::Bugs+Drugs::Drugs::Indication"]
+      },
+      {
         "label": "MoA",
+        "group": "Drugs",
         "tags": ["#Custom::Bugs+Drugs::Drugs::MoA"]
       }
     ]
   },
-  "add_missed_tags": {
-    "base_missed_tag": "##Missed-Qs",
-    "Q_Banks": ["UWORLD", "NBME"],
+  "tag_missed_qid_notes": {
     "ui": {
-      "menu_label": "Missed Tags ❌",
-      "message_invalid_test_number": "❌ Please enter a valid integer test number.",
-      "action_label_base": "♦️ Base",
-      "action_label_multi_missed": "2x Missed 📌",
-      "action_label_key_info": "Key Info 🗝️",
-      "action_label_correct_guess": "Guessed Correct 🎫"
-    }
+      "menu_label": "Missed Tags ❌"
+    },
+    "rotation": {
+      "schedule": [
+        {
+          "label": "IM1",
+          "start": "2025-06-30",
+          "end": "2025-07-25"
+        },
+        {
+          "label": "FM2",
+          "start": "2025-07-28",
+          "end": "2025-08-22"
+        },
+        {
+          "label": "ACM",
+          "start": "2025-08-25",
+          "end": "2025-09-05"
+        },
+        {
+          "label": "OMM",
+          "start": "2025-09-08",
+          "end": "2025-09-18"
+        },
+        {
+          "label": "Surgery",
+          "start": "2025-09-22",
+          "end": "2025-10-17"
+        },
+        {
+          "label": "IM2",
+          "start": "2025-10-20",
+          "end": "2025-11-14"
+        },
+        {
+          "label": "FM1",
+          "start": "2025-11-17",
+          "end": "2025-12-12"
+        },
+        {
+          "label": "Winter-break",
+          "start": "2025-12-13",
+          "end": "2026-01-04"
+        },
+        {
+          "label": "Pediatrics",
+          "start": "2026-01-05",
+          "end": "2026-01-30"
+        },
+        {
+          "label": "OBGYN",
+          "start": "2026-02-02",
+          "end": "2026-02-27"
+        },
+        {
+          "label": "Psych",
+          "start": "2026-03-02",
+          "end": "2026-03-27"
+        }
+      ],
+      "exhausted_policy": "unknown",
+      "parent_tag_segment": "Rotation",
+      "winter_break_label": "Winter-break",
+      "post_rotation_label": "Dedicated"
+    },
+    "actions": {
+      "base": {
+        "label": " ♦️ Base",
+        "tags": [
+          "##Missed-Qs"
+        ]
+      },
+      "uworld": {
+        "label": " 🛃 UWorld",
+        "base_tags": [
+          "##Missed-Qs::UW_Tests"
+        ],
+        "default_tag_prefix": "UW_Tests",
+        "test_range_block_size": 25
+      },
+      "nbme": {
+        "label": " 🧠 NBME",
+        "base_tags": [
+          "##Missed-Qs::NBME"
+        ],
+        "default_tag_prefix": "NBME"
+      },
+      "amboss": {
+        "label": " 🦠 Amboss",
+        "base_tag": "##Missed-Qs::Amboss",
+        "blank_behavior": "base_plus_rotation",
+        "number_style": "rotation_then_number",
+        "remove_from_other_menu": true
+      },
+      "multi_missed": {
+        "label": "2x Missed 📌",
+        "tag_segment": "2x"
+      },
+      "key_info": {
+        "label": "Key Info 🗝️",
+        "tag_base": "#Custom::#KEY"
+      },
+      "correct_guess": {
+        "label": "Correct Guess 🎫",
+        "tags": [
+          "#Custom::correct_marked"
+        ],
+        "include_rotation": true,
+        "rotation_lowercase": true,
+        "unknown_segment": "unknown"
+      },
+      "other": {
+        "resources": [
+          "Kaplan",
+          "True-Learn",
+          "NBOME"
+        ],
+        "tag_suffix": "Other"
+      }
+    },
+    "Q_Banks": [
+      "UWORLD",
+      "NBME"
+    ]
+  },
+  "add_table_class": {
+    "apply_to_existing_classes": true,
+    "log_path": "~/Desktop/anki_logs/Add_table_class_log.txt"
+  },
+  "add_img_class": {
+    "small_width": 340,
+    "ultra-wide_ratio": 1.89999999,
+    "landscape_ratio_min": 1.1900000001,
+    "tall_ratio": 0.899999,
+    "square_min": 0.8999991,
+    "square_max": 1.19
   }
 }
