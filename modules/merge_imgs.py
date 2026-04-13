@@ -24,6 +24,10 @@ from ..config_manager import ConfigManager
 SKETCHY_PREFIX = "https://dashboard.sketchy.com"
 SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
 
+# Insertion policy (top-level for easy future edits).
+IMAGE_INSERT_POLICY = "append_only"
+SUPPORTED_IMAGE_INSERT_POLICIES = {"append_only"}
+
 DEFAULT_CONFIG = {
     "default_threshold": 0.90,
     "min_threshold": 0.80,
@@ -389,6 +393,11 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     wrap_in_div = cfg("merge_behavior.wrap_images_in_div", True)
     insert_br = cfg("merge_behavior.insert_new_line_between_images", True)
     append_to_existing = cfg("merge_behavior.append_to_existing_field", True)
+    image_insert_policy = (
+        IMAGE_INSERT_POLICY
+        if IMAGE_INSERT_POLICY in SUPPORTED_IMAGE_INSERT_POLICIES
+        else "append_only"
+    )
 
     def make_block(src_list, src_map):
         """Build an HTML block for a list of srcs respecting config flags."""
@@ -400,7 +409,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
         body = "<br>".join(imgtags) if insert_br else "".join(imgtags)
         return f"<div>{body}</div>" if wrap_in_div else body
 
-    log_entries = []
+    log_entries = [f"⚙️ Image insert policy: {image_insert_policy}"]
     merged = 0
     all_used_donors = set()
     recipients = set()
@@ -505,43 +514,18 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     if not missing_srcs_ordered:
                         continue
 
-                    # Identify where the recipient overlaps the donor order
-                    shared_indices = [donor_src_order.index(s) for s in existing_srcs_ordered if s in donor_src_order]
-                    first_shared_idx = min(shared_indices) if shared_indices else None
-                    last_shared_idx = max(shared_indices) if shared_indices else None
-
-                    # Split missing images into those that should be prepended vs appended
-                    to_prepend_srcs = []
-                    to_append_srcs = []
-                    if first_shared_idx is None:
-                        # No overlap: keep donor ordering; prepend everything so donor-leading images appear first
-                        to_prepend_srcs = missing_srcs_ordered
-                    else:
-                        for s in missing_srcs_ordered:
-                            idx_in_donor = donor_src_order.index(s)
-                            if idx_in_donor < first_shared_idx:
-                                to_prepend_srcs.append(s)
-                            elif last_shared_idx is not None and idx_in_donor > last_shared_idx:
-                                to_append_srcs.append(s)
-                            else:
-                                # Missing between first and last shared — append to end to avoid mid-string HTML surgery
-                                to_append_srcs.append(s)
-
-                    prepend_block = make_block(to_prepend_srcs, src_to_imgtag)
+                    # Append-only policy keeps donor order and always writes to field end.
+                    to_append_srcs = missing_srcs_ordered
                     append_block = make_block(to_append_srcs, src_to_imgtag)
 
                     # Apply updates per config
                     original_html = updated_fields[i]
                     if append_to_existing:
-                        if prepend_block:
-                            updated_fields[i] = prepend_block + (original_html or "")
-                        if not original_html and not prepend_block and append_block:
-                            updated_fields[i] = append_block
-                        elif append_block:
-                            updated_fields[i] = updated_fields[i] + append_block
+                        if append_block:
+                            updated_fields[i] = (original_html or "") + append_block
                     else:
-                        # Replace the field content with only the newly constructed images
-                        updated_fields[i] = (prepend_block or "") + (append_block or "")
+                        # Replace the field content with only the newly constructed images.
+                        updated_fields[i] = append_block
 
                     # Track donors used for logging
                     missing_srcs = set(missing_srcs_ordered)
@@ -552,15 +536,12 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
                     changed = True
 
-                    # Logging reflecting prepend/append
+                    # Logging reflecting append-only insertion
                     field_name = get_field_names(note)[i]
-                    if to_prepend_srcs:
-                        block = make_block(to_prepend_srcs, src_to_imgtag)
-                        log_entries.append(f"🧬 Prepend to Note {note.id} field '{field_name}': {block} (donors={', '.join(str(d) for d in sorted(used_donors)) or 'None'})")
                     if to_append_srcs:
                         block = make_block(to_append_srcs, src_to_imgtag)
                         log_entries.append(f"🧬 Append to Note {note.id} field '{field_name}': {block} (donors={', '.join(str(d) for d in sorted(used_donors)) or 'None'})")
-                    if not append_to_existing and (to_prepend_srcs or to_append_srcs):
+                    if not append_to_existing and to_append_srcs:
                         log_entries.append(f"🔁 Replaced content in Note {note.id} field '{field_name}' due to append_to_existing_field=False")
 
                 # ---- Copy Sketchy links under their corresponding images ----

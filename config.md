@@ -70,6 +70,7 @@ Controls image merge behavior.
 - `excluded_tags`: Skip notes with these tags.
 - `fields_to_scan_for_images`: Fields scanned for image content.
 - `merge_behavior`: Merge formatting controls.
+- Image insertion is append-only (set in `modules/merge_imgs.py` via `IMAGE_INSERT_POLICY = "append_only"`), so added images are written to the end of each target field.
 - `logging`: Logging options.
 - `tagging`: Tags applied based on merge result.
 
@@ -100,6 +101,7 @@ This section combines previous behavior from `add_missed_tags` and
 Controls custom tag presets.
 
 - `submenu_label`: Label shown in the browser context menu.
+- `group_labels`: Optional mapping of group keys to display labels. Keys must match `presets[].group`.
 - `presets`: List of preset objects with `label` and `tags`.
 - `presets[].group`: Optional single-level submenu name; presets sharing a group render under that submenu.
 

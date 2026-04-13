@@ -6,6 +6,8 @@ into Anki's Browser right-click menu.
 
 # pyright: reportMissingImports=false
 
+from pathlib import Path
+
 from aqt import mw
 from aqt.qt import QAction, QMenu
 
@@ -21,6 +23,7 @@ from .modules.img_tags_merge import merge_imgs_and_tags
 from .modules.merge_imgs import merge_images_main
 from .modules.merge_schedule import run_merge_scheduling
 from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
+from .modules.shared.menu_styles import build_qmenu_item_stylesheet, build_qmenu_right_arrow_stylesheet
 from .modules.tag_dupes import run_tag_dupes
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
@@ -37,7 +40,64 @@ MENU_LABEL_MERGE_SCHEDULE = "🛻 Merge Schedule"
 MENU_LABEL_TAG_DUPES = "Tag Dupes 🔖"
 MENU_LABEL_DELETE_EMPTY = "❌ Empty Note Types࿏"
 MENU_LABEL_BATCH_CHANGE = "Batch Change Note Types"
+USE_CUSTOM_SUBMENU_ARROW_ICON = True
+SUBMENU_ARROW_ICON_ABS_PATH = str((Path(__file__).resolve().parent / "modules" / "assets" / "submenu_arrow.svg"))
+SUBMENU_ARROW_ICON_SIZE_PX = 12
+USE_SUBMENU_ITEM_STYLING = True
+SUBMENU_ITEM_HOVER_BACKGROUND_COLOR = "rgba(120, 160, 255, 60)"
+SUBMENU_ITEM_PADDING_TOP_PX = 4.5
+SUBMENU_ITEM_PADDING_BOTTOM_PX = 4.5
+SUBMENU_ITEM_PADDING_LEFT_PX = 6
+SUBMENU_ITEM_PADDING_RIGHT_PX = 6
 # ! -----------------------------------------------------------------------------
+
+
+def _build_submenu_arrow_stylesheet() -> str:
+    return build_qmenu_right_arrow_stylesheet(
+        use_custom_submenu_arrow_icon=USE_CUSTOM_SUBMENU_ARROW_ICON,
+        submenu_arrow_icon_abs_path=SUBMENU_ARROW_ICON_ABS_PATH,
+        submenu_arrow_icon_size_px=SUBMENU_ARROW_ICON_SIZE_PX,
+        submenu_arrow_horizontal_padding_px=None,
+    )
+
+
+def _build_submenu_item_stylesheet() -> str:
+    if not USE_SUBMENU_ITEM_STYLING:
+        return ""
+
+    return build_qmenu_item_stylesheet(
+        item_padding_top_px=SUBMENU_ITEM_PADDING_TOP_PX,
+        item_padding_bottom_px=SUBMENU_ITEM_PADDING_BOTTOM_PX,
+        item_padding_left_px=SUBMENU_ITEM_PADDING_LEFT_PX,
+        item_padding_right_px=SUBMENU_ITEM_PADDING_RIGHT_PX,
+        hover_background_color=SUBMENU_ITEM_HOVER_BACKGROUND_COLOR,
+    )
+
+
+def _apply_submenu_arrow_style(menu: QMenu) -> None:
+    extra_stylesheet = _build_submenu_arrow_stylesheet()
+    if not extra_stylesheet:
+        return
+
+    current_stylesheet = menu.styleSheet() or ""
+    if extra_stylesheet in current_stylesheet:
+        return
+
+    joined = f"{current_stylesheet}\n{extra_stylesheet}".strip()
+    menu.setStyleSheet(joined)
+
+
+def _apply_submenu_item_style(menu: QMenu) -> None:
+    extra_stylesheet = _build_submenu_item_stylesheet()
+    if not extra_stylesheet:
+        return
+
+    current_stylesheet = menu.styleSheet() or ""
+    if extra_stylesheet in current_stylesheet:
+        return
+
+    joined = f"{current_stylesheet}\n{extra_stylesheet}".strip()
+    menu.setStyleSheet(joined)
 
 
 def _run_merge_tags_with_threshold(browser):
@@ -52,6 +112,8 @@ def compile_browser_context_menu(
     *,
     custom_tags_menu_label: str = DEFAULT_CUSTOM_TAGS_MENU_LABEL,
 ):
+    _apply_submenu_arrow_style(menu)
+
     selected = browser.selectedNotes()
     if not selected:
         return
@@ -85,10 +147,14 @@ def compile_browser_context_menu(
     # Create submenus for grouped actions.
     edit_menu = QMenu(MENU_LABEL_EDIT_MENU, menu)
     edit_menu.setObjectName("editMenu")
+    _apply_submenu_item_style(edit_menu)
+    _apply_submenu_arrow_style(edit_menu)
     added_edit = False
 
     merge_menu = QMenu(MENU_LABEL_MERGE_MENU, menu)
     merge_menu.setObjectName("mergeMenu")
+    _apply_submenu_item_style(merge_menu)
+    _apply_submenu_arrow_style(merge_menu)
     added_merge = False
 
     unify_img_and_tags_action = QAction(MENU_LABEL_MERGE_IMGS_TAGS, browser)

@@ -109,6 +109,10 @@
   },
   "add_custom_tags": {
     "submenu_label": " 🎛️ Custom Tags",
+    "group_labels": {
+      "Drugs": " 👾 Drugs",
+      "Memorize": " 📚 Memorize"
+    },
     "presets": [
       {
         "label": "Key 🔑",
@@ -119,12 +123,33 @@
         "tags": ["#Custom::DO_Med"]
       },
       {
-        "label": "Imaging",
+        "label": "Imaging 🩻",
         "tags": ["#Custom::#Imaging"]
       },
       {
-        "label": "Memorize",
-        "tags": ["#Custom::#KEY::*Memorize"]
+        "label": " ⛱️ General",
+        "group": "Memorize",
+        "tags": ["#Custom::Memorize_topics::General"]
+      },
+      {
+        "label": " 🥅 Screening",
+        "group": "Memorize",
+        "tags": ["#Custom::Memorize_topics::Screening"]
+      },
+      {
+        "label": " 🚏 Markers",
+        "group": "Memorize",
+        "tags": ["#Custom::Memorize_topics::Markers"]
+      },
+      {
+        "label": " 🧬 Genes+",
+        "group": "Memorize",
+        "tags": ["#Custom::Memorize_topics::Genes+"]
+      },
+      {
+        "label": " 🧾 Criteria",
+        "group": "Memorize",
+        "tags": ["#Custom::Memorize_topics::Criteria"]
       },
       {
         "label": "Drug ADRs 😵",
@@ -132,12 +157,12 @@
         "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
       },
       {
-        "label": "Indication",
+        "label": "Indication 💊",
         "group": "Drugs",
         "tags": ["#Custom::Bugs+Drugs::Drugs::Indication"]
       },
       {
-        "label": "MoA",
+        "label": " ⚙️ MoA",
         "group": "Drugs",
         "tags": ["#Custom::Bugs+Drugs::Drugs::MoA"]
       }

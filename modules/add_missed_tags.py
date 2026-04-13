@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from aqt.qt import QAction, QInputDialog, QMenu
@@ -11,6 +12,7 @@ from aqt.utils import showInfo, tooltip
 
 from ..config_manager import ConfigManager
 from .shared.defaults import ADD_MISSED_TAGS_DEFAULTS
+from .shared.menu_styles import build_qmenu_stylesheet
 
 # ! ----------------------------- CONFIG SECTIONS -----------------------------
 CANONICAL_CONFIG_SECTION = "tag_missed_qid_notes"
@@ -74,6 +76,15 @@ PATH_ACTION_CORRECT_GUESS_UNKNOWN_SEGMENT = ("actions", "correct_guess", "unknow
 
 PATH_ACTION_OTHER_RESOURCES = ("actions", "other", "resources")
 PATH_ACTION_OTHER_TAG_SUFFIX = ("actions", "other", "tag_suffix")
+
+USE_CUSTOM_SUBMENU_ARROW_ICON = True
+SUBMENU_ARROW_ICON_ABS_PATH = str((Path(__file__).resolve().parent / "assets" / "submenu_arrow.svg"))
+SUBMENU_ARROW_ICON_SIZE_PX = 12
+MENU_ITEM_HOVER_BACKGROUND_COLOR = "rgba(120, 160, 255, 60)"
+MENU_ITEM_PADDING_TOP_PX = 4.5
+MENU_ITEM_PADDING_BOTTOM_PX = 4.5
+MENU_ITEM_PADDING_LEFT_PX = 6
+MENU_ITEM_PADDING_RIGHT_PX = 6
 
 CANONICAL_ALIAS_PATHS: tuple[tuple[tuple[str, ...], tuple[tuple[str, ...], ...]], ...] = (
     (PATH_UI_MENU_LABEL, (PATH_UI_MENU_LABEL, ("menu_label",))),
@@ -844,21 +855,25 @@ def add_base_plain_action(browser, menu, cfg: MissedTagsConfig):
     menu.addAction(action)
 
 
+def _build_tag_menu_stylesheet() -> str:
+    return build_qmenu_stylesheet(
+        item_padding_top_px=MENU_ITEM_PADDING_TOP_PX,
+        item_padding_bottom_px=MENU_ITEM_PADDING_BOTTOM_PX,
+        item_padding_left_px=MENU_ITEM_PADDING_LEFT_PX,
+        item_padding_right_px=MENU_ITEM_PADDING_RIGHT_PX,
+        hover_background_color=MENU_ITEM_HOVER_BACKGROUND_COLOR,
+        use_custom_submenu_arrow_icon=USE_CUSTOM_SUBMENU_ARROW_ICON,
+        submenu_arrow_icon_abs_path=SUBMENU_ARROW_ICON_ABS_PATH,
+        submenu_arrow_icon_size_px=SUBMENU_ARROW_ICON_SIZE_PX,
+        submenu_arrow_horizontal_padding_px=None,
+    )
+
+
 def add_missed_tag_menu_items(browser, menu):
     cfg = load_runtime_config()
 
     tag_menu = QMenu(cfg.missed_tags_menu_label, browser)
-    tag_menu.setStyleSheet("""
-        QMenu::item {
-            padding-top: 4.5px;
-            padding-bottom: 4.5px;
-            padding-left: 6px;
-            padding-right: 6px;
-        }
-        QMenu::item:selected {
-            background-color: rgba(120, 160, 255, 60);  /* subtle hover highlight */
-        }
-    """)
+    tag_menu.setStyleSheet(_build_tag_menu_stylesheet())
 
     add_uworld_tags(browser, tag_menu, cfg)
     add_nbme_tag(browser, tag_menu, cfg)

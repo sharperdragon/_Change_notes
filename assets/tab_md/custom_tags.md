@@ -9,6 +9,7 @@ This tab configures preset tag actions shown in the Browser context menu.
 ## High-risk Fields
 - `add_custom_tags.presets`: Invalid shape (missing `label` or invalid `tags`) breaks menu actions.
 - `add_custom_tags.submenu_label`: Frequent renames can make menu navigation inconsistent.
+- `add_custom_tags.group_labels`: Keys not matching `presets[].group` will not affect submenu labels.
 
 ## Safe Edit Checklist
 - Keep `presets` as an array of objects.
@@ -19,6 +20,7 @@ This tab configures preset tag actions shown in the Browser context menu.
 
 ### Top-level
 - `submenu_label`: Root menu label for custom tag presets.
+- `group_labels`: Optional map from group key to displayed submenu label.
 - `presets`: Preset definitions.
 
 No-selection and success toast messages are hardcoded in code and not editable in config.
@@ -34,6 +36,9 @@ No-selection and success toast messages are hardcoded in code and not editable i
 {
   "add_custom_tags": {
     "submenu_label": "Custom Tags",
+    "group_labels": {
+      "Drugs": "💊 Drugs"
+    },
     "presets": [
       {
         "label": "ADRs",

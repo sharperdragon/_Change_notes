@@ -58,9 +58,7 @@ def _resolve_missed_tags_config_source(source_root: Path) -> Path:
     if legacy_path.exists():
         return legacy_path
 
-    raise FileNotFoundError(
-        f"Missing missed-tags config file. Checked: {canonical_path} and {legacy_path}"
-    )
+    raise FileNotFoundError(f"Missing missed-tags config file. Checked: {canonical_path} and {legacy_path}")
 
 
 def _ensure_required_sources_exist(source_root: Path) -> None:
