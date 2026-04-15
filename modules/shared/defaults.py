@@ -26,6 +26,9 @@ ADD_MISSED_TAGS_DEFAULTS = {
     "ui": {
         "menu_label": "Missed Tags ❌",
     },
+    "date": {
+        "include_day_segment": True,
+    },
     "rotation": {
         "schedule": [
             {"label": "Dedicated", "start": "2026-03-28", "end": "2099-12-31"},

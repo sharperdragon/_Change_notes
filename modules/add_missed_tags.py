@@ -22,6 +22,7 @@ SCHEDULE_POLICY = {
     "unknown": "unknown",
     "next": "next",
 }
+DEFAULT_OPEN_ENDED_ROTATION_END = "2099-12-31"
 
 PROMPT_BEHAVIOR = {
     "base_plus_rotation": "base_plus_rotation",
@@ -35,6 +36,7 @@ PROMPT_STYLE = {
 
 CONFIG_PATHS: dict[str, tuple[str, ...]] = {
     "ui.menu_label": ("ui", "menu_label"),
+    "date.include_day_segment": ("date", "include_day_segment"),
     "rotation.schedule": ("rotation", "schedule"),
     "rotation.exhausted_policy": ("rotation", "exhausted_policy"),
     "rotation.parent_tag_segment": ("rotation", "parent_tag_segment"),
@@ -97,6 +99,7 @@ class MissedTagsConfig:
     rotation_schedule: list[tuple[str, str, str]]
     schedule_exhausted_policy: str
     missed_tags_menu_label: str
+    include_day_segment: bool
     action_label_base: str
     action_label_multi_missed: str
     action_label_key_info: str
@@ -228,13 +231,15 @@ def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
         if isinstance(item, dict):
             label = str(item.get("label", "")).strip()
             start = str(item.get("start", "")).strip()
-            end = str(item.get("end", "")).strip()
-        elif isinstance(item, (list, tuple)) and len(item) >= 3:
+            end = str(item.get("end", "")).strip() or DEFAULT_OPEN_ENDED_ROTATION_END
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
             label = str(item[0]).strip()
             start = str(item[1]).strip()
-            end = str(item[2]).strip()
+            end = str(item[2]).strip() if len(item) >= 3 else DEFAULT_OPEN_ENDED_ROTATION_END
+            if not end:
+                end = DEFAULT_OPEN_ENDED_ROTATION_END
 
-        if not label or not start or not end:
+        if not label or not start:
             continue
         try:
             datetime.strptime(start, "%Y-%m-%d")
@@ -266,6 +271,7 @@ def load_runtime_config() -> MissedTagsConfig:
     canonical_cfg = _normalize_missed_tags_config(merged_cfg)
 
     ui_cfg = _as_dict(canonical_cfg.get("ui"))
+    date_cfg = _as_dict(canonical_cfg.get("date"))
     rotation_cfg = _as_dict(canonical_cfg.get("rotation"))
     actions_cfg = _as_dict(canonical_cfg.get("actions"))
 
@@ -279,6 +285,7 @@ def load_runtime_config() -> MissedTagsConfig:
     other_cfg = _as_dict(actions_cfg.get("other"))
 
     default_menu_label = _default_text("ui.menu_label", "Missed Tags")
+    default_include_day_segment = _default_bool("date.include_day_segment", True)
 
     default_base_missed_tag = _default_string_list("actions.base.tags", fallback=["##Missed-Qs"])
     default_action_label_base = _default_text("actions.base.label", "Base")
@@ -382,6 +389,7 @@ def load_runtime_config() -> MissedTagsConfig:
         rotation_schedule=rotation_schedule,
         schedule_exhausted_policy=schedule_exhausted_policy,
         missed_tags_menu_label=_read_text(ui_cfg, "menu_label", default_menu_label),
+        include_day_segment=_read_bool(date_cfg, "include_day_segment", default_include_day_segment),
         action_label_base=_read_text(base_cfg, "label", default_action_label_base),
         action_label_multi_missed=_read_text(multi_missed_cfg, "label", default_action_label_multi_missed),
         action_label_key_info=_read_text(key_info_cfg, "label", default_action_label_key_info),
@@ -552,7 +560,10 @@ def get_correct_guess_tags(cfg: MissedTagsConfig) -> list[str]:
 def get_missed_month_tag(cfg: MissedTagsConfig) -> str:
     now = datetime.now()
     base = _resolved_base_tag(cfg)
-    return f"{base}::{now.year}::{now.strftime('%m')}_{now.strftime('%B')}"
+    month_segment = f"{now.strftime('%m')}_{now.strftime('%B')}"
+    if cfg.include_day_segment:
+        return f"{base}::{now.year}::{month_segment}::{now.strftime('%d')}"
+    return f"{base}::{now.year}::{month_segment}"
 
 
 def get_missed_tag_for_rotation(cfg: MissedTagsConfig) -> tuple[str, str]:

@@ -2,6 +2,9 @@
   "ui": {
     "menu_label": "Missed Tags ❌"
   },
+  "date": {
+    "include_day_segment": true
+  },
   "rotation": {
     "schedule": [
       {
