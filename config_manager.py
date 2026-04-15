@@ -11,7 +11,7 @@ from aqt import mw
 
 
 class ConfigManager:
-    """Load and normalize add-on config using root config.json defaults."""
+    """Load, migrate, and expose add-on configuration state."""
 
     ROOT_ADDON_NAME = "_Change_notes"
 
@@ -27,6 +27,15 @@ class ConfigManager:
         "add_missed_tags",
         "tag_selected_notes_config",
         "add_tags",
+    )
+
+    ADD_CUSTOM_TAGS_SECTIONS = (
+        "add_custom_tags",
+        "add_custom_tags_2",
+    )
+    ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS = (
+        "message_no_notes_selected",
+        "message_applied_template",
     )
 
     def __init__(self, addon_name: str, global_config_name: str = None):
@@ -77,6 +86,36 @@ class ConfigManager:
     def load_default_config(cls) -> dict:
         defaults, _ = cls._load_default_config_with_errors()
         return defaults
+
+    @classmethod
+    def load_raw_overrides(cls) -> dict:
+        """Return exactly what Anki stores for this add-on (no defaults merged)."""
+        return cls._load_runtime_config_raw()
+
+    @classmethod
+    def sanitize_section_override(cls, section: str, payload: Any) -> dict[str, Any]:
+        """Normalize/sanitize a section override before persisting it."""
+        sanitized = copy.deepcopy(payload) if isinstance(payload, dict) else {}
+        if section in cls.ADD_CUSTOM_TAGS_SECTIONS:
+            for key in cls.ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS:
+                sanitized.pop(key, None)
+        return sanitized
+
+    @classmethod
+    def _sanitize_overrides(cls, overrides: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        migrated = copy.deepcopy(overrides)
+        changed = False
+
+        for section in cls.ADD_CUSTOM_TAGS_SECTIONS:
+            payload = migrated.get(section)
+            if not isinstance(payload, dict):
+                continue
+            cleaned = cls.sanitize_section_override(section, payload)
+            if cleaned != payload:
+                migrated[section] = cleaned
+                changed = True
+
+        return migrated, changed
 
     @classmethod
     def _merge_legacy_into_canonical(
@@ -140,6 +179,7 @@ class ConfigManager:
 
     @classmethod
     def migrate_legacy_config(cls, current_config: dict) -> dict:
+        """Return a migrated override payload using canonical section keys."""
         if not isinstance(current_config, dict):
             return {}
 
@@ -155,27 +195,42 @@ class ConfigManager:
         return migrated
 
     @classmethod
-    def load_normalized_config(cls) -> tuple[dict, list[str]]:
-        defaults, errors = cls._load_default_config_with_errors()
-        current = cls._load_runtime_config_raw()
+    def migrate_overrides_once(cls) -> tuple[dict, list[str], bool]:
+        """Migrate/sanitize stored overrides and persist only if changes are needed."""
+        raw_overrides = cls.load_raw_overrides()
+        migrated = cls.migrate_legacy_config(raw_overrides)
 
-        migrated = cls.migrate_legacy_config(current)
-        normalized = cls.deep_merge_missing(migrated, defaults)
+        notices: list[str] = []
+        if migrated != raw_overrides:
+            notices.append("Migrated legacy section keys to canonical keys.")
 
-        if normalized != current:
-            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, normalized)
+        sanitized, sanitized_changed = cls._sanitize_overrides(migrated)
+        if sanitized_changed:
+            notices.append("Removed deprecated add_custom_tags message override keys.")
 
-        return normalized if isinstance(normalized, dict) else {}, errors
+        changed = sanitized != raw_overrides
+        if changed:
+            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, sanitized)
 
-    @classmethod
-    def load_user_overrides(cls) -> dict:
-        """Return normalized active config stored by Anki."""
-        normalized, _ = cls.load_normalized_config()
-        return normalized
+        return sanitized if isinstance(sanitized, dict) else {}, notices, changed
 
     @classmethod
     def load_effective_config(cls) -> tuple[dict, list[str]]:
-        return cls.load_normalized_config()
+        """Return migrated overrides merged with shipped defaults."""
+        migrated_overrides, _, _ = cls.migrate_overrides_once()
+        defaults, errors = cls._load_default_config_with_errors()
+        effective = cls.deep_merge_missing(migrated_overrides, defaults)
+        return effective if isinstance(effective, dict) else {}, errors
+
+    @classmethod
+    def load_normalized_config(cls) -> tuple[dict, list[str]]:
+        """Backward-compatible alias for effective config loading."""
+        return cls.load_effective_config()
+
+    @classmethod
+    def load_user_overrides(cls) -> dict:
+        """Deprecated alias. Prefer `load_raw_overrides()` for stored overrides."""
+        return cls.load_raw_overrides()
 
     @classmethod
     def list_sections(cls) -> list[str]:
@@ -190,7 +245,7 @@ class ConfigManager:
 
     @classmethod
     def get_override_section(cls, section: str) -> dict:
-        overrides = cls.load_user_overrides()
+        overrides = cls.load_raw_overrides()
         data = overrides.get(section, {})
         return copy.deepcopy(data) if isinstance(data, dict) else {}
 
@@ -218,16 +273,20 @@ class ConfigManager:
         if not isinstance(section_override, dict):
             raise ValueError(f"Section override for '{section}' must be a JSON object.")
 
-        overrides = cls.load_user_overrides()
-        overrides[section] = section_override
-        mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, overrides)
+        overrides, _, _ = cls.migrate_overrides_once()
+        updated = copy.deepcopy(overrides)
+        updated[section] = cls.sanitize_section_override(section, section_override)
+
+        if updated != overrides:
+            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, updated)
 
     @classmethod
     def clear_section_override(cls, section: str):
-        overrides = cls.load_user_overrides()
+        overrides, _, _ = cls.migrate_overrides_once()
         if section in overrides:
-            del overrides[section]
-            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, overrides)
+            updated = copy.deepcopy(overrides)
+            del updated[section]
+            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, updated)
 
     @classmethod
     def clear_all_overrides(cls):
@@ -236,8 +295,8 @@ class ConfigManager:
     def load_config(self):
         """
         Backward-compatible load behavior:
-        - addon_name == _Change_notes: full normalized config.
-        - addon_name == section key: normalized section config.
+        - addon_name == _Change_notes: full effective config.
+        - addon_name == section key: effective section config.
         - with global_config_name: deep-merge global section + target section.
         """
         effective, errors = self.load_effective_config()
@@ -260,15 +319,18 @@ class ConfigManager:
         return section_dict
 
     def save_config(self, new_config):
-        """Save config as active config (root) or section-level payload."""
+        """Save config as root override payload or section-level override payload."""
         if not isinstance(new_config, dict):
             raise ValueError("Configuration must be a JSON object.")
 
         if self.addon_name == self.ROOT_ADDON_NAME:
-            mw.addonManager.writeConfig(self.ROOT_ADDON_NAME, new_config)
-        else:
-            self.save_section_override(self.addon_name, new_config)
+            migrated = self.migrate_legacy_config(new_config)
+            sanitized, _ = self._sanitize_overrides(migrated)
+            mw.addonManager.writeConfig(self.ROOT_ADDON_NAME, sanitized)
+            self.config = copy.deepcopy(sanitized)
+            return
 
+        self.save_section_override(self.addon_name, new_config)
         self.config = copy.deepcopy(new_config)
 
     def get(self, key, default=None):

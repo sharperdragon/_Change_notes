@@ -8,25 +8,9 @@ from aqt.utils import tooltip
 
 from ..config_manager import ConfigManager
 from .shared.defaults import MERGE_SCHEDULE_DEFAULTS
+from .shared.parsing import parse_bool
 
 MULTI_CARD_POLICIES = set(MERGE_SCHEDULE_DEFAULTS["multi_card_policies"])
-
-
-def _parse_bool(value, default=False):
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y", "on"}:
-            return True
-        if lowered in {"0", "false", "no", "n", "off"}:
-            return False
-    return default
-
 
 def _parse_threshold(value, default=MERGE_SCHEDULE_DEFAULTS["merge_similarity_threshold"]) -> float:
     try:
@@ -74,7 +58,7 @@ def run_merge_by_similarity(
         config_section.get("merge_similarity_threshold", MERGE_SCHEDULE_DEFAULTS["merge_similarity_threshold"]),
         default=MERGE_SCHEDULE_DEFAULTS["merge_similarity_threshold"],
     )
-    abort_on_cancel = _parse_bool(
+    abort_on_cancel = parse_bool(
         config_section.get("abort_on_cancel", MERGE_SCHEDULE_DEFAULTS["abort_on_cancel"]),
         default=MERGE_SCHEDULE_DEFAULTS["abort_on_cancel"],
     )

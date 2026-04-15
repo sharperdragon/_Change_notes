@@ -59,7 +59,7 @@ def classify_image(image_path: str) -> str:
             log("PIL Image is None in classify_image(); returning empty class")
             return ""
 
-        config = ConfigManager("Add_img_class").load_config()
+        config = ConfigManager("add_img_class").load_config()
         with Image.open(image_path) as img:
             log(f"  successfully opened image: {image_path}")
             w, h = img.size

@@ -102,7 +102,7 @@ def run_export_for_selected_notes(browser) -> ExportResult | None:
 
     # Write file + clipboard
     out_path = export_tags_to_desktop(tags)
-    copy_to_clipboard("\n".join(tags))
+    copy_to_clipboard(" OR ".join(tags))
 
     # Minimal feedback
     showInfo(
@@ -120,9 +120,7 @@ def add_browser_menu_action(browser) -> None:
     Add action to Browser menu.
     Call this from your add-on's browser setup hook.
     """
-    action = QAction(
-        "Export UWorld Step tags (#Zank::#Step2_v12::#UWorld::Step…)", browser
-    )
+    action = QAction("Export UWorld Step tags (#Zank::#Step2_v12::#UWorld::Step…)", browser)
     action.triggered.connect(lambda: run_export_for_selected_notes(browser))
 
     # Add under Edit menu by default (common pattern)

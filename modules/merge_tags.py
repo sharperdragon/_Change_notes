@@ -15,6 +15,7 @@ from .assets.scrub_match import (
     normalize
 )
 from .shared.defaults import MERGE_TAGS_DEFAULTS
+from .shared.parsing import parse_bool
 
 DEBUG_MODE = False
 config = {}
@@ -28,28 +29,6 @@ MERGE_SELECT_ONLY = False
 LOG_DIR = Path(mw.addonManager.addonsFolder()) / "_Change_notes" / "logs" / "merge_tags"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 log_file = LOG_DIR / f"{datetime.now().strftime('%Y-%m')}_merge_tags.log"
-
-
-# --- Config parsing helpers ---
-def _parse_bool(val, default=False):
-    """
-    Normalize truthy strings like 'true'/'False' or integers 0/1 to a real bool.
-    Falls back to default if value is None.
-    """
-    if val is None:
-        return default
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, (int, float)):
-        return bool(val)
-    if isinstance(val, str):
-        v = val.strip().lower()
-        if v in {"true", "t", "yes", "y", "1"}:
-            return True
-        if v in {"false", "f", "no", "n", "0"}:
-            return False
-    return default
-
 
 
 def _reload_runtime_config():
@@ -75,7 +54,7 @@ def _reload_runtime_config():
     ]
     ALLOWED_PARENTS_LOWER = [p.lower() for p in ALLOWED_PARENTS]
 
-    MERGE_SELECT_ONLY = _parse_bool(
+    MERGE_SELECT_ONLY = parse_bool(
         config.get("merge_select_only", MERGE_TAGS_DEFAULTS["merge_select_only"]),
         default=MERGE_TAGS_DEFAULTS["merge_select_only"],
     )
@@ -212,7 +191,7 @@ def unify_tags_main(browser: Browser | None = None):
     default_fuzzy = float(config.get("default_fuzzy", MERGE_TAGS_DEFAULTS["run_default_fuzzy"]))
     min_fuzzy = float(config.get("min_fuzzy", MERGE_TAGS_DEFAULTS["min_fuzzy"]))
     max_fuzzy = float(config.get("max_fuzzy", MERGE_TAGS_DEFAULTS["max_fuzzy"]))
-    ask_each = _parse_bool(
+    ask_each = parse_bool(
         config.get("ask_fuzzy_each_time", MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"]),
         default=MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"],
     )

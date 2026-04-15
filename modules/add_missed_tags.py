@@ -4,7 +4,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from aqt.qt import QAction, QInputDialog, QMenu
@@ -12,231 +11,71 @@ from aqt.utils import showInfo, tooltip
 
 from ..config_manager import ConfigManager
 from .shared.defaults import ADD_MISSED_TAGS_DEFAULTS
-from .shared.menu_styles import build_qmenu_stylesheet
+from .shared.menu_styles import build_missed_tags_menu_stylesheet
 
 # ! ----------------------------- CONFIG SECTIONS -----------------------------
 CANONICAL_CONFIG_SECTION = "tag_missed_qid_notes"
-LEGACY_CONFIG_SECTION = "add_missed_tags"
-LEGACY_SELECTED_NOTES_SECTION = "tag_selected_notes_config"
-LEGACY_MODULE_CONFIG_SECTION = "add_tags"
-LEGACY_CONFIG_SECTIONS = [
-    LEGACY_CONFIG_SECTION,
-    LEGACY_SELECTED_NOTES_SECTION,
-    LEGACY_MODULE_CONFIG_SECTION,
-]
 # ! -------------------------------------------------------------------------
 
-# ! ----------------------------- ENUMS / KEYS -----------------------------
-SCHEDULE_POLICY_UNKNOWN = "unknown"
-SCHEDULE_POLICY_NEXT = "next"
+# ! --------------------------- CHANGE-PRONE VALUES ---------------------------
+SCHEDULE_POLICY = {
+    "unknown": "unknown",
+    "next": "next",
+}
 
-PROMPT_BEHAVIOR_BASE_PLUS_ROTATION = "base_plus_rotation"
-PROMPT_BEHAVIOR_BASE_ONLY = "base_only"
-PROMPT_STYLE_ROTATION_THEN_NUMBER = "rotation_then_number"
-PROMPT_STYLE_RANGE_THEN_NUMBER = "range_then_number"
+PROMPT_BEHAVIOR = {
+    "base_plus_rotation": "base_plus_rotation",
+    "base_only": "base_only",
+}
 
-# Canonical config key paths (change-prone schema keys kept in one place).
-PATH_UI_MENU_LABEL = ("ui", "menu_label")
+PROMPT_STYLE = {
+    "rotation_then_number": "rotation_then_number",
+    "range_then_number": "range_then_number",
+}
 
-PATH_ROTATION_SCHEDULE = ("rotation", "schedule")
-PATH_ROTATION_EXHAUSTED_POLICY = ("rotation", "exhausted_policy")
-PATH_ROTATION_PARENT_TAG_SEGMENT = ("rotation", "parent_tag_segment")
-PATH_ROTATION_WINTER_BREAK_LABEL = ("rotation", "winter_break_label")
-PATH_ROTATION_POST_ROTATION_LABEL = ("rotation", "post_rotation_label")
+CONFIG_PATHS: dict[str, tuple[str, ...]] = {
+    "ui.menu_label": ("ui", "menu_label"),
+    "rotation.schedule": ("rotation", "schedule"),
+    "rotation.exhausted_policy": ("rotation", "exhausted_policy"),
+    "rotation.parent_tag_segment": ("rotation", "parent_tag_segment"),
+    "rotation.winter_break_label": ("rotation", "winter_break_label"),
+    "rotation.post_rotation_label": ("rotation", "post_rotation_label"),
+    "actions.base.label": ("actions", "base", "label"),
+    "actions.base.tags": ("actions", "base", "tags"),
+    "actions.uworld.label": ("actions", "uworld", "label"),
+    "actions.uworld.base_tags": ("actions", "uworld", "base_tags"),
+    "actions.uworld.default_tag_prefix": ("actions", "uworld", "default_tag_prefix"),
+    "actions.uworld.test_range_block_size": ("actions", "uworld", "test_range_block_size"),
+    "actions.nbme.label": ("actions", "nbme", "label"),
+    "actions.nbme.base_tags": ("actions", "nbme", "base_tags"),
+    "actions.nbme.default_tag_prefix": ("actions", "nbme", "default_tag_prefix"),
+    "actions.amboss.label": ("actions", "amboss", "label"),
+    "actions.amboss.base_tag": ("actions", "amboss", "base_tag"),
+    "actions.amboss.blank_behavior": ("actions", "amboss", "blank_behavior"),
+    "actions.amboss.number_style": ("actions", "amboss", "number_style"),
+    "actions.amboss.remove_from_other_menu": ("actions", "amboss", "remove_from_other_menu"),
+    "actions.multi_missed.label": ("actions", "multi_missed", "label"),
+    "actions.multi_missed.tag_segment": ("actions", "multi_missed", "tag_segment"),
+    "actions.key_info.label": ("actions", "key_info", "label"),
+    "actions.key_info.tag_base": ("actions", "key_info", "tag_base"),
+    "actions.correct_guess.label": ("actions", "correct_guess", "label"),
+    "actions.correct_guess.tags": ("actions", "correct_guess", "tags"),
+    "actions.correct_guess.include_rotation": ("actions", "correct_guess", "include_rotation"),
+    "actions.correct_guess.rotation_lowercase": ("actions", "correct_guess", "rotation_lowercase"),
+    "actions.correct_guess.unknown_segment": ("actions", "correct_guess", "unknown_segment"),
+    "actions.other.resources": ("actions", "other", "resources"),
+    "actions.other.tag_suffix": ("actions", "other", "tag_suffix"),
+}
 
-PATH_ACTION_BASE_LABEL = ("actions", "base", "label")
-PATH_ACTION_BASE_TAGS = ("actions", "base", "tags")
-
-PATH_ACTION_UWORLD_LABEL = ("actions", "uworld", "label")
-PATH_ACTION_UWORLD_BASE_TAGS = ("actions", "uworld", "base_tags")
-PATH_ACTION_UWORLD_DEFAULT_TAG_PREFIX = ("actions", "uworld", "default_tag_prefix")
-PATH_ACTION_UWORLD_TEST_RANGE_BLOCK_SIZE = ("actions", "uworld", "test_range_block_size")
-
-PATH_ACTION_NBME_LABEL = ("actions", "nbme", "label")
-PATH_ACTION_NBME_BASE_TAGS = ("actions", "nbme", "base_tags")
-PATH_ACTION_NBME_DEFAULT_TAG_PREFIX = ("actions", "nbme", "default_tag_prefix")
-
-PATH_ACTION_AMBOSS_LABEL = ("actions", "amboss", "label")
-PATH_ACTION_AMBOSS_BASE_TAG = ("actions", "amboss", "base_tag")
-PATH_ACTION_AMBOSS_BLANK_BEHAVIOR = ("actions", "amboss", "blank_behavior")
-PATH_ACTION_AMBOSS_NUMBER_STYLE = ("actions", "amboss", "number_style")
-PATH_ACTION_AMBOSS_REMOVE_FROM_OTHER_MENU = ("actions", "amboss", "remove_from_other_menu")
-
-PATH_ACTION_MULTI_MISSED_LABEL = ("actions", "multi_missed", "label")
-PATH_ACTION_MULTI_MISSED_TAG_SEGMENT = ("actions", "multi_missed", "tag_segment")
-
-PATH_ACTION_KEY_INFO_LABEL = ("actions", "key_info", "label")
-PATH_ACTION_KEY_INFO_TAG_BASE = ("actions", "key_info", "tag_base")
-
-PATH_ACTION_CORRECT_GUESS_LABEL = ("actions", "correct_guess", "label")
-PATH_ACTION_CORRECT_GUESS_TAGS = ("actions", "correct_guess", "tags")
-PATH_ACTION_CORRECT_GUESS_INCLUDE_ROTATION = ("actions", "correct_guess", "include_rotation")
-PATH_ACTION_CORRECT_GUESS_ROTATION_LOWERCASE = ("actions", "correct_guess", "rotation_lowercase")
-PATH_ACTION_CORRECT_GUESS_UNKNOWN_SEGMENT = ("actions", "correct_guess", "unknown_segment")
-
-PATH_ACTION_OTHER_RESOURCES = ("actions", "other", "resources")
-PATH_ACTION_OTHER_TAG_SUFFIX = ("actions", "other", "tag_suffix")
-
-USE_CUSTOM_SUBMENU_ARROW_ICON = True
-SUBMENU_ARROW_ICON_ABS_PATH = str((Path(__file__).resolve().parent / "assets" / "submenu_arrow.svg"))
-SUBMENU_ARROW_ICON_SIZE_PX = 12
-MENU_ITEM_HOVER_BACKGROUND_COLOR = "rgba(120, 160, 255, 60)"
-MENU_ITEM_PADDING_TOP_PX = 4.5
-MENU_ITEM_PADDING_BOTTOM_PX = 4.5
-MENU_ITEM_PADDING_LEFT_PX = 6
-MENU_ITEM_PADDING_RIGHT_PX = 6
-
-CANONICAL_ALIAS_PATHS: tuple[tuple[tuple[str, ...], tuple[tuple[str, ...], ...]], ...] = (
-    (PATH_UI_MENU_LABEL, (PATH_UI_MENU_LABEL, ("menu_label",))),
-    (
-        PATH_ROTATION_SCHEDULE,
-        (PATH_ROTATION_SCHEDULE, ("rotation_schedule",)),
-    ),
-    (
-        PATH_ROTATION_EXHAUSTED_POLICY,
-        (PATH_ROTATION_EXHAUSTED_POLICY, ("schedule_exhausted_policy",)),
-    ),
-    (
-        PATH_ROTATION_PARENT_TAG_SEGMENT,
-        (PATH_ROTATION_PARENT_TAG_SEGMENT, ("tags", "rotation_parent_segment")),
-    ),
-    (
-        PATH_ROTATION_WINTER_BREAK_LABEL,
-        (PATH_ROTATION_WINTER_BREAK_LABEL, ("tags", "winter_break_label")),
-    ),
-    (
-        PATH_ROTATION_POST_ROTATION_LABEL,
-        (PATH_ROTATION_POST_ROTATION_LABEL, ("tags", "post_rotation_label")),
-    ),
-    (
-        PATH_ACTION_BASE_LABEL,
-        (PATH_ACTION_BASE_LABEL, ("ui", "action_label_base"), ("action_label_base",)),
-    ),
-    (
-        PATH_ACTION_BASE_TAGS,
-        (PATH_ACTION_BASE_TAGS, ("base_missed_tag",), ("missed_base_tag",)),
-    ),
-    (
-        PATH_ACTION_UWORLD_LABEL,
-        (PATH_ACTION_UWORLD_LABEL, ("subset_1_name",)),
-    ),
-    (
-        PATH_ACTION_UWORLD_BASE_TAGS,
-        (PATH_ACTION_UWORLD_BASE_TAGS, ("subset_tag_1",), ("subset_1_tag",)),
-    ),
-    (
-        PATH_ACTION_UWORLD_DEFAULT_TAG_PREFIX,
-        (PATH_ACTION_UWORLD_DEFAULT_TAG_PREFIX, ("tags", "default_test_tag_prefix")),
-    ),
-    (
-        PATH_ACTION_UWORLD_TEST_RANGE_BLOCK_SIZE,
-        (PATH_ACTION_UWORLD_TEST_RANGE_BLOCK_SIZE, ("test_range_block_size",)),
-    ),
-    (
-        PATH_ACTION_NBME_LABEL,
-        (PATH_ACTION_NBME_LABEL, ("subset_2_name",)),
-    ),
-    (
-        PATH_ACTION_NBME_BASE_TAGS,
-        (PATH_ACTION_NBME_BASE_TAGS, ("subset_tag_2",), ("subset_2_tag",)),
-    ),
-    (
-        PATH_ACTION_NBME_DEFAULT_TAG_PREFIX,
-        (
-            PATH_ACTION_NBME_DEFAULT_TAG_PREFIX,
-            ("tags", "default_nbme_tag_prefix"),
-            ("tags", "default_comquest_tag_prefix"),
-        ),
-    ),
-    (
-        PATH_ACTION_AMBOSS_LABEL,
-        (PATH_ACTION_AMBOSS_LABEL, ("amboss", "top_level_name")),
-    ),
-    (
-        PATH_ACTION_AMBOSS_BASE_TAG,
-        (PATH_ACTION_AMBOSS_BASE_TAG, ("amboss", "base_tag")),
-    ),
-    (
-        PATH_ACTION_AMBOSS_BLANK_BEHAVIOR,
-        (PATH_ACTION_AMBOSS_BLANK_BEHAVIOR, ("amboss", "blank_behavior")),
-    ),
-    (
-        PATH_ACTION_AMBOSS_NUMBER_STYLE,
-        (PATH_ACTION_AMBOSS_NUMBER_STYLE, ("amboss", "number_style")),
-    ),
-    (
-        PATH_ACTION_AMBOSS_REMOVE_FROM_OTHER_MENU,
-        (
-            PATH_ACTION_AMBOSS_REMOVE_FROM_OTHER_MENU,
-            ("amboss", "remove_from_other_menu"),
-        ),
-    ),
-    (
-        PATH_ACTION_MULTI_MISSED_LABEL,
-        (
-            PATH_ACTION_MULTI_MISSED_LABEL,
-            ("ui", "action_label_multi_missed"),
-            ("action_label_multi_missed",),
-        ),
-    ),
-    (
-        PATH_ACTION_MULTI_MISSED_TAG_SEGMENT,
-        (PATH_ACTION_MULTI_MISSED_TAG_SEGMENT, ("tags", "multi_miss_tag")),
-    ),
-    (
-        PATH_ACTION_KEY_INFO_LABEL,
-        (
-            PATH_ACTION_KEY_INFO_LABEL,
-            ("ui", "action_label_key_info"),
-            ("action_label_key_info",),
-        ),
-    ),
-    (
-        PATH_ACTION_KEY_INFO_TAG_BASE,
-        (PATH_ACTION_KEY_INFO_TAG_BASE, ("tags", "key_tag_base")),
-    ),
-    (
-        PATH_ACTION_CORRECT_GUESS_LABEL,
-        (
-            PATH_ACTION_CORRECT_GUESS_LABEL,
-            ("ui", "action_label_correct_guess"),
-            ("action_label_correct_guess",),
-        ),
-    ),
-    (
-        PATH_ACTION_CORRECT_GUESS_TAGS,
-        (PATH_ACTION_CORRECT_GUESS_TAGS, ("correct_guess", "tags")),
-    ),
-    (
-        PATH_ACTION_CORRECT_GUESS_INCLUDE_ROTATION,
-        (
-            PATH_ACTION_CORRECT_GUESS_INCLUDE_ROTATION,
-            ("correct_guess", "include_rotation"),
-        ),
-    ),
-    (
-        PATH_ACTION_CORRECT_GUESS_ROTATION_LOWERCASE,
-        (
-            PATH_ACTION_CORRECT_GUESS_ROTATION_LOWERCASE,
-            ("correct_guess", "rotation_lowercase"),
-        ),
-    ),
-    (
-        PATH_ACTION_CORRECT_GUESS_UNKNOWN_SEGMENT,
-        (
-            PATH_ACTION_CORRECT_GUESS_UNKNOWN_SEGMENT,
-            ("correct_guess", "unknown_segment"),
-        ),
-    ),
-    (
-        PATH_ACTION_OTHER_RESOURCES,
-        (PATH_ACTION_OTHER_RESOURCES, ("other_menu", "resources"), ("other_resources",)),
-    ),
-    (
-        PATH_ACTION_OTHER_TAG_SUFFIX,
-        (PATH_ACTION_OTHER_TAG_SUFFIX, ("tags", "other_suffix")),
-    ),
-)
+MSG_NO_NOTES_SELECTED = "❌ No notes selected."
+MSG_INVALID_INTEGER_TEST_NUMBER = "❌ Please enter a valid integer test number."
+PROMPT_DEFAULT_TITLE = "Enter Test Number"
+PROMPT_DEFAULT_LABEL = "Test #:"
+PROMPT_NBME_TITLE = "Enter NBME Form"
+PROMPT_NBME_LABEL = "Form #:"
+PROMPT_AMBOSS_TITLE = "Enter Amboss Test Number"
+PROMPT_UWORLD_TITLE = "Enter UWorld Test Number"
+PROMPT_TRUE_LEARN_TITLE = "Enter True-Learn Test Number"
 # ! -------------------------------------------------------------------------
 
 # ? Exclude list for auto-added rotation/month context tags.
@@ -339,30 +178,44 @@ def _get_path_value(data: Any, path: tuple[str, ...]) -> Any:
     return current
 
 
-def _set_path_value(data: dict[str, Any], path: tuple[str, ...], value: Any) -> None:
-    current = data
-    for key in path[:-1]:
-        child = current.get(key)
-        if not isinstance(child, dict):
-            child = {}
-            current[key] = child
-        current = child
-    current[path[-1]] = value
-
-
-def _first_present_value(data: dict[str, Any], paths: tuple[tuple[str, ...], ...]) -> Any:
-    for path in paths:
-        value = _get_path_value(data, path)
-        if value is not _MISSING:
-            return value
-    return _MISSING
-
-
-def _default_value(path: tuple[str, ...]) -> Any:
+def _default_value(path_key: str) -> Any:
+    path = CONFIG_PATHS[path_key]
     value = _get_path_value(ADD_MISSED_TAGS_DEFAULTS, path)
     if value is _MISSING:
         raise KeyError(f"Missing default at path: {'.'.join(path)}")
     return value
+
+
+def _default_text(path_key: str, fallback: str) -> str:
+    return _to_text(_default_value(path_key), fallback)
+
+
+def _default_bool(path_key: str, fallback: bool) -> bool:
+    return _to_bool(_default_value(path_key), fallback)
+
+
+def _default_positive_int(path_key: str, fallback: int) -> int:
+    return _to_positive_int(_default_value(path_key), fallback)
+
+
+def _default_string_list(path_key: str, fallback: list[str]) -> list[str]:
+    return _to_string_list(_default_value(path_key), fallback=fallback)
+
+
+def _read_text(data: dict[str, Any], key: str, fallback: str) -> str:
+    return _to_text(data.get(key, fallback), fallback)
+
+
+def _read_bool(data: dict[str, Any], key: str, fallback: bool) -> bool:
+    return _to_bool(data.get(key, fallback), fallback)
+
+
+def _read_positive_int(data: dict[str, Any], key: str, fallback: int) -> int:
+    return _to_positive_int(data.get(key, fallback), fallback)
+
+
+def _read_string_list(data: dict[str, Any], key: str, fallback: list[str]) -> list[str]:
+    return _to_string_list(data.get(key, fallback), fallback=fallback)
 
 
 def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
@@ -393,66 +246,19 @@ def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
     return normalized
 
 
-def _migrate_override_sections_to_canonical() -> bool:
-    """One-time migration: move legacy missed-tag overrides into canonical key."""
-    overrides = ConfigManager.load_user_overrides()
-    if not isinstance(overrides, dict):
-        return False
-
-    has_legacy_override = any(section in overrides for section in LEGACY_CONFIG_SECTIONS)
-    if not has_legacy_override:
-        return False
-
-    merged_legacy: dict[str, Any] = {}
-    for section_name in LEGACY_CONFIG_SECTIONS:
-        section_data = overrides.get(section_name)
-        if isinstance(section_data, dict):
-            merged_legacy = ConfigManager.deep_merge_dicts(merged_legacy, section_data)
-
-    canonical_override = overrides.get(CANONICAL_CONFIG_SECTION)
-    if isinstance(canonical_override, dict):
-        merged_canonical = ConfigManager.deep_merge_dicts(merged_legacy, canonical_override)
-    else:
-        merged_canonical = merged_legacy
-
-    migrated_overrides = ConfigManager.deep_merge_dicts({}, overrides)
-    migrated_overrides[CANONICAL_CONFIG_SECTION] = merged_canonical
-    for section_name in LEGACY_CONFIG_SECTIONS:
-        migrated_overrides.pop(section_name, None)
-
-    if migrated_overrides == overrides:
-        return False
-
-    ConfigManager(ConfigManager.ROOT_ADDON_NAME).save_config(migrated_overrides)
-    return True
-
-
 def _load_merged_missed_tags_config() -> dict[str, Any]:
-    _migrate_override_sections_to_canonical()
-
-    legacy_cfg: dict[str, Any] = {}
-    for section_name in LEGACY_CONFIG_SECTIONS:
-        section_data = ConfigManager(section_name).load()
-        if isinstance(section_data, dict):
-            legacy_cfg = ConfigManager.deep_merge_dicts(legacy_cfg, section_data)
-
+    # Centralized migration lives in the root ConfigManager.
+    ConfigManager.migrate_overrides_once()
     section_cfg = ConfigManager(CANONICAL_CONFIG_SECTION).load()
-    if not isinstance(section_cfg, dict):
-        section_cfg = {}
-    return ConfigManager.deep_merge_dicts(legacy_cfg, section_cfg)
+    return section_cfg if isinstance(section_cfg, dict) else {}
 
 
 def _normalize_missed_tags_config(raw_cfg: dict[str, Any]) -> dict[str, Any]:
-    normalized = ConfigManager.deep_merge_dicts({}, ADD_MISSED_TAGS_DEFAULTS)
+    defaults = ConfigManager.deep_merge_dicts({}, ADD_MISSED_TAGS_DEFAULTS)
     if not isinstance(raw_cfg, dict):
-        return normalized
-
-    for canonical_path, alias_paths in CANONICAL_ALIAS_PATHS:
-        value = _first_present_value(raw_cfg, alias_paths)
-        if value is _MISSING:
-            continue
-        _set_path_value(normalized, canonical_path, value)
-    return normalized
+        return defaults
+    # Canonical keys only: no per-key legacy alias remapping in this module.
+    return ConfigManager.deep_merge_dicts(defaults, raw_cfg)
 
 
 def load_runtime_config() -> MissedTagsConfig:
@@ -472,210 +278,175 @@ def load_runtime_config() -> MissedTagsConfig:
     correct_guess_cfg = _as_dict(actions_cfg.get("correct_guess"))
     other_cfg = _as_dict(actions_cfg.get("other"))
 
-    default_menu_label = _to_text(_default_value(PATH_UI_MENU_LABEL), "Missed Tags")
+    default_menu_label = _default_text("ui.menu_label", "Missed Tags")
 
-    default_base_missed_tag = _to_string_list(_default_value(PATH_ACTION_BASE_TAGS), fallback=["##Missed-Qs"])
-    default_action_label_base = _to_text(_default_value(PATH_ACTION_BASE_LABEL), "Base")
+    default_base_missed_tag = _default_string_list("actions.base.tags", fallback=["##Missed-Qs"])
+    default_action_label_base = _default_text("actions.base.label", "Base")
 
-    default_subset_1_name = _to_text(_default_value(PATH_ACTION_UWORLD_LABEL), "UWorld")
-    default_subset_1_tag = _to_string_list(
-        _default_value(PATH_ACTION_UWORLD_BASE_TAGS), fallback=[f"{default_base_missed_tag[0]}::UW_Tests"]
+    default_subset_1_name = _default_text("actions.uworld.label", "UWorld")
+    default_subset_1_tag = _default_string_list(
+        "actions.uworld.base_tags",
+        fallback=[f"{default_base_missed_tag[0]}::UW_Tests"],
     )
-    default_test_tag_prefix = _to_text(_default_value(PATH_ACTION_UWORLD_DEFAULT_TAG_PREFIX), "UW_Tests")
-    default_test_range_block_size = _to_positive_int(_default_value(PATH_ACTION_UWORLD_TEST_RANGE_BLOCK_SIZE), 25)
+    default_test_tag_prefix = _default_text("actions.uworld.default_tag_prefix", "UW_Tests")
+    default_test_range_block_size = _default_positive_int("actions.uworld.test_range_block_size", 25)
 
-    default_subset_2_name = _to_text(_default_value(PATH_ACTION_NBME_LABEL), "NBME")
-    default_subset_2_tag = _to_string_list(
-        _default_value(PATH_ACTION_NBME_BASE_TAGS), fallback=[f"{default_base_missed_tag[0]}::NBME"]
+    default_subset_2_name = _default_text("actions.nbme.label", "NBME")
+    default_subset_2_tag = _default_string_list(
+        "actions.nbme.base_tags",
+        fallback=[f"{default_base_missed_tag[0]}::NBME"],
     )
-    default_nbme_tag_prefix = _to_text(_default_value(PATH_ACTION_NBME_DEFAULT_TAG_PREFIX), "NBME")
+    default_nbme_tag_prefix = _default_text("actions.nbme.default_tag_prefix", "NBME")
 
-    default_amboss_label = _to_text(_default_value(PATH_ACTION_AMBOSS_LABEL), "Amboss")
-    default_amboss_base_tag = _to_text(_default_value(PATH_ACTION_AMBOSS_BASE_TAG), f"{default_base_missed_tag[0]}::Amboss")
-    default_amboss_blank_behavior = _to_text(
-        _default_value(PATH_ACTION_AMBOSS_BLANK_BEHAVIOR),
-        PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
+    default_amboss_label = _default_text("actions.amboss.label", "Amboss")
+    default_amboss_base_tag = _default_text(
+        "actions.amboss.base_tag", f"{default_base_missed_tag[0]}::Amboss"
     )
-    default_amboss_number_style = _to_text(
-        _default_value(PATH_ACTION_AMBOSS_NUMBER_STYLE),
-        PROMPT_STYLE_ROTATION_THEN_NUMBER,
+    default_amboss_blank_behavior = _default_text(
+        "actions.amboss.blank_behavior",
+        PROMPT_BEHAVIOR["base_plus_rotation"],
     )
-    default_amboss_remove_from_other_menu = _to_bool(
-        _default_value(PATH_ACTION_AMBOSS_REMOVE_FROM_OTHER_MENU),
-        True,
+    default_amboss_number_style = _default_text(
+        "actions.amboss.number_style",
+        PROMPT_STYLE["rotation_then_number"],
     )
+    default_amboss_remove_from_other_menu = _default_bool("actions.amboss.remove_from_other_menu", True)
 
-    default_action_label_multi_missed = _to_text(_default_value(PATH_ACTION_MULTI_MISSED_LABEL), "2x Missed")
-    default_multi_miss_tag = _to_text(_default_value(PATH_ACTION_MULTI_MISSED_TAG_SEGMENT), "2x")
+    default_action_label_multi_missed = _default_text("actions.multi_missed.label", "2x Missed")
+    default_multi_miss_tag = _default_text("actions.multi_missed.tag_segment", "2x")
 
-    default_action_label_key_info = _to_text(_default_value(PATH_ACTION_KEY_INFO_LABEL), "Key Info")
-    default_key_tag_base = _to_text(_default_value(PATH_ACTION_KEY_INFO_TAG_BASE), "#Custom::#KEY")
+    default_action_label_key_info = _default_text("actions.key_info.label", "Key Info")
+    default_key_tag_base = _default_text("actions.key_info.tag_base", "#Custom::#KEY")
 
-    default_action_label_correct_guess = _to_text(
-        _default_value(PATH_ACTION_CORRECT_GUESS_LABEL),
-        "Guessed Correct",
-    )
-    default_correct_guess_tags = _to_string_list(
-        _default_value(PATH_ACTION_CORRECT_GUESS_TAGS),
+    default_action_label_correct_guess = _default_text("actions.correct_guess.label", "Guessed Correct")
+    default_correct_guess_tags = _default_string_list(
+        "actions.correct_guess.tags",
         fallback=["#Custom::correct_marked"],
     )
-    default_correct_guess_include_rotation = _to_bool(
-        _default_value(PATH_ACTION_CORRECT_GUESS_INCLUDE_ROTATION),
-        True,
-    )
-    default_correct_guess_rotation_lowercase = _to_bool(
-        _default_value(PATH_ACTION_CORRECT_GUESS_ROTATION_LOWERCASE),
-        True,
-    )
-    default_correct_guess_unknown_segment = _to_text(
-        _default_value(PATH_ACTION_CORRECT_GUESS_UNKNOWN_SEGMENT),
-        "unknown",
-    )
+    default_correct_guess_include_rotation = _default_bool("actions.correct_guess.include_rotation", True)
+    default_correct_guess_rotation_lowercase = _default_bool("actions.correct_guess.rotation_lowercase", True)
+    default_correct_guess_unknown_segment = _default_text("actions.correct_guess.unknown_segment", "unknown")
 
-    default_other_resources = _to_string_list(_default_value(PATH_ACTION_OTHER_RESOURCES), fallback=[])
-    default_other_suffix = _to_text(_default_value(PATH_ACTION_OTHER_TAG_SUFFIX), "Other")
+    default_other_resources = _default_string_list("actions.other.resources", fallback=[])
+    default_other_suffix = _default_text("actions.other.tag_suffix", "Other")
 
-    default_rotation_schedule_raw = _default_value(PATH_ROTATION_SCHEDULE)
+    default_rotation_schedule_raw = _default_value("rotation.schedule")
     schedule_raw = rotation_cfg.get("schedule", default_rotation_schedule_raw)
     rotation_schedule = _normalize_rotation_schedule(schedule_raw)
     if not rotation_schedule:
         rotation_schedule = _normalize_rotation_schedule(default_rotation_schedule_raw)
 
-    default_schedule_exhausted_policy = _to_text(
-        _default_value(PATH_ROTATION_EXHAUSTED_POLICY),
-        SCHEDULE_POLICY_UNKNOWN,
+    valid_schedule_policies = {SCHEDULE_POLICY["unknown"], SCHEDULE_POLICY["next"]}
+    default_schedule_exhausted_policy = _default_text(
+        "rotation.exhausted_policy",
+        SCHEDULE_POLICY["unknown"],
     ).lower()
-    if default_schedule_exhausted_policy not in {SCHEDULE_POLICY_UNKNOWN, SCHEDULE_POLICY_NEXT}:
-        default_schedule_exhausted_policy = SCHEDULE_POLICY_UNKNOWN
+    if default_schedule_exhausted_policy not in valid_schedule_policies:
+        default_schedule_exhausted_policy = SCHEDULE_POLICY["unknown"]
 
-    schedule_exhausted_policy = _to_text(
-        rotation_cfg.get("exhausted_policy", default_schedule_exhausted_policy),
+    schedule_exhausted_policy = _read_text(
+        rotation_cfg,
+        "exhausted_policy",
         default_schedule_exhausted_policy,
     ).lower()
-    if schedule_exhausted_policy not in {SCHEDULE_POLICY_UNKNOWN, SCHEDULE_POLICY_NEXT}:
-        schedule_exhausted_policy = SCHEDULE_POLICY_UNKNOWN
+    if schedule_exhausted_policy not in valid_schedule_policies:
+        schedule_exhausted_policy = SCHEDULE_POLICY["unknown"]
 
-    default_rotation_parent_tag_segment = _to_text(_default_value(PATH_ROTATION_PARENT_TAG_SEGMENT), "Rotation")
-    default_winter_break_label = _to_text(_default_value(PATH_ROTATION_WINTER_BREAK_LABEL), "Winter-break")
-    default_post_rotation_label = _to_text(_default_value(PATH_ROTATION_POST_ROTATION_LABEL), "Dedicated")
+    default_rotation_parent_tag_segment = _default_text("rotation.parent_tag_segment", "Rotation")
+    default_winter_break_label = _default_text("rotation.winter_break_label", "Winter-break")
+    default_post_rotation_label = _default_text("rotation.post_rotation_label", "Dedicated")
 
     return MissedTagsConfig(
-        base_missed_tag=_to_string_list(
-            base_cfg.get("tags", default_base_missed_tag),
+        base_missed_tag=_read_string_list(
+            base_cfg,
+            "tags",
             fallback=default_base_missed_tag,
         ),
-        subset_1_name=_to_text(uworld_cfg.get("label", default_subset_1_name), default_subset_1_name),
-        subset_1_tag=_to_string_list(
-            uworld_cfg.get("base_tags", default_subset_1_tag),
+        subset_1_name=_read_text(uworld_cfg, "label", default_subset_1_name),
+        subset_1_tag=_read_string_list(
+            uworld_cfg,
+            "base_tags",
             fallback=default_subset_1_tag,
         ),
-        subset_2_name=_to_text(nbme_cfg.get("label", default_subset_2_name), default_subset_2_name),
-        subset_2_tag=_to_string_list(
-            nbme_cfg.get("base_tags", default_subset_2_tag),
+        subset_2_name=_read_text(nbme_cfg, "label", default_subset_2_name),
+        subset_2_tag=_read_string_list(
+            nbme_cfg,
+            "base_tags",
             fallback=default_subset_2_tag,
         ),
-        other_resources=_to_string_list(
-            other_cfg.get("resources", default_other_resources),
+        other_resources=_read_string_list(
+            other_cfg,
+            "resources",
             fallback=default_other_resources,
         ),
         rotation_schedule=rotation_schedule,
         schedule_exhausted_policy=schedule_exhausted_policy,
-        missed_tags_menu_label=_to_text(ui_cfg.get("menu_label", default_menu_label), default_menu_label),
-        action_label_base=_to_text(
-            base_cfg.get("label", default_action_label_base),
-            default_action_label_base,
-        ),
-        action_label_multi_missed=_to_text(
-            multi_missed_cfg.get("label", default_action_label_multi_missed),
-            default_action_label_multi_missed,
-        ),
-        action_label_key_info=_to_text(
-            key_info_cfg.get("label", default_action_label_key_info),
-            default_action_label_key_info,
-        ),
-        action_label_correct_guess=_to_text(
-            correct_guess_cfg.get("label", default_action_label_correct_guess),
-            default_action_label_correct_guess,
-        ),
-        rotation_parent_tag_segment=_to_text(
-            rotation_cfg.get("parent_tag_segment", default_rotation_parent_tag_segment),
+        missed_tags_menu_label=_read_text(ui_cfg, "menu_label", default_menu_label),
+        action_label_base=_read_text(base_cfg, "label", default_action_label_base),
+        action_label_multi_missed=_read_text(multi_missed_cfg, "label", default_action_label_multi_missed),
+        action_label_key_info=_read_text(key_info_cfg, "label", default_action_label_key_info),
+        action_label_correct_guess=_read_text(correct_guess_cfg, "label", default_action_label_correct_guess),
+        rotation_parent_tag_segment=_read_text(
+            rotation_cfg,
+            "parent_tag_segment",
             default_rotation_parent_tag_segment,
         ),
-        winter_break_tag_label=_to_text(
-            rotation_cfg.get("winter_break_label", default_winter_break_label),
-            default_winter_break_label,
-        ),
-        post_rotation_tag_label=_to_text(
-            rotation_cfg.get("post_rotation_label", default_post_rotation_label),
-            default_post_rotation_label,
-        ),
-        multi_miss_tag=_to_text(
-            multi_missed_cfg.get("tag_segment", default_multi_miss_tag),
-            default_multi_miss_tag,
-        ),
-        default_test_tag_prefix=_to_text(
-            uworld_cfg.get("default_tag_prefix", default_test_tag_prefix),
-            default_test_tag_prefix,
-        ),
-        default_nbme_tag_prefix=_to_text(
-            nbme_cfg.get("default_tag_prefix", default_nbme_tag_prefix),
-            default_nbme_tag_prefix,
-        ),
-        other_suffix=_to_text(
-            other_cfg.get("tag_suffix", default_other_suffix),
-            default_other_suffix,
-        ),
-        key_tag_base=_to_text(
-            key_info_cfg.get("tag_base", default_key_tag_base),
-            default_key_tag_base,
-        ),
-        amboss_top_level_name=_to_text(
-            amboss_cfg.get("label", default_amboss_label),
-            default_amboss_label,
-        ),
-        amboss_base_tag=_to_text(
-            amboss_cfg.get("base_tag", default_amboss_base_tag),
-            default_amboss_base_tag,
-        ),
-        amboss_blank_behavior=_to_text(
-            amboss_cfg.get("blank_behavior", default_amboss_blank_behavior),
-            default_amboss_blank_behavior,
-        ),
-        amboss_number_style=_to_text(
-            amboss_cfg.get("number_style", default_amboss_number_style),
-            default_amboss_number_style,
-        ),
-        amboss_remove_from_other_menu=_to_bool(
-            amboss_cfg.get("remove_from_other_menu", default_amboss_remove_from_other_menu),
+        winter_break_tag_label=_read_text(rotation_cfg, "winter_break_label", default_winter_break_label),
+        post_rotation_tag_label=_read_text(rotation_cfg, "post_rotation_label", default_post_rotation_label),
+        multi_miss_tag=_read_text(multi_missed_cfg, "tag_segment", default_multi_miss_tag),
+        default_test_tag_prefix=_read_text(uworld_cfg, "default_tag_prefix", default_test_tag_prefix),
+        default_nbme_tag_prefix=_read_text(nbme_cfg, "default_tag_prefix", default_nbme_tag_prefix),
+        other_suffix=_read_text(other_cfg, "tag_suffix", default_other_suffix),
+        key_tag_base=_read_text(key_info_cfg, "tag_base", default_key_tag_base),
+        amboss_top_level_name=_read_text(amboss_cfg, "label", default_amboss_label),
+        amboss_base_tag=_read_text(amboss_cfg, "base_tag", default_amboss_base_tag),
+        amboss_blank_behavior=_read_text(amboss_cfg, "blank_behavior", default_amboss_blank_behavior),
+        amboss_number_style=_read_text(amboss_cfg, "number_style", default_amboss_number_style),
+        amboss_remove_from_other_menu=_read_bool(
+            amboss_cfg,
+            "remove_from_other_menu",
             default_amboss_remove_from_other_menu,
         ),
-        correct_guess_tags=_to_string_list(
-            correct_guess_cfg.get("tags", default_correct_guess_tags),
+        correct_guess_tags=_read_string_list(
+            correct_guess_cfg,
+            "tags",
             fallback=default_correct_guess_tags,
         ),
-        correct_guess_include_rotation=_to_bool(
-            correct_guess_cfg.get("include_rotation", default_correct_guess_include_rotation),
+        correct_guess_include_rotation=_read_bool(
+            correct_guess_cfg,
+            "include_rotation",
             default_correct_guess_include_rotation,
         ),
-        correct_guess_rotation_lowercase=_to_bool(
-            correct_guess_cfg.get("rotation_lowercase", default_correct_guess_rotation_lowercase),
+        correct_guess_rotation_lowercase=_read_bool(
+            correct_guess_cfg,
+            "rotation_lowercase",
             default_correct_guess_rotation_lowercase,
         ),
-        correct_guess_unknown_segment=_to_text(
-            correct_guess_cfg.get("unknown_segment", default_correct_guess_unknown_segment),
+        correct_guess_unknown_segment=_read_text(
+            correct_guess_cfg,
+            "unknown_segment",
             default_correct_guess_unknown_segment,
         ),
-        test_range_block_size=_to_positive_int(
-            uworld_cfg.get("test_range_block_size", default_test_range_block_size),
+        test_range_block_size=_read_positive_int(
+            uworld_cfg,
+            "test_range_block_size",
             default_test_range_block_size,
         ),
     )
 
 
 def base_tag_path(cfg: MissedTagsConfig, *parts: str) -> str:
-    default_base_missed_tag = _to_string_list(_default_value(PATH_ACTION_BASE_TAGS), fallback=["##Missed-Qs"])
-    base = cfg.base_missed_tag[0] if cfg.base_missed_tag else default_base_missed_tag[0]
+    base = _resolved_base_tag(cfg)
     return "::".join([base, *[p for p in parts if p]])
+
+
+def _resolved_base_tag(cfg: MissedTagsConfig) -> str:
+    if cfg.base_missed_tag:
+        base = str(cfg.base_missed_tag[0]).strip()
+        if base:
+            return base
+    defaults = _default_string_list("actions.base.tags", fallback=["##Missed-Qs"])
+    return defaults[0]
 
 
 def _uw_base_tag(cfg: MissedTagsConfig) -> str:
@@ -713,7 +484,7 @@ def get_current_or_next_rotation_meta(cfg: MissedTagsConfig) -> tuple[str, str, 
         if start <= today <= end:
             return f"{idx:02d}", rotation, ""
 
-    if cfg.schedule_exhausted_policy == SCHEDULE_POLICY_NEXT:
+    if cfg.schedule_exhausted_policy == SCHEDULE_POLICY["next"]:
         for idx, rotation, start, _ in parsed:
             if today < start:
                 warning = (
@@ -780,8 +551,7 @@ def get_correct_guess_tags(cfg: MissedTagsConfig) -> list[str]:
 
 def get_missed_month_tag(cfg: MissedTagsConfig) -> str:
     now = datetime.now()
-    default_base_missed_tag = _to_string_list(_default_value(PATH_ACTION_BASE_TAGS), fallback=["##Missed-Qs"])
-    base = cfg.base_missed_tag[0] if cfg.base_missed_tag else default_base_missed_tag[0]
+    base = _resolved_base_tag(cfg)
     return f"{base}::{now.year}::{now.strftime('%m')}_{now.strftime('%B')}"
 
 
@@ -847,6 +617,44 @@ def apply_tags_to_selected_notes(
     tooltip(msg)
 
 
+def _ensure_selected_notes(browser) -> bool:
+    if browser.selectedNotes():
+        return True
+    showInfo(MSG_NO_NOTES_SELECTED)
+    return False
+
+
+def _add_prompt_action(
+    browser,
+    menu,
+    *,
+    label: str,
+    cfg: MissedTagsConfig,
+    base_tag: str,
+    action_key: str,
+    title: str,
+    prompt_label: str,
+    blank_behavior: str,
+    number_style: str,
+    pad_label: bool = True,
+) -> None:
+    action_text = f"{label:<24}" if pad_label else label
+    action = QAction(action_text, browser)
+    action.triggered.connect(
+        make_test_prompt_handler(
+            browser,
+            cfg,
+            base_tag,
+            action_key=action_key,
+            title=title,
+            label=prompt_label,
+            blank_behavior=blank_behavior,
+            number_style=number_style,
+        )
+    )
+    menu.addAction(action)
+
+
 def add_base_plain_action(browser, menu, cfg: MissedTagsConfig):
     action = QAction(cfg.action_label_base, browser)
     action.triggered.connect(
@@ -855,42 +663,24 @@ def add_base_plain_action(browser, menu, cfg: MissedTagsConfig):
     menu.addAction(action)
 
 
-def _build_tag_menu_stylesheet() -> str:
-    return build_qmenu_stylesheet(
-        item_padding_top_px=MENU_ITEM_PADDING_TOP_PX,
-        item_padding_bottom_px=MENU_ITEM_PADDING_BOTTOM_PX,
-        item_padding_left_px=MENU_ITEM_PADDING_LEFT_PX,
-        item_padding_right_px=MENU_ITEM_PADDING_RIGHT_PX,
-        hover_background_color=MENU_ITEM_HOVER_BACKGROUND_COLOR,
-        use_custom_submenu_arrow_icon=USE_CUSTOM_SUBMENU_ARROW_ICON,
-        submenu_arrow_icon_abs_path=SUBMENU_ARROW_ICON_ABS_PATH,
-        submenu_arrow_icon_size_px=SUBMENU_ARROW_ICON_SIZE_PX,
-        submenu_arrow_horizontal_padding_px=None,
-    )
-
-
 def add_missed_tag_menu_items(browser, menu):
     cfg = load_runtime_config()
 
     tag_menu = QMenu(cfg.missed_tags_menu_label, browser)
-    tag_menu.setStyleSheet(_build_tag_menu_stylesheet())
+    tag_menu.setStyleSheet(build_missed_tags_menu_stylesheet())
 
     add_uworld_tags(browser, tag_menu, cfg)
     add_nbme_tag(browser, tag_menu, cfg)
     add_amboss_tag(browser, tag_menu, cfg)
     add_base_plain_action(browser, tag_menu, cfg)
-    tag_menu.addSeparator()
 
     add_multi_tag(browser, tag_menu, cfg)
-    tag_menu.addSeparator()
 
     add_correct_guess_action(browser, tag_menu, cfg)
-    tag_menu.addSeparator()
 
     add_other_resources_actions(browser, tag_menu, cfg)
 
     if tag_menu.actions():
-        menu.addSeparator()
         menu.addMenu(tag_menu)
 
 
@@ -899,8 +689,8 @@ def add_nbme_tag(browser, menu, cfg: MissedTagsConfig):
     action = QAction(f"{cfg.subset_2_name:<24}", browser)
 
     def on_trigger():
-        prompt_title = "Enter NBME Form"
-        prompt_label = "Form #:"
+        prompt_title = PROMPT_NBME_TITLE
+        prompt_label = PROMPT_NBME_LABEL
         form_value, ok = QInputDialog.getText(browser, prompt_title, prompt_label)
         if not ok:
             return
@@ -908,15 +698,14 @@ def add_nbme_tag(browser, menu, cfg: MissedTagsConfig):
         try:
             form_number = int((form_value or "").strip())
         except ValueError:
-            showInfo("❌ Please enter a valid integer test number.")
+            showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
             return
 
         if form_number <= 0:
-            showInfo("❌ Please enter a valid integer test number.")
+            showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
             return
 
-        if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
+        if not _ensure_selected_notes(browser):
             return
 
         formatted_tag = f"{base_tag}::Form_{form_number}"
@@ -927,20 +716,18 @@ def add_nbme_tag(browser, menu, cfg: MissedTagsConfig):
 
 
 def add_amboss_tag(browser, menu, cfg: MissedTagsConfig):
-    action = QAction(f"{cfg.amboss_top_level_name:<24}", browser)
-    action.triggered.connect(
-        make_test_prompt_handler(
-            browser,
-            cfg,
-            cfg.amboss_base_tag,
-            action_key="amboss_test_prompt",
-            title="Enter Amboss Test Number",
-            label="Test #:",
-            blank_behavior=cfg.amboss_blank_behavior,
-            number_style=cfg.amboss_number_style,
-        )
+    _add_prompt_action(
+        browser,
+        menu,
+        label=cfg.amboss_top_level_name,
+        cfg=cfg,
+        base_tag=cfg.amboss_base_tag,
+        action_key="amboss_test_prompt",
+        title=PROMPT_AMBOSS_TITLE,
+        prompt_label=PROMPT_DEFAULT_LABEL,
+        blank_behavior=cfg.amboss_blank_behavior,
+        number_style=cfg.amboss_number_style,
     )
-    menu.addAction(action)
 
 
 def add_multi_tag(browser, menu, cfg: MissedTagsConfig):
@@ -959,20 +746,18 @@ def add_uworld_tags(browser, menu, cfg: MissedTagsConfig):
     set_name = cfg.subset_1_name
     base = _uw_base_tag(cfg)
     if set_name and base:
-        action = QAction(f"{set_name:<24}", browser)
-        action.triggered.connect(
-            make_test_prompt_handler(
-                browser,
-                cfg,
-                base,
-                action_key="uw_test_prompt",
-                title="Enter UWorld Test Number",
-                label="Test #:",
-                blank_behavior=PROMPT_BEHAVIOR_BASE_ONLY,
-                number_style=PROMPT_STYLE_RANGE_THEN_NUMBER,
-            )
+        _add_prompt_action(
+            browser,
+            menu,
+            label=set_name,
+            cfg=cfg,
+            base_tag=base,
+            action_key="uw_test_prompt",
+            title=PROMPT_UWORLD_TITLE,
+            prompt_label=PROMPT_DEFAULT_LABEL,
+            blank_behavior=PROMPT_BEHAVIOR["base_only"],
+            number_style=PROMPT_STYLE["range_then_number"],
         )
-        menu.addAction(action)
 
 
 def add_other_resources_actions(
@@ -993,27 +778,26 @@ def add_other_resources_actions(
 
         if canonical == "True-Learn":
             base_tag = base_tag_path(cfg, cfg.other_suffix, canonical)
-            action = QAction(label, browser)
-            handler = make_test_prompt_handler(
+            _add_prompt_action(
                 browser,
-                cfg,
-                base_tag,
+                menu,
+                label=label,
+                cfg=cfg,
+                base_tag=base_tag,
                 action_key="true_learn_test_prompt",
-                title="Enter True-Learn Test Number",
-                label="Test #:",
-                blank_behavior=PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
-                number_style=PROMPT_STYLE_ROTATION_THEN_NUMBER,
+                title=PROMPT_TRUE_LEARN_TITLE,
+                prompt_label=PROMPT_DEFAULT_LABEL,
+                blank_behavior=PROMPT_BEHAVIOR["base_plus_rotation"],
+                number_style=PROMPT_STYLE["rotation_then_number"],
+                pad_label=False,
             )
-            action.triggered.connect(handler)
-            menu.addAction(action)
             continue
 
         resource_tag = base_tag_path(cfg, cfg.other_suffix, canonical)
         action = QAction(label, browser)
 
         def on_click(_, rtag=resource_tag):
-            if not browser.selectedNotes():
-                showInfo("❌ No notes selected.")
+            if not _ensure_selected_notes(browser):
                 return
             tags_to_apply = list(cfg.base_missed_tag) + [rtag]
             apply_tags_to_selected_notes(
@@ -1034,12 +818,12 @@ def make_test_prompt_handler(
     action_key: str,
     title: str | None = None,
     label: str | None = None,
-    blank_behavior: str = PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
-    number_style: str = PROMPT_STYLE_RANGE_THEN_NUMBER,
+    blank_behavior: str = PROMPT_BEHAVIOR["base_plus_rotation"],
+    number_style: str = PROMPT_STYLE["range_then_number"],
 ):
     def on_trigger():
-        prompt_title = (title or "Enter Test Number").strip() or "Enter Test Number"
-        prompt_label = (label or "Test #:").strip() or "Test #:"
+        prompt_title = (title or PROMPT_DEFAULT_TITLE).strip() or PROMPT_DEFAULT_TITLE
+        prompt_label = (label or PROMPT_DEFAULT_LABEL).strip() or PROMPT_DEFAULT_LABEL
         test_num, ok = QInputDialog.getText(browser, prompt_title, prompt_label)
         if not ok:
             return
@@ -1048,7 +832,7 @@ def make_test_prompt_handler(
         rotation_segment = get_formatted_rotation_segment(cfg, rot_num_2d, rot_label)
 
         if test_num == "":
-            if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
+            if blank_behavior == PROMPT_BEHAVIOR["base_only"]:
                 formatted_tag = f"{base_tag}"
             else:
                 formatted_tag = f"{base_tag}::{rotation_segment}"
@@ -1056,12 +840,12 @@ def make_test_prompt_handler(
             try:
                 tn = int(test_num)
             except ValueError:
-                if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
+                if blank_behavior == PROMPT_BEHAVIOR["base_only"]:
                     formatted_tag = f"{base_tag}"
                 else:
                     formatted_tag = f"{base_tag}::{rotation_segment}"
             else:
-                if number_style == PROMPT_STYLE_ROTATION_THEN_NUMBER:
+                if number_style == PROMPT_STYLE["rotation_then_number"]:
                     formatted_tag = f"{base_tag}::{rotation_segment}::{tn:02d}"
                 else:
                     lower = ((tn - 1) // cfg.test_range_block_size) * cfg.test_range_block_size + 1
@@ -1069,8 +853,7 @@ def make_test_prompt_handler(
                     range_tag = f"{lower}-{upper}"
                     formatted_tag = f"{base_tag}::{range_tag}::{tn:02d}"
 
-        if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
+        if not _ensure_selected_notes(browser):
             return
         apply_tags_to_selected_notes(browser, [formatted_tag], action_key=action_key, cfg=cfg)
 
@@ -1089,8 +872,7 @@ def add_key_info_action(browser, menu, cfg: MissedTagsConfig):
     action = QAction(cfg.action_label_key_info, browser)
 
     def on_click():
-        if not browser.selectedNotes():
-            showInfo("❌ No notes selected.")
+        if not _ensure_selected_notes(browser):
             return
         key_tag = get_rotation_key_info_tag(cfg)
         apply_tags_to_selected_notes(browser, [key_tag], action_key="add_key_info_action", cfg=cfg)

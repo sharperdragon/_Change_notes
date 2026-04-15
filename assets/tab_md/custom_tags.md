@@ -5,11 +5,13 @@ This tab configures preset tag actions shown in the Browser context menu.
 
 ## Key Sections
 - `add_custom_tags`
+- `add_custom_tags_2` (optional second top-level menu)
 
 ## High-risk Fields
 - `add_custom_tags.presets`: Invalid shape (missing `label` or invalid `tags`) breaks menu actions.
 - `add_custom_tags.submenu_label`: Frequent renames can make menu navigation inconsistent.
 - `add_custom_tags.group_labels`: Keys not matching `presets[].group` will not affect submenu labels.
+- `add_custom_tags_2.presets`: If empty, the second menu stays hidden.
 
 ## Safe Edit Checklist
 - Keep `presets` as an array of objects.
@@ -22,6 +24,8 @@ This tab configures preset tag actions shown in the Browser context menu.
 - `submenu_label`: Root menu label for custom tag presets.
 - `group_labels`: Optional map from group key to displayed submenu label.
 - `presets`: Preset definitions.
+
+`add_custom_tags_2` uses the same fields as `add_custom_tags`.
 
 No-selection and success toast messages are hardcoded in code and not editable in config.
 
@@ -50,6 +54,11 @@ No-selection and success toast messages are hardcoded in code and not editable i
         "tags": ["#Custom::DO_Med"]
       }
     ]
+  },
+  "add_custom_tags_2": {
+    "submenu_label": "Custom Tags 2",
+    "group_labels": {},
+    "presets": []
   }
 }
 ```

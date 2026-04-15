@@ -2,24 +2,27 @@
 import os
 import re
 import time
-from html import unescape
-from urllib.parse import urlsplit
 from collections import defaultdict
-from pathlib import Path
 from datetime import datetime, timedelta
+from html import unescape
+from pathlib import Path
+from urllib.parse import urlsplit
+
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
 from aqt import mw
-from aqt.qt import QMessageBox, QDialogButtonBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QDoubleSpinBox
+from aqt.qt import QDialog, QDialogButtonBox, QDoubleSpinBox, QMessageBox, QPushButton, QTextEdit, QVBoxLayout
 from aqt.utils import tooltip
+
+from ..config_manager import ConfigManager
+from .shared.defaults import MERGE_IMAGES_DEFAULTS, clone_defaults
 from .utils import (
+    clean_img_tag,
     extract_images,
     extract_srcs,
-    clean_img_tag,
     group_notes_by_similarity,
-    prompt_similarity_threshold
+    prompt_similarity_threshold,
 )
-from ..config_manager import ConfigManager
 
 SKETCHY_PREFIX = "https://dashboard.sketchy.com"
 SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
@@ -28,45 +31,7 @@ SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
 IMAGE_INSERT_POLICY = "append_only"
 SUPPORTED_IMAGE_INSERT_POLICIES = {"append_only"}
 
-DEFAULT_CONFIG = {
-    "default_threshold": 0.90,
-    "min_threshold": 0.80,
-    "ask_threshold_each_time": True,
-
-    "allowed_models": [],
-    "excluded_tags": ["First_Aid"],
-
-    "fields_to_scan_for_images": [
-        "Extra",
-        "Extra2",
-        "Extra3",
-        "Extra4",
-        "Extra5",
-        "Extra6",
-        "Extra7",
-        "Button",
-        "Front",
-    ],
-
-    "merge_behavior": {
-        "wrap_images_in_div": True,
-        "insert_new_line_between_images": True,
-        "append_to_existing_field": True,
-        "copy_sketchy_links": True,
-    },
-
-    "logging": {
-        "enable_log_popup": True,
-        "save_log_to_desktop": True,
-        "log_filename_prefix": "merged_images_log_",
-    },
-
-    "tagging": {
-        "add_to_merged": "IMG_Uni::received",
-        "add_to_donor": "IMG_Uni::donor",
-        "add_to_unchanged": "IMG_Uni::same",
-    },
-}
+DEFAULT_CONFIG = clone_defaults(MERGE_IMAGES_DEFAULTS)
 
 CONFIG = {}
 
@@ -79,6 +44,7 @@ def cfg(path: str, default=None):
         else:
             return default
     return node
+
 
 # Add-on path and caches
 addon_path = Path(mw.addonManager.addonsFolder()) / "_Change_notes"
@@ -96,15 +62,17 @@ def _reload_runtime_config():
 
 _reload_runtime_config()
 
-def extract_all_imgs(fields_html: list[str]) -> list[tuple[int, str, tuple[int,int]]]:
+
+def extract_all_imgs(fields_html: list[str]) -> list[tuple[int, str, tuple[int, int]]]:
     """
     Return list of (field_index, src, match_span) for every <img>.
     """
     found = []
     for i, html in enumerate(fields_html):
         for m in clean_img_tag.finditer(html):
-            found.append((i, m.group('src'), m.span()))
+            found.append((i, m.group("src"), m.span()))
     return found
+
 
 def norm_src(s: str) -> str:
     s = unescape(s)
@@ -113,17 +81,20 @@ def norm_src(s: str) -> str:
     base = parts.path or s
     return os.path.basename(base).lower()
 
+
 def get_field_names(note):
     mid = note.mid
     if mid not in FIELD_NAMES_BY_MID:
         FIELD_NAMES_BY_MID[mid] = mw.col.models.field_names(mw.col.models.get(mid))
     return FIELD_NAMES_BY_MID[mid]
 
+
 def has_excluded_tag(note) -> bool:
     excluded = set(cfg("excluded_tags", []))
     if not excluded:
         return False
     return bool(excluded & set(note.tags))
+
 
 def is_model_allowed(note) -> bool:
     allowed = cfg("allowed_models", [])
@@ -133,7 +104,6 @@ def is_model_allowed(note) -> bool:
     return model_name in allowed
 
 
-
 # --- Sketchy link helpers ----------------------------------------------------
 def extract_sketchy_links(html: str):
     """
@@ -141,12 +111,16 @@ def extract_sketchy_links(html: str):
     """
     if not html:
         return []
-    anchors = re.findall(r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)', html, flags=re.IGNORECASE|re.DOTALL)
+    anchors = re.findall(
+        r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)', html, flags=re.IGNORECASE | re.DOTALL
+    )
     # anchors: list of tuples [(full_anchor_html, href)]
     return [(href, full_html) for (full_html, href) in anchors]
 
+
 # ? Detect bare Sketchy URLs and build anchors when needed
-SKETCHY_URL_ONLY_RE = re.compile(r'(' + SKETCHY_DOMAIN_RE + r')', flags=re.IGNORECASE)
+SKETCHY_URL_ONLY_RE = re.compile(r"(" + SKETCHY_DOMAIN_RE + r")", flags=re.IGNORECASE)
+
 
 def _as_real_anchor(href: str, link_html: str | None) -> str:
     """
@@ -157,6 +131,7 @@ def _as_real_anchor(href: str, link_html: str | None) -> str:
         return link_html  # already a real anchor
     # short, consistent label avoids weird donor text
     return f'<a href="{href}" target="_blank" rel="noopener">Sketchy</a>'
+
 
 def _find_links_any_form(html_unescaped: str):
     """
@@ -169,7 +144,11 @@ def _find_links_any_form(html_unescaped: str):
     results = []
 
     # 1) real anchors
-    for m in re.finditer(r'(&lt;a\b[^&gt;]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^&gt;]*&gt;.*?&lt;/a&gt;)', html_unescaped, flags=re.IGNORECASE | re.DOTALL):
+    for m in re.finditer(
+        r'(&lt;a\b[^&gt;]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^&gt;]*&gt;.*?&lt;/a&gt;)',
+        html_unescaped,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
         # If anchors are still escaped, they'll match here. We'll unescape below.
         full_escaped = m.group(1)
         href = m.group(2)
@@ -177,7 +156,11 @@ def _find_links_any_form(html_unescaped: str):
         results.append((href, _as_real_anchor(href, full_real), m.start(), m.end()))
 
     # Also search already-unescaped real anchors
-    for m in re.finditer(r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)', html_unescaped, flags=re.IGNORECASE | re.DOTALL):
+    for m in re.finditer(
+        r'(<a\b[^>]*?href="(' + SKETCHY_DOMAIN_RE + r')"[^>]*>.*?</a>)',
+        html_unescaped,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
         full = m.group(1)
         href = m.group(2)
         results.append((href, _as_real_anchor(href, full), m.start(), m.end()))
@@ -194,23 +177,29 @@ def _find_links_any_form(html_unescaped: str):
     results.sort(key=lambda t: t[2])
     return results
 
+
 # * Normalizes a URL for reliable comparisons (scheme/host/path; drops fragment; lowercases host).
 def _normalize_url(u: str) -> str:
     try:
-        from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+        from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
         parts = urlsplit(u.strip())
         # normalize scheme and host
-        scheme = 'https' if parts.scheme in ('http', 'https', '') else parts.scheme
+        scheme = "https" if parts.scheme in ("http", "https", "") else parts.scheme
         netloc = parts.netloc.lower()
-        path = parts.path or '/'
+        path = parts.path or "/"
         # Optionally drop tracking params; keep meaningful ones
-        q_pairs = [(k, v) for (k, v) in parse_qsl(parts.query, keep_blank_values=True)
-                   if not k.lower().startswith(('utm_', 'fbclid'))]
+        q_pairs = [
+            (k, v)
+            for (k, v) in parse_qsl(parts.query, keep_blank_values=True)
+            if not k.lower().startswith(("utm_", "fbclid"))
+        ]
         query = urlencode(q_pairs, doseq=True)
         # fragment ignored for equality
-        return urlunsplit((scheme, netloc, path, query, ''))
+        return urlunsplit((scheme, netloc, path, query, ""))
     except Exception:
-        return (u or '').strip()
+        return (u or "").strip()
+
 
 # * Checks if an equivalent Sketchy URL already exists in the (possibly escaped) field HTML.
 def field_contains_sketchy_href_any_form(field_html: str, href: str) -> bool:
@@ -242,14 +231,12 @@ def parse_image_link_groups(field_html: str):
 
     # a run of &lt;img&gt; tags possibly wrapped with a closing div edge
     IMG_RUN = re.compile(
-        r'(?:</div>\s*)?(?:<br\s*/?>\s*)?((?:<img\b[^>]*?>\s*)+)',
-        flags=re.IGNORECASE | re.DOTALL
+        r"(?:</div>\s*)?(?:<br\s*/?>\s*)?((?:<img\b[^>]*?>\s*)+)", flags=re.IGNORECASE | re.DOTALL
     )
 
     # Also permit an &lt;img&gt; run FOLLOWED by optional &lt;br/&gt; or opening &lt;div&gt; before the link
     IMG_RUN_FORWARD = re.compile(
-        r'((?:<img\b[^>]*?>\s*)+)(?:<br\s*/?>\s*)?(?:<div\b[^>]*?>\s*)?',
-        flags=re.IGNORECASE | re.DOTALL
+        r"((?:<img\b[^>]*?>\s*)+)(?:<br\s*/?>\s*)?(?:<div\b[^>]*?>\s*)?", flags=re.IGNORECASE | re.DOTALL
     )
 
     for href, link_html_real, s, e in _find_links_any_form(html_u):
@@ -280,22 +267,26 @@ def parse_image_link_groups(field_html: str):
         if not imgs_block:
             continue
 
-        imgs = extract_images(imgs_block)       # RAW &lt;img …&gt;
+        imgs = extract_images(imgs_block)  # RAW &lt;img …&gt;
         srcs = extract_srcs(imgs)
 
         if srcs:
-            results.append({
-                "srcs": srcs,                   # keep original order
-                "link_html": link_html_real,    # guaranteed real anchor
-                "href": href
-            })
+            results.append(
+                {
+                    "srcs": srcs,  # keep original order
+                    "link_html": link_html_real,  # guaranteed real anchor
+                    "href": href,
+                }
+            )
 
     return results
+
 
 def field_contains_href(html: str, href: str) -> bool:
     if not html or not href:
         return False
     return re.search(re.escape(href), html, flags=re.IGNORECASE) is not None
+
 
 def insert_link_below_images(field_html: str, group_srcs: list[str], link_html: str):
     """
@@ -311,7 +302,9 @@ def insert_link_below_images(field_html: str, group_srcs: list[str], link_html: 
     # Find the last occurring <img ... src="X"> among the group's srcs
     for src in group_srcs:
         # Capture full <img ...> to know exact insertion point after this tag
-        img_pat = re.compile(r'(<img\b[^>]*?src="' + re.escape(src) + r'"[^>]*>)', flags=re.IGNORECASE|re.DOTALL)
+        img_pat = re.compile(
+            r'(<img\b[^>]*?src="' + re.escape(src) + r'"[^>]*>)', flags=re.IGNORECASE | re.DOTALL
+        )
         for m in img_pat.finditer(field_html):
             if m.end() > last_end:
                 last_end = m.end()
@@ -325,14 +318,16 @@ def insert_link_below_images(field_html: str, group_srcs: list[str], link_html: 
     insert_at = last_match_span[1]
 
     # Always ensure a <br> before the link; avoid duplicate if one is already present
-    after = field_html[insert_at:insert_at+4].lower()  # quick peek for '<br'
+    after = field_html[insert_at : insert_at + 4].lower()  # quick peek for '<br'
     needs_br = not after.startswith("<br")
 
     insertion = ("<br>" if needs_br else "") + link_html
 
     new_html = field_html[:insert_at] + insertion + field_html[insert_at:]
     return new_html, True
-# ----------------------------------------------------------------------------- 
+
+
+# -----------------------------------------------------------------------------
 
 
 def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
@@ -357,6 +352,7 @@ def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
     if dialog.exec() == QDialog.DialogCode.Accepted:
         return spin.value(), True
     return None, False
+
 
 def run_merge_images(note_ids: list[int], browser=None, threshold: float | None = None):
     _reload_runtime_config()
@@ -383,7 +379,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
     received_tag = cfg("tagging.add_to_merged", "IMG_Uni::received")
     unchanged_tag = cfg("tagging.add_to_unchanged", "IMG_Uni::same")
-    donor_tag   = cfg("tagging.add_to_donor", "IMG_Uni::donor")
+    donor_tag = cfg("tagging.add_to_donor", "IMG_Uni::donor")
     enable_popup = cfg("logging.enable_log_popup", True)
     save_to_desktop = cfg("logging.save_log_to_desktop", False)
     log_prefix = cfg("logging.log_filename_prefix", "merged_images_log_")
@@ -394,9 +390,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     insert_br = cfg("merge_behavior.insert_new_line_between_images", True)
     append_to_existing = cfg("merge_behavior.append_to_existing_field", True)
     image_insert_policy = (
-        IMAGE_INSERT_POLICY
-        if IMAGE_INSERT_POLICY in SUPPORTED_IMAGE_INSERT_POLICIES
-        else "append_only"
+        IMAGE_INSERT_POLICY if IMAGE_INSERT_POLICY in SUPPORTED_IMAGE_INSERT_POLICIES else "append_only"
     )
 
     def make_block(src_list, src_map):
@@ -429,7 +423,9 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     note.tags = list(set(note.tags) | {"IMG_Uni::multiple_match"})
                     mw.col.update_note(note)
                     multi_matched_nids.append(str(note.id))
-                log_entries.append("⚠️ IMG_Uni::multiple_match tagged:\n\n" + ", ".join(multi_matched_nids) + ",\n")
+                log_entries.append(
+                    "⚠️ IMG_Uni::multiple_match tagged:\n\n" + ", ".join(multi_matched_nids) + ",\n"
+                )
                 continue
             if len(model_group) < 2:
                 continue
@@ -540,9 +536,13 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     field_name = get_field_names(note)[i]
                     if to_append_srcs:
                         block = make_block(to_append_srcs, src_to_imgtag)
-                        log_entries.append(f"🧬 Append to Note {note.id} field '{field_name}': {block} (donors={', '.join(str(d) for d in sorted(used_donors)) or 'None'})")
+                        log_entries.append(
+                            f"🧬 Append to Note {note.id} field '{field_name}': {block} (donors={', '.join(str(d) for d in sorted(used_donors)) or 'None'})"
+                        )
                     if not append_to_existing and to_append_srcs:
-                        log_entries.append(f"🔁 Replaced content in Note {note.id} field '{field_name}' due to append_to_existing_field=False")
+                        log_entries.append(
+                            f"🔁 Replaced content in Note {note.id} field '{field_name}' due to append_to_existing_field=False"
+                        )
 
                 # ---- Copy Sketchy links under their corresponding images ----
                 if copy_links and donor_link_groups:
@@ -569,7 +569,9 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         grp_set = set(grp["srcs"])
 
                         # 1) Ideal: a field containing ALL srcs
-                        exact_target = next((fi for fi, sset in current_field_srcs.items() if grp_set.issubset(sset)), None)
+                        exact_target = next(
+                            (fi for fi, sset in current_field_srcs.items() if grp_set.issubset(sset)), None
+                        )
 
                         target_index = exact_target
                         if target_index is None:
@@ -593,15 +595,16 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                             continue
 
                         # Skip if an equivalent href (anchor/escaped/bare) already present in this field
-                        if field_contains_sketchy_href_any_form(updated_fields[target_index], grp["href"]) or \
-                           _normalize_url(grp["href"]) in field_href_norms.get(target_index, set()):
-                            log_entries.append(f"🔁 Skip link (already present) in Note {note.id} field '{field_names[target_index]}': {grp['href']}")
+                        if field_contains_sketchy_href_any_form(
+                            updated_fields[target_index], grp["href"]
+                        ) or _normalize_url(grp["href"]) in field_href_norms.get(target_index, set()):
+                            log_entries.append(
+                                f"🔁 Skip link (already present) in Note {note.id} field '{field_names[target_index]}': {grp['href']}"
+                            )
                             continue
 
                         new_html, inserted = insert_link_below_images(
-                            updated_fields[target_index],
-                            grp["srcs"],
-                            grp["link_html"]
+                            updated_fields[target_index], grp["srcs"], grp["link_html"]
                         )
                         if inserted:
                             updated_fields[target_index] = new_html
@@ -669,7 +672,9 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     mw.col.update_note(note)
 
     if same_tagged_nids:
-        formatted_same = "✅ IMG_Uni::same tagged:\nNID:" + " OR NID:".join(str(nid) for nid in sorted(same_tagged_nids))
+        formatted_same = "✅ IMG_Uni::same tagged:\nNID:" + " OR NID:".join(
+            str(nid) for nid in sorted(same_tagged_nids)
+        )
         log_entries.append(formatted_same)
 
     summary = f"📊 Summary:\n🧬 Images Merged: {merged}\n🧾 Notes Tagged Same: {len(same_tagged_nids)}\n"
@@ -687,7 +692,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
     # Write logs to Desktop or addon logs dir based on config
     if save_to_desktop:
-        log_dir = Path.home() / "Desktop/anki logs"
+        log_dir = Path.home() / "Desktop/anki_logs/Merged IMGs"
     else:
         log_dir = Path(addon_path) / "logs"
 
@@ -705,6 +710,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
         f"Merge Images complete: merged={merged}, tagged_same={len(same_tagged_nids)}.",
         period=3500,
     )
+
 
 def show_log_window(log_text):
     dlg = QDialog(mw)
@@ -741,9 +747,8 @@ def delete_old_logs(days=7):
             print(f"[MergeImages] Failed to delete {log_file.name}: {e}")
 
 
-
 def collect_used_donors_for_block(missing_imgs, donor_notes):
-    
+
     used_donors = set()
     for donor in donor_notes:
         donor_imgs = extract_srcs(extract_images("".join(donor.fields)))
@@ -754,6 +759,7 @@ def collect_used_donors_for_block(missing_imgs, donor_notes):
                 if src in donor_imgs:
                     used_donors.add(donor.id)
                     break
+
 
 def merge_images_main(selected=None, browser=None):
     _reload_runtime_config()
@@ -787,7 +793,7 @@ def merge_images_main(selected=None, browser=None):
     # ? Gather threshold config here (UI edge)
     default_threshold = cfg("default_threshold", 0.97)
     min_threshold = cfg("min_threshold", 0.80)
-    max_threshold =  1.0
+    max_threshold = 1.0
     ask_each = cfg("ask_threshold_each_time", True)
 
     # Decide threshold (prompt or silent clamp)
@@ -797,7 +803,7 @@ def merge_images_main(selected=None, browser=None):
             minimum=min_threshold,
             maximum=max_threshold,
             ui="float",
-            title="Fuzzy Threshold (Images)"
+            title="Fuzzy Threshold (Images)",
         )
         if not ok:
             return  # user canceled

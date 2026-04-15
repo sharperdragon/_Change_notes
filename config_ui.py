@@ -84,16 +84,8 @@ DOC_EMPTY_TEMPLATE = (
 DOC_LOAD_ERROR_TEMPLATE = "# {category}\\n\\nFailed to load category guide.\\n\\nError: `{error}`"
 
 MISSED_TAGS_CANONICAL_SECTION = "tag_missed_qid_notes"
-MISSED_TAGS_LEGACY_SECTIONS = (
-    "add_missed_tags",
-    "tag_selected_notes_config",
-    "add_tags",
-)
 ADD_CUSTOM_TAGS_SECTION = "add_custom_tags"
-ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS = (
-    "message_no_notes_selected",
-    "message_applied_template",
-)
+ADD_CUSTOM_TAGS_SECTION_2 = "add_custom_tags_2"
 
 CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
     (
@@ -107,6 +99,7 @@ CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
         "Custom Tags",
         [
             "add_custom_tags",
+            "add_custom_tags_2",
         ],
     ),
     (
@@ -152,6 +145,7 @@ SECTION_UI_METADATA: dict[str, dict[str, Any]] = {
     "global_config": {"label": "Global Config", "form_schema": None},
     "global_fuzzy_opts": {"label": "Global Fuzzy Options", "form_schema": None},
     "add_custom_tags": {"label": "Add Custom Tags", "form_schema": None},
+    "add_custom_tags_2": {"label": "Add Custom Tags 2", "form_schema": None},
     MISSED_TAGS_CANONICAL_SECTION: {"label": "Tag Missed QID Notes", "form_schema": None},
     "merge_tags_config": {"label": "Merge Tags", "form_schema": None},
     "merge_images_config": {"label": "Merge Images", "form_schema": None},
@@ -399,11 +393,7 @@ class ConfigDialog(QDialog):
             self._migration_notice = text
 
     def _sanitize_override_payload(self, section_key: str, payload: Any) -> dict[str, Any]:
-        sanitized = copy.deepcopy(payload) if isinstance(payload, dict) else {}
-        if section_key == ADD_CUSTOM_TAGS_SECTION:
-            for key in ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS:
-                sanitized.pop(key, None)
-        return sanitized
+        return self.config_manager_cls.sanitize_section_override(section_key, payload)
 
     def _ordered_visible_sections(self) -> list[str]:
         ordered: list[str] = []
@@ -418,71 +408,11 @@ class ConfigDialog(QDialog):
                 seen.add(section_key)
         return ordered
 
-    def _migrate_missed_tag_overrides_to_canonical(self) -> bool:
-        overrides = self.config_manager_cls.load_user_overrides()
-        if not isinstance(overrides, dict):
-            return False
-
-        has_legacy_keys = any(key in overrides for key in MISSED_TAGS_LEGACY_SECTIONS)
-        if not has_legacy_keys:
-            return False
-
-        merged_legacy: dict[str, Any] = {}
-        for key in MISSED_TAGS_LEGACY_SECTIONS:
-            payload = overrides.get(key)
-            if isinstance(payload, dict):
-                merged_legacy = self.config_manager_cls.deep_merge_dicts(merged_legacy, payload)
-
-        canonical_payload = overrides.get(MISSED_TAGS_CANONICAL_SECTION)
-        if isinstance(canonical_payload, dict):
-            merged_canonical = self.config_manager_cls.deep_merge_dicts(merged_legacy, canonical_payload)
-        else:
-            merged_canonical = merged_legacy
-
-        migrated_overrides = copy.deepcopy(overrides)
-        migrated_overrides[MISSED_TAGS_CANONICAL_SECTION] = merged_canonical
-        for key in MISSED_TAGS_LEGACY_SECTIONS:
-            migrated_overrides.pop(key, None)
-
-        if migrated_overrides == overrides:
-            return False
-
-        mw.addonManager.writeConfig(
-            self.config_manager_cls.ROOT_ADDON_NAME,
-            migrated_overrides,
-        )
-        self._append_migration_notice(
-            "Migrated missed-tag overrides to 'tag_missed_qid_notes' and removed legacy keys."
-        )
-        return True
-
-    def _migrate_add_custom_tags_hardcoded_overrides(self) -> bool:
-        overrides = self.config_manager_cls.load_user_overrides()
-        if not isinstance(overrides, dict):
-            return False
-
-        payload = overrides.get(ADD_CUSTOM_TAGS_SECTION)
-        if not isinstance(payload, dict):
-            return False
-
-        cleaned_payload = self._sanitize_override_payload(ADD_CUSTOM_TAGS_SECTION, payload)
-        if cleaned_payload == payload:
-            return False
-
-        migrated_overrides = copy.deepcopy(overrides)
-        if PRUNE_EMPTY_SECTION_OVERRIDES and not cleaned_payload:
-            migrated_overrides.pop(ADD_CUSTOM_TAGS_SECTION, None)
-        else:
-            migrated_overrides[ADD_CUSTOM_TAGS_SECTION] = cleaned_payload
-
-        mw.addonManager.writeConfig(
-            self.config_manager_cls.ROOT_ADDON_NAME,
-            migrated_overrides,
-        )
-        self._append_migration_notice(
-            "Removed deprecated add_custom_tags message keys; these messages are now hardcoded."
-        )
-        return True
+    def _run_startup_migrations(self) -> bool:
+        _, notices, changed = self.config_manager_cls.migrate_overrides_once()
+        for notice in notices:
+            self._append_migration_notice(notice)
+        return changed
 
     def _set_status_for_section(self, section_key: str | None):
         prefix = ""
@@ -727,7 +657,7 @@ class ConfigDialog(QDialog):
 
     def _write_visible_overrides(self, parsed_overrides: dict[str, dict]) -> tuple[bool, str | None]:
         try:
-            existing_overrides = self.config_manager_cls.load_user_overrides()
+            existing_overrides = self.config_manager_cls.load_raw_overrides()
             merged_overrides = (
                 copy.deepcopy(existing_overrides) if isinstance(existing_overrides, dict) else {}
             )
@@ -775,8 +705,7 @@ class ConfigDialog(QDialog):
 
     def _reload_config_from_storage(self):
         current_section_key = self._active_section_key
-        self._migrate_missed_tag_overrides_to_canonical()
-        self._migrate_add_custom_tags_hardcoded_overrides()
+        self._run_startup_migrations()
         self.config_manager.reload()
 
         self._visible_sections = self._ordered_visible_sections()

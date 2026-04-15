@@ -19,7 +19,8 @@ This tab configures the canonical missed-question tagging flow, including rotati
 - Save and run one missed-tag action on a small selected set.
 
 ## Compatibility Notes
-Legacy keys are still merged for compatibility, but new edits should be made only in `tag_missed_qid_notes`.
+Use canonical keys inside `tag_missed_qid_notes`; per-key legacy alias remapping is no longer applied at runtime.
+Legacy section names are still merged into `tag_missed_qid_notes` by `ConfigManager`:
 - `add_missed_tags`
 - `tag_selected_notes_config`
 - `add_tags`

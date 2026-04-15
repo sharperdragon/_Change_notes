@@ -14,6 +14,8 @@ Compatibility:
 
 """
 
+from typing import Optional
+
 from aqt import gui_hooks, mw
 from aqt.browser import Browser
 from aqt.qt import QAction, QMenu
@@ -23,7 +25,13 @@ from .menu_compiler import compile_browser_context_menu
 from .modules.add_table_class.main import add_class_main
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
-CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
+# Set to None to use each section's `submenu_label` from config.
+CUSTOM_TAGS_MENU_LABEL: Optional[str] = None
+CUSTOM_TAGS_MENU_CONFIG_SECTION = "add_custom_tags"
+CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
+CUSTOM_TAGS_MENU_2_LABEL: Optional[str] = None
+CUSTOM_TAGS_MENU_2_CONFIG_SECTION = "add_custom_tags_2"
+CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS = True
 ADDON_MODULE_NAME = __name__
 # ! -----------------------------------------------------------------------------
 
@@ -34,6 +42,11 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
         browser,
         menu,
         custom_tags_menu_label=CUSTOM_TAGS_MENU_LABEL,
+        custom_tags_menu_config_section=CUSTOM_TAGS_MENU_CONFIG_SECTION,
+        custom_tags_menu_hide_when_no_presets=CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS,
+        custom_tags_menu_2_label=CUSTOM_TAGS_MENU_2_LABEL,
+        custom_tags_menu_2_config_section=CUSTOM_TAGS_MENU_2_CONFIG_SECTION,
+        custom_tags_menu_2_hide_when_no_presets=CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS,
     )
 
 

@@ -1,7 +1,6 @@
 # pyright: reportMissingImports=false
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from aqt.qt import QAction, QMenu
@@ -9,10 +8,11 @@ from aqt.utils import showInfo, tooltip
 
 from ..config_manager import ConfigManager
 from .shared.defaults import ADD_CUSTOM_TAGS_DEFAULTS
-from .shared.menu_styles import build_qmenu_stylesheet
+from .shared.menu_styles import build_custom_tags_menu_stylesheet
 
 # ! ----------------------------- CONFIG SECTION -----------------------------
-CONFIG_SECTION = "add_custom_tags"
+DEFAULT_CONFIG_SECTION = "add_custom_tags"
+DEFAULT_HIDE_WHEN_NO_PRESETS = False
 # ! ------------------------------------------------------------------------
 
 # ! --------------------------- OPTIONAL CONFIG KEYS ---------------------------
@@ -20,24 +20,6 @@ CONFIG_KEY_SUBMENU_LABEL = "submenu_label"
 CONFIG_KEY_GROUP_LABELS = "group_labels"
 CONFIG_KEY_PRESETS = "presets"
 CONFIG_KEY_GROUP = "group"
-# ! -----------------------------------------------------------------------------
-
-# ! --------------------- USER-TUNABLE BUILT-IN CUSTOM ACTIONS -------------------
-MANAGEMENT_TREATMENT_LABEL = "Management Tx"
-MANAGEMENT_TREATMENT_TAG = "#Custom::#Management::#Treatment"
-# ! -----------------------------------------------------------------------------
-
-# ! ------------------------- USER-TUNABLE UI STYLING ----------------------------
-USE_CUSTOM_MENU_STYLING = True
-USE_CUSTOM_SUBMENU_ARROW_ICON = True
-SUBMENU_ARROW_ICON_ABS_PATH = str((Path(__file__).resolve().parent / "assets" / "submenu_arrow.svg"))
-SUBMENU_ARROW_ICON_SIZE_PX = 8
-SUBMENU_ARROW_HORIZONTAL_PADDING_PX = 5
-MENU_ITEM_HOVER_BACKGROUND_COLOR = "rgba(120, 160, 255, 60)"
-MENU_ITEM_PADDING_TOP_PX = 4.5
-MENU_ITEM_PADDING_BOTTOM_PX = 4.5
-MENU_ITEM_PADDING_LEFT_PX = 8
-MENU_ITEM_PADDING_RIGHT_PX = 8
 # ! -----------------------------------------------------------------------------
 
 # ! ----------------------- HARDCODED UI MESSAGES -----------------------
@@ -101,18 +83,11 @@ def _normalize_group_labels(raw: Any) -> dict[str, str]:
     return normalized
 
 
-def _preset_list_contains_tag(presets: list[dict[str, Any]], tag: str) -> bool:
-    for preset in presets:
-        tags = preset.get("tags", [])
-        if any(str(existing).strip() == tag for existing in tags):
-            return True
-    return False
-
-
 def _load_runtime_config(
     menu_label_override: str | None = None,
+    config_section: str = DEFAULT_CONFIG_SECTION,
 ) -> tuple[str, dict[str, str], list[dict[str, Any]], str, str]:
-    section_cfg = ConfigManager(CONFIG_SECTION).load()
+    section_cfg = ConfigManager(config_section).load()
     if not isinstance(section_cfg, dict):
         section_cfg = {}
 
@@ -182,23 +157,10 @@ def _apply_tags_to_selected_notes(
     tooltip(msg_applied_template.format(tag_count=len(final_tags), note_count=len(nids)))
 
 
-def _build_custom_menu_stylesheet() -> str:
-    return build_qmenu_stylesheet(
-        item_padding_top_px=MENU_ITEM_PADDING_TOP_PX,
-        item_padding_bottom_px=MENU_ITEM_PADDING_BOTTOM_PX,
-        item_padding_left_px=MENU_ITEM_PADDING_LEFT_PX,
-        item_padding_right_px=MENU_ITEM_PADDING_RIGHT_PX,
-        hover_background_color=MENU_ITEM_HOVER_BACKGROUND_COLOR,
-        use_custom_submenu_arrow_icon=USE_CUSTOM_SUBMENU_ARROW_ICON,
-        submenu_arrow_icon_abs_path=SUBMENU_ARROW_ICON_ABS_PATH,
-        submenu_arrow_icon_size_px=SUBMENU_ARROW_ICON_SIZE_PX,
-        submenu_arrow_horizontal_padding_px=SUBMENU_ARROW_HORIZONTAL_PADDING_PX,
-    )
-
-
 def _apply_menu_style(menu: QMenu) -> None:
-    if USE_CUSTOM_MENU_STYLING:
-        menu.setStyleSheet(_build_custom_menu_stylesheet())
+    stylesheet = build_custom_tags_menu_stylesheet()
+    if stylesheet:
+        menu.setStyleSheet(stylesheet)
         return
 
     # Empty stylesheet keeps native Qt/platform menu visuals.
@@ -216,10 +178,22 @@ def add_custom_tag_menu_items(
     parent_menu,
     *,
     menu_label: str | None = None,
+    config_section: str = DEFAULT_CONFIG_SECTION,
+    hide_when_no_presets: bool = DEFAULT_HIDE_WHEN_NO_PRESETS,
 ):
-    submenu_label, group_labels, presets, msg_no_notes_selected, msg_applied_template = _load_runtime_config(
-        menu_label_override=menu_label
+    (
+        submenu_label,
+        group_labels,
+        presets,
+        msg_no_notes_selected,
+        msg_applied_template,
+    ) = _load_runtime_config(
+        menu_label_override=menu_label,
+        config_section=config_section,
     )
+
+    if hide_when_no_presets and not presets:
+        return
 
     custom_menu = QMenu(submenu_label, browser)
     _apply_menu_style(custom_menu)
@@ -253,18 +227,6 @@ def add_custom_tag_menu_items(
     for preset in root_presets:
         _add_preset_action(custom_menu, preset)
 
-    if not _preset_list_contains_tag(presets, MANAGEMENT_TREATMENT_TAG):
-        management_action = QAction(MANAGEMENT_TREATMENT_LABEL, browser)
-        management_action.triggered.connect(
-            lambda _=None: _apply_tags_to_selected_notes(
-                browser,
-                [MANAGEMENT_TREATMENT_TAG],
-                msg_no_notes_selected=msg_no_notes_selected,
-                msg_applied_template=msg_applied_template,
-            )
-        )
-        custom_menu.addAction(management_action)
-
     for group_name, group_items in grouped_presets.items():
         group_menu_label = _display_group_label(group_name, group_labels)
         group_menu = QMenu(group_menu_label, browser)
@@ -275,5 +237,4 @@ def add_custom_tag_menu_items(
             custom_menu.addMenu(group_menu)
 
     if custom_menu.actions():
-        parent_menu.addSeparator()
         parent_menu.addMenu(custom_menu)

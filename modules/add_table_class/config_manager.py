@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 from ...config_manager import ConfigManager as RootConfigManager
 
 
@@ -14,17 +11,8 @@ class ConfigManager:
         self.addon_name = addon_name
         self.config = self.load_config()
 
-    @classmethod
-    def _local_defaults(cls) -> dict:
-        path = Path(__file__).with_name("config.json")
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            return payload if isinstance(payload, dict) else {}
-        except Exception:
-            return {}
-
     def load_config(self):
-        defaults = self._local_defaults()
+        defaults = RootConfigManager.get_default_section(self.SECTION_NAME)
         effective = RootConfigManager.get_effective_section_with_aliases(
             self.SECTION_NAME,
             aliases=(self.LEGACY_SECTION_NAME,),

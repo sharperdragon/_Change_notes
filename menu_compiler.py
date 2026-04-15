@@ -6,7 +6,7 @@ into Anki's Browser right-click menu.
 
 # pyright: reportMissingImports=false
 
-from pathlib import Path
+from typing import Optional
 
 from aqt import mw
 from aqt.qt import QAction, QMenu
@@ -23,14 +23,23 @@ from .modules.img_tags_merge import merge_imgs_and_tags
 from .modules.merge_imgs import merge_images_main
 from .modules.merge_schedule import run_merge_scheduling
 from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
-from .modules.shared.menu_styles import build_qmenu_item_stylesheet, build_qmenu_right_arrow_stylesheet
+from .modules.shared.menu_styles import (
+    build_context_submenu_arrow_stylesheet,
+    build_context_submenu_item_stylesheet,
+)
 from .modules.tag_dupes import run_tag_dupes
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
 DEFAULT_CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
+DEFAULT_CUSTOM_TAGS_MENU_CONFIG_SECTION = "add_custom_tags"
+DEFAULT_CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
+DEFAULT_CUSTOM_TAGS_MENU_2_LABEL: Optional[str] = None
+DEFAULT_CUSTOM_TAGS_MENU_2_CONFIG_SECTION = "add_custom_tags_2"
+DEFAULT_CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS = True
 MENU_LABEL_EXPORT_UW_QIDS = "Export UW QID tag(s) 🧿"
 MENU_LABEL_ADD_IMG_CLASS = "Add IMG class 🏞️"
 MENU_LABEL_ADD_TABLE_CLASS = "📊 Add Table class (col)"
+MENU_LABEL_OTHER_ACTIONS = "Other actions"
 MENU_LABEL_EDIT_MENU = "Edit Menu 📝"
 MENU_LABEL_MERGE_MENU = "Merge Menu 🚧"
 MENU_LABEL_MERGE_IMGS_TAGS = "🍃Merge Imgs+Tags"
@@ -40,42 +49,11 @@ MENU_LABEL_MERGE_SCHEDULE = "🛻 Merge Schedule"
 MENU_LABEL_TAG_DUPES = "Tag Dupes 🔖"
 MENU_LABEL_DELETE_EMPTY = "❌ Empty Note Types࿏"
 MENU_LABEL_BATCH_CHANGE = "Batch Change Note Types"
-USE_CUSTOM_SUBMENU_ARROW_ICON = True
-SUBMENU_ARROW_ICON_ABS_PATH = str((Path(__file__).resolve().parent / "modules" / "assets" / "submenu_arrow.svg"))
-SUBMENU_ARROW_ICON_SIZE_PX = 12
-USE_SUBMENU_ITEM_STYLING = True
-SUBMENU_ITEM_HOVER_BACKGROUND_COLOR = "rgba(120, 160, 255, 60)"
-SUBMENU_ITEM_PADDING_TOP_PX = 4.5
-SUBMENU_ITEM_PADDING_BOTTOM_PX = 4.5
-SUBMENU_ITEM_PADDING_LEFT_PX = 6
-SUBMENU_ITEM_PADDING_RIGHT_PX = 6
 # ! -----------------------------------------------------------------------------
 
 
-def _build_submenu_arrow_stylesheet() -> str:
-    return build_qmenu_right_arrow_stylesheet(
-        use_custom_submenu_arrow_icon=USE_CUSTOM_SUBMENU_ARROW_ICON,
-        submenu_arrow_icon_abs_path=SUBMENU_ARROW_ICON_ABS_PATH,
-        submenu_arrow_icon_size_px=SUBMENU_ARROW_ICON_SIZE_PX,
-        submenu_arrow_horizontal_padding_px=None,
-    )
-
-
-def _build_submenu_item_stylesheet() -> str:
-    if not USE_SUBMENU_ITEM_STYLING:
-        return ""
-
-    return build_qmenu_item_stylesheet(
-        item_padding_top_px=SUBMENU_ITEM_PADDING_TOP_PX,
-        item_padding_bottom_px=SUBMENU_ITEM_PADDING_BOTTOM_PX,
-        item_padding_left_px=SUBMENU_ITEM_PADDING_LEFT_PX,
-        item_padding_right_px=SUBMENU_ITEM_PADDING_RIGHT_PX,
-        hover_background_color=SUBMENU_ITEM_HOVER_BACKGROUND_COLOR,
-    )
-
-
 def _apply_submenu_arrow_style(menu: QMenu) -> None:
-    extra_stylesheet = _build_submenu_arrow_stylesheet()
+    extra_stylesheet = build_context_submenu_arrow_stylesheet()
     if not extra_stylesheet:
         return
 
@@ -88,7 +66,7 @@ def _apply_submenu_arrow_style(menu: QMenu) -> None:
 
 
 def _apply_submenu_item_style(menu: QMenu) -> None:
-    extra_stylesheet = _build_submenu_item_stylesheet()
+    extra_stylesheet = build_context_submenu_item_stylesheet()
     if not extra_stylesheet:
         return
 
@@ -110,7 +88,12 @@ def compile_browser_context_menu(
     browser,
     menu,
     *,
-    custom_tags_menu_label: str = DEFAULT_CUSTOM_TAGS_MENU_LABEL,
+    custom_tags_menu_label: Optional[str] = DEFAULT_CUSTOM_TAGS_MENU_LABEL,
+    custom_tags_menu_config_section: str = DEFAULT_CUSTOM_TAGS_MENU_CONFIG_SECTION,
+    custom_tags_menu_hide_when_no_presets: bool = DEFAULT_CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS,
+    custom_tags_menu_2_label: Optional[str] = DEFAULT_CUSTOM_TAGS_MENU_2_LABEL,
+    custom_tags_menu_2_config_section: str = DEFAULT_CUSTOM_TAGS_MENU_2_CONFIG_SECTION,
+    custom_tags_menu_2_hide_when_no_presets: bool = DEFAULT_CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS,
 ):
     _apply_submenu_arrow_style(menu)
 
@@ -122,27 +105,52 @@ def compile_browser_context_menu(
 
     # Tag-related root menu entries.
     add_missed_tag_menu_items(browser, menu)
-    add_custom_tag_menu_items(browser, menu, menu_label=custom_tags_menu_label)
+    add_custom_tag_menu_items(
+        browser,
+        menu,
+        menu_label=custom_tags_menu_label,
+        config_section=custom_tags_menu_config_section,
+        hide_when_no_presets=custom_tags_menu_hide_when_no_presets,
+    )
+    add_custom_tag_menu_items(
+        browser,
+        menu,
+        menu_label=custom_tags_menu_2_label,
+        config_section=custom_tags_menu_2_config_section,
+        hide_when_no_presets=custom_tags_menu_2_hide_when_no_presets,
+    )
 
     menu.addSeparator()
 
+    other_actions_menu = QMenu(MENU_LABEL_OTHER_ACTIONS, menu)
+    other_actions_menu.setObjectName("otherActionsMenu")
+    _apply_submenu_item_style(other_actions_menu)
+    _apply_submenu_arrow_style(other_actions_menu)
+    added_other_actions = False
+
     # Export NIDs (adds two Desktop files + copies query to clipboard)
     export_action = create_export_nids_action(parent=browser, mw=mw, browser=browser)
-    menu.addAction(export_action)
+    other_actions_menu.addAction(export_action)
+    added_other_actions = True
 
     # Export UWorld Step QID tags (deduped + sorted + clipboard + Desktop file)
     export_uw_qids_action = QAction(MENU_LABEL_EXPORT_UW_QIDS, browser)
     export_uw_qids_action.triggered.connect(lambda: run_export_for_selected_notes(browser))
-    menu.addAction(export_uw_qids_action)
+    other_actions_menu.addAction(export_uw_qids_action)
+    added_other_actions = True
+
+    classify_tables_action = QAction(MENU_LABEL_ADD_TABLE_CLASS, browser)
+    classify_tables_action.triggered.connect(lambda: add_class_main(browser))
+    other_actions_menu.addAction(classify_tables_action)
+    added_other_actions = True
+
+    if added_other_actions:
+        menu.addMenu(other_actions_menu)
 
     # Context menu image/table classifiers.
     classify_imgs_action = QAction(MENU_LABEL_ADD_IMG_CLASS, browser)
     classify_imgs_action.triggered.connect(lambda: add_img_class_main(browser))
     menu.addAction(classify_imgs_action)
-
-    classify_tables_action = QAction(MENU_LABEL_ADD_TABLE_CLASS, browser)
-    classify_tables_action.triggered.connect(lambda: add_class_main(browser))
-    menu.addAction(classify_tables_action)
 
     # Create submenus for grouped actions.
     edit_menu = QMenu(MENU_LABEL_EDIT_MENU, menu)

@@ -11,6 +11,7 @@ from .defaults import (
     TAG_DUPES_DEFAULTS,
     clone_defaults,
 )
+from .parsing import parse_bool
 
 __all__ = [
     "ADD_CUSTOM_TAGS_DEFAULTS",
@@ -22,4 +23,5 @@ __all__ = [
     "MERGE_TAGS_DEFAULTS",
     "TAG_DUPES_DEFAULTS",
     "clone_defaults",
+    "parse_bool",
 ]

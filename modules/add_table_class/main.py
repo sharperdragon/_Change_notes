@@ -1,46 +1,19 @@
-import json
 import os
 import re
 import traceback
-from pathlib import Path
 
 from aqt import mw
 from aqt.utils import showText, tooltip
 
 from ...config_manager import ConfigManager
 from ..shared.defaults import ADD_TABLE_CLASS_DEFAULTS, clone_defaults
+from ..shared.parsing import parse_bool
 
 CONFIG_SECTION = "add_table_class"
-LEGACY_CONFIG_SECTION = "Add_table_class"
 
 _RUNTIME_CONFIG = clone_defaults(ADD_TABLE_CLASS_DEFAULTS)
 _LOG_PATH = os.path.expanduser(ADD_TABLE_CLASS_DEFAULTS["log_path"])
 _APPLY_TO_EXISTING = bool(ADD_TABLE_CLASS_DEFAULTS["apply_to_existing_classes"])
-
-
-def _parse_bool(value, default=False):
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "yes", "y", "on"}:
-            return True
-        if lowered in {"0", "false", "no", "n", "off"}:
-            return False
-    return default
-
-
-def _load_local_legacy_config() -> dict:
-    config_path = Path(__file__).with_name("config.json")
-    try:
-        payload = json.loads(config_path.read_text(encoding="utf-8"))
-        return payload if isinstance(payload, dict) else {}
-    except Exception:
-        return {}
 
 
 def _reload_runtime_config():
@@ -49,16 +22,11 @@ def _reload_runtime_config():
     global _APPLY_TO_EXISTING
 
     cfg = clone_defaults(ADD_TABLE_CLASS_DEFAULTS)
-    cfg = ConfigManager.deep_merge_dicts(cfg, _load_local_legacy_config())
     cfg = ConfigManager.deep_merge_dicts(cfg, ConfigManager(CONFIG_SECTION).load())
-
-    legacy_cfg = ConfigManager.get_effective_section(LEGACY_CONFIG_SECTION)
-    if legacy_cfg:
-        cfg = ConfigManager.deep_merge_dicts(cfg, legacy_cfg)
 
     _RUNTIME_CONFIG = cfg
     _LOG_PATH = os.path.expanduser(str(cfg.get("log_path", ADD_TABLE_CLASS_DEFAULTS["log_path"])))
-    _APPLY_TO_EXISTING = _parse_bool(
+    _APPLY_TO_EXISTING = parse_bool(
         cfg.get("apply_to_existing_classes", ADD_TABLE_CLASS_DEFAULTS["apply_to_existing_classes"]),
         default=True,
     )
