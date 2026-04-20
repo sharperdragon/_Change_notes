@@ -120,6 +120,14 @@
         "tags": ["#Custom::DO_Med"]
       },
       {
+        "label": "💡 Next steps+",
+        "tags": ["#Custom::#Management::#Next_steps"]
+      },
+      {
+        "label": "Suspend – basic 🧀",
+        "tags": ["#Custom::zAuto_Suspend::basic"]
+      },
+      {
         "label": "Imaging 🩻",
         "tags": ["#Custom::#Imaging"]
       },
@@ -128,7 +136,11 @@
         "tags": ["#Custom::Surgery_know"]
       },
       {
-        "label": "Management Tx",
+        "label": "Management ",
+        "tags": ["#Custom::#Management::general"]
+      },
+      {
+        "label": "Management – Tx",
         "tags": ["#Custom::#Management::#Treatment"]
       }
     ]
@@ -147,8 +159,8 @@
         "tags": ["#Custom::Memorize_topics::Genes+Markers"]
       },
       {
-        "label": " 🥅 Screening",
-        "tags": ["#Custom::Memorize_topics::Screening"]
+        "label": " 🥅 Screen+",
+        "tags": ["#Custom::Memorize_topics::Screening+"]
       },
       {
         "label": " ⛱️ General",
@@ -186,7 +198,7 @@
       "exhausted_policy": "unknown",
       "parent_tag_segment": "Rotation",
       "winter_break_label": "Winter-break",
-      "post_rotation_label": "Dedicated"
+      "post_rotation_label": "*Dedicated"
     },
     "actions": {
       "base": {

@@ -180,7 +180,8 @@ def add_custom_tag_menu_items(
     menu_label: str | None = None,
     config_section: str = DEFAULT_CONFIG_SECTION,
     hide_when_no_presets: bool = DEFAULT_HIDE_WHEN_NO_PRESETS,
-):
+    add_separator_before: bool = False,
+) -> bool:
     (
         submenu_label,
         group_labels,
@@ -193,7 +194,7 @@ def add_custom_tag_menu_items(
     )
 
     if hide_when_no_presets and not presets:
-        return
+        return False
 
     custom_menu = QMenu(submenu_label, browser)
     _apply_menu_style(custom_menu)
@@ -237,4 +238,9 @@ def add_custom_tag_menu_items(
             custom_menu.addMenu(group_menu)
 
     if custom_menu.actions():
+        if add_separator_before:
+            parent_menu.addSeparator()
         parent_menu.addMenu(custom_menu)
+        return True
+
+    return False

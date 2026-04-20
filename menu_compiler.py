@@ -118,6 +118,7 @@ def compile_browser_context_menu(
         menu_label=custom_tags_menu_2_label,
         config_section=custom_tags_menu_2_config_section,
         hide_when_no_presets=custom_tags_menu_2_hide_when_no_presets,
+        add_separator_before=True,
     )
 
     menu.addSeparator()

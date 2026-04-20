@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from aqt.qt import QAction, QInputDialog, QMenu
+from aqt.qt import QAction, QApplication, QInputDialog, QMenu
 from aqt.utils import showInfo, tooltip
 
 from ..config_manager import ConfigManager
@@ -16,6 +16,10 @@ from .shared.menu_styles import build_missed_tags_menu_stylesheet
 # ! ----------------------------- CONFIG SECTIONS -----------------------------
 CANONICAL_CONFIG_SECTION = "tag_missed_qid_notes"
 # ! -------------------------------------------------------------------------
+# Prompt offset in pixels from screen center.
+# 0,0 centers the prompt in the active screen.
+PROMPT_DIALOG_OFFSET_CENTER_X = 200
+PROMPT_DIALOG_OFFSET_CENTER_Y = -50
 
 # ! --------------------------- CHANGE-PRONE VALUES ---------------------------
 SCHEDULE_POLICY = {
@@ -24,53 +28,15 @@ SCHEDULE_POLICY = {
 }
 DEFAULT_OPEN_ENDED_ROTATION_END = "2099-12-31"
 
-PROMPT_BEHAVIOR = {
-    "base_plus_rotation": "base_plus_rotation",
-    "base_only": "base_only",
-}
+PROMPT_BEHAVIOR_BASE_PLUS_ROTATION = "base_plus_rotation"
+PROMPT_BEHAVIOR_BASE_ONLY = "base_only"
 
-PROMPT_STYLE = {
-    "rotation_then_number": "rotation_then_number",
-    "range_then_number": "range_then_number",
-}
-
-CONFIG_PATHS: dict[str, tuple[str, ...]] = {
-    "ui.menu_label": ("ui", "menu_label"),
-    "date.include_day_segment": ("date", "include_day_segment"),
-    "rotation.schedule": ("rotation", "schedule"),
-    "rotation.exhausted_policy": ("rotation", "exhausted_policy"),
-    "rotation.parent_tag_segment": ("rotation", "parent_tag_segment"),
-    "rotation.winter_break_label": ("rotation", "winter_break_label"),
-    "rotation.post_rotation_label": ("rotation", "post_rotation_label"),
-    "actions.base.label": ("actions", "base", "label"),
-    "actions.base.tags": ("actions", "base", "tags"),
-    "actions.uworld.label": ("actions", "uworld", "label"),
-    "actions.uworld.base_tags": ("actions", "uworld", "base_tags"),
-    "actions.uworld.default_tag_prefix": ("actions", "uworld", "default_tag_prefix"),
-    "actions.uworld.test_range_block_size": ("actions", "uworld", "test_range_block_size"),
-    "actions.nbme.label": ("actions", "nbme", "label"),
-    "actions.nbme.base_tags": ("actions", "nbme", "base_tags"),
-    "actions.nbme.default_tag_prefix": ("actions", "nbme", "default_tag_prefix"),
-    "actions.amboss.label": ("actions", "amboss", "label"),
-    "actions.amboss.base_tag": ("actions", "amboss", "base_tag"),
-    "actions.amboss.blank_behavior": ("actions", "amboss", "blank_behavior"),
-    "actions.amboss.number_style": ("actions", "amboss", "number_style"),
-    "actions.amboss.remove_from_other_menu": ("actions", "amboss", "remove_from_other_menu"),
-    "actions.multi_missed.label": ("actions", "multi_missed", "label"),
-    "actions.multi_missed.tag_segment": ("actions", "multi_missed", "tag_segment"),
-    "actions.key_info.label": ("actions", "key_info", "label"),
-    "actions.key_info.tag_base": ("actions", "key_info", "tag_base"),
-    "actions.correct_guess.label": ("actions", "correct_guess", "label"),
-    "actions.correct_guess.tags": ("actions", "correct_guess", "tags"),
-    "actions.correct_guess.include_rotation": ("actions", "correct_guess", "include_rotation"),
-    "actions.correct_guess.rotation_lowercase": ("actions", "correct_guess", "rotation_lowercase"),
-    "actions.correct_guess.unknown_segment": ("actions", "correct_guess", "unknown_segment"),
-    "actions.other.resources": ("actions", "other", "resources"),
-    "actions.other.tag_suffix": ("actions", "other", "tag_suffix"),
-}
+PROMPT_STYLE_ROTATION_THEN_NUMBER = "rotation_then_number"
+PROMPT_STYLE_RANGE_THEN_NUMBER = "range_then_number"
 
 MSG_NO_NOTES_SELECTED = "❌ No notes selected."
 MSG_INVALID_INTEGER_TEST_NUMBER = "❌ Please enter a valid integer test number."
+MSG_INVALID_CORRECT_GUESS_SUBTAG = "❌ Subtag cannot include spaces."
 PROMPT_DEFAULT_TITLE = "Enter Test Number"
 PROMPT_DEFAULT_LABEL = "Test #:"
 PROMPT_NBME_TITLE = "Enter NBME Form"
@@ -78,6 +44,9 @@ PROMPT_NBME_LABEL = "Form #:"
 PROMPT_AMBOSS_TITLE = "Enter Amboss Test Number"
 PROMPT_UWORLD_TITLE = "Enter UWorld Test Number"
 PROMPT_TRUE_LEARN_TITLE = "Enter True-Learn Test Number"
+PROMPT_CORRECT_GUESS_SUBTAG_TITLE = "Guessed Correct Subtag"
+PROMPT_CORRECT_GUESS_SUBTAG_LABEL = "Optional subtag (no spaces):"
+
 # ! -------------------------------------------------------------------------
 
 # ? Exclude list for auto-added rotation/month context tags.
@@ -181,28 +150,27 @@ def _get_path_value(data: Any, path: tuple[str, ...]) -> Any:
     return current
 
 
-def _default_value(path_key: str) -> Any:
-    path = CONFIG_PATHS[path_key]
+def _default_value(path: tuple[str, ...]) -> Any:
     value = _get_path_value(ADD_MISSED_TAGS_DEFAULTS, path)
     if value is _MISSING:
         raise KeyError(f"Missing default at path: {'.'.join(path)}")
     return value
 
 
-def _default_text(path_key: str, fallback: str) -> str:
-    return _to_text(_default_value(path_key), fallback)
+def _default_text(path: tuple[str, ...], fallback: str) -> str:
+    return _to_text(_default_value(path), fallback)
 
 
-def _default_bool(path_key: str, fallback: bool) -> bool:
-    return _to_bool(_default_value(path_key), fallback)
+def _default_bool(path: tuple[str, ...], fallback: bool) -> bool:
+    return _to_bool(_default_value(path), fallback)
 
 
-def _default_positive_int(path_key: str, fallback: int) -> int:
-    return _to_positive_int(_default_value(path_key), fallback)
+def _default_positive_int(path: tuple[str, ...], fallback: int) -> int:
+    return _to_positive_int(_default_value(path), fallback)
 
 
-def _default_string_list(path_key: str, fallback: list[str]) -> list[str]:
-    return _to_string_list(_default_value(path_key), fallback=fallback)
+def _default_string_list(path: tuple[str, ...], fallback: list[str]) -> list[str]:
+    return _to_string_list(_default_value(path), fallback=fallback)
 
 
 def _read_text(data: dict[str, Any], key: str, fallback: str) -> str:
@@ -266,6 +234,87 @@ def _normalize_missed_tags_config(raw_cfg: dict[str, Any]) -> dict[str, Any]:
     return ConfigManager.deep_merge_dicts(defaults, raw_cfg)
 
 
+def _load_missed_tags_override_section() -> dict[str, Any]:
+    section_override = ConfigManager.get_override_section(CANONICAL_CONFIG_SECTION)
+    return section_override if isinstance(section_override, dict) else {}
+
+
+def _get_saved_prompt_input(prompt_key: str) -> str:
+    if not prompt_key:
+        return ""
+    section_override = _load_missed_tags_override_section()
+    runtime_cfg = _as_dict(section_override.get("runtime"))
+    last_inputs = _as_dict(runtime_cfg.get("last_prompt_inputs"))
+    value = last_inputs.get(prompt_key, "")
+    return value if isinstance(value, str) else ""
+
+
+def _save_prompt_input(prompt_key: str, prompt_value: str) -> None:
+    if not prompt_key:
+        return
+    try:
+        section_override = _load_missed_tags_override_section()
+        runtime_cfg = _as_dict(section_override.get("runtime"))
+        last_inputs = _as_dict(runtime_cfg.get("last_prompt_inputs"))
+
+        normalized_value = str(prompt_value)
+        current_value = last_inputs.get(prompt_key)
+        if isinstance(current_value, str) and current_value == normalized_value:
+            return
+
+        updated_override = ConfigManager.deep_merge_dicts({}, section_override)
+        updated_runtime_cfg = _as_dict(updated_override.get("runtime"))
+        updated_last_inputs = _as_dict(updated_runtime_cfg.get("last_prompt_inputs"))
+        updated_last_inputs[prompt_key] = normalized_value
+        updated_runtime_cfg["last_prompt_inputs"] = updated_last_inputs
+        updated_override["runtime"] = updated_runtime_cfg
+        ConfigManager.save_section_override(CANONICAL_CONFIG_SECTION, updated_override)
+    except Exception:
+        # Prompt memory should never block tagging behavior.
+        return
+
+
+def _positioned_text_prompt(parent, title: str, label: str, default_text: str = "") -> tuple[str, bool]:
+    dialog = QInputDialog(parent)
+    dialog.setInputMode(QInputDialog.InputMode.TextInput)
+    dialog.setWindowTitle(title)
+    dialog.setLabelText(label)
+    dialog.setTextValue(default_text)
+    dialog.adjustSize()
+
+    try:
+        screen = None
+
+        if parent is not None:
+            try:
+                parent_window = parent.window()
+                if parent_window is not None and parent_window.windowHandle() is not None:
+                    screen = parent_window.windowHandle().screen()
+            except Exception:
+                screen = None
+
+            if screen is None:
+                try:
+                    screen = parent.screen()
+                except Exception:
+                    screen = None
+
+        if screen is None:
+            screen = QApplication.primaryScreen()
+
+        if screen is not None:
+            rect = screen.availableGeometry()
+            target_x = rect.x() + (rect.width() - dialog.width()) // 2 + PROMPT_DIALOG_OFFSET_CENTER_X
+            target_y = rect.y() + (rect.height() - dialog.height()) // 2 + PROMPT_DIALOG_OFFSET_CENTER_Y
+            dialog.move(target_x, target_y)
+    except Exception:
+        # Positioning failure should not block the prompt.
+        pass
+
+    accepted = bool(dialog.exec())
+    return dialog.textValue(), accepted
+
+
 def load_runtime_config() -> MissedTagsConfig:
     merged_cfg = _load_merged_missed_tags_config()
     canonical_cfg = _normalize_missed_tags_config(merged_cfg)
@@ -284,60 +333,67 @@ def load_runtime_config() -> MissedTagsConfig:
     correct_guess_cfg = _as_dict(actions_cfg.get("correct_guess"))
     other_cfg = _as_dict(actions_cfg.get("other"))
 
-    default_menu_label = _default_text("ui.menu_label", "Missed Tags")
-    default_include_day_segment = _default_bool("date.include_day_segment", True)
+    default_menu_label = _default_text(("ui", "menu_label"), "Missed Tags")
+    default_include_day_segment = _default_bool(("date", "include_day_segment"), True)
 
-    default_base_missed_tag = _default_string_list("actions.base.tags", fallback=["##Missed-Qs"])
-    default_action_label_base = _default_text("actions.base.label", "Base")
+    default_base_missed_tag = _default_string_list(("actions", "base", "tags"), fallback=["##Missed-Qs"])
+    default_action_label_base = _default_text(("actions", "base", "label"), "Base")
 
-    default_subset_1_name = _default_text("actions.uworld.label", "UWorld")
+    default_subset_1_name = _default_text(("actions", "uworld", "label"), "UWorld")
     default_subset_1_tag = _default_string_list(
-        "actions.uworld.base_tags",
+        ("actions", "uworld", "base_tags"),
         fallback=[f"{default_base_missed_tag[0]}::UW_Tests"],
     )
-    default_test_tag_prefix = _default_text("actions.uworld.default_tag_prefix", "UW_Tests")
-    default_test_range_block_size = _default_positive_int("actions.uworld.test_range_block_size", 25)
+    default_test_tag_prefix = _default_text(("actions", "uworld", "default_tag_prefix"), "UW_Tests")
+    default_test_range_block_size = _default_positive_int(("actions", "uworld", "test_range_block_size"), 25)
 
-    default_subset_2_name = _default_text("actions.nbme.label", "NBME")
+    default_subset_2_name = _default_text(("actions", "nbme", "label"), "NBME")
     default_subset_2_tag = _default_string_list(
-        "actions.nbme.base_tags",
+        ("actions", "nbme", "base_tags"),
         fallback=[f"{default_base_missed_tag[0]}::NBME"],
     )
-    default_nbme_tag_prefix = _default_text("actions.nbme.default_tag_prefix", "NBME")
+    default_nbme_tag_prefix = _default_text(("actions", "nbme", "default_tag_prefix"), "NBME")
 
-    default_amboss_label = _default_text("actions.amboss.label", "Amboss")
+    default_amboss_label = _default_text(("actions", "amboss", "label"), "Amboss")
     default_amboss_base_tag = _default_text(
-        "actions.amboss.base_tag", f"{default_base_missed_tag[0]}::Amboss"
+        ("actions", "amboss", "base_tag"),
+        f"{default_base_missed_tag[0]}::Amboss",
     )
     default_amboss_blank_behavior = _default_text(
-        "actions.amboss.blank_behavior",
-        PROMPT_BEHAVIOR["base_plus_rotation"],
+        ("actions", "amboss", "blank_behavior"),
+        PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
     )
     default_amboss_number_style = _default_text(
-        "actions.amboss.number_style",
-        PROMPT_STYLE["rotation_then_number"],
+        ("actions", "amboss", "number_style"),
+        PROMPT_STYLE_ROTATION_THEN_NUMBER,
     )
-    default_amboss_remove_from_other_menu = _default_bool("actions.amboss.remove_from_other_menu", True)
+    default_amboss_remove_from_other_menu = _default_bool(("actions", "amboss", "remove_from_other_menu"), True)
 
-    default_action_label_multi_missed = _default_text("actions.multi_missed.label", "2x Missed")
-    default_multi_miss_tag = _default_text("actions.multi_missed.tag_segment", "2x")
+    default_action_label_multi_missed = _default_text(("actions", "multi_missed", "label"), "2x Missed")
+    default_multi_miss_tag = _default_text(("actions", "multi_missed", "tag_segment"), "2x")
 
-    default_action_label_key_info = _default_text("actions.key_info.label", "Key Info")
-    default_key_tag_base = _default_text("actions.key_info.tag_base", "#Custom::#KEY")
+    default_action_label_key_info = _default_text(("actions", "key_info", "label"), "Key Info")
+    default_key_tag_base = _default_text(("actions", "key_info", "tag_base"), "#Custom::#KEY")
 
-    default_action_label_correct_guess = _default_text("actions.correct_guess.label", "Guessed Correct")
+    default_action_label_correct_guess = _default_text(
+        ("actions", "correct_guess", "label"),
+        "Guessed Correct",
+    )
     default_correct_guess_tags = _default_string_list(
-        "actions.correct_guess.tags",
+        ("actions", "correct_guess", "tags"),
         fallback=["#Custom::correct_marked"],
     )
-    default_correct_guess_include_rotation = _default_bool("actions.correct_guess.include_rotation", True)
-    default_correct_guess_rotation_lowercase = _default_bool("actions.correct_guess.rotation_lowercase", True)
-    default_correct_guess_unknown_segment = _default_text("actions.correct_guess.unknown_segment", "unknown")
+    default_correct_guess_include_rotation = _default_bool(("actions", "correct_guess", "include_rotation"), True)
+    default_correct_guess_rotation_lowercase = _default_bool(("actions", "correct_guess", "rotation_lowercase"), True)
+    default_correct_guess_unknown_segment = _default_text(
+        ("actions", "correct_guess", "unknown_segment"),
+        "unknown",
+    )
 
-    default_other_resources = _default_string_list("actions.other.resources", fallback=[])
-    default_other_suffix = _default_text("actions.other.tag_suffix", "Other")
+    default_other_resources = _default_string_list(("actions", "other", "resources"), fallback=[])
+    default_other_suffix = _default_text(("actions", "other", "tag_suffix"), "Other")
 
-    default_rotation_schedule_raw = _default_value("rotation.schedule")
+    default_rotation_schedule_raw = _default_value(("rotation", "schedule"))
     schedule_raw = rotation_cfg.get("schedule", default_rotation_schedule_raw)
     rotation_schedule = _normalize_rotation_schedule(schedule_raw)
     if not rotation_schedule:
@@ -345,7 +401,7 @@ def load_runtime_config() -> MissedTagsConfig:
 
     valid_schedule_policies = {SCHEDULE_POLICY["unknown"], SCHEDULE_POLICY["next"]}
     default_schedule_exhausted_policy = _default_text(
-        "rotation.exhausted_policy",
+        ("rotation", "exhausted_policy"),
         SCHEDULE_POLICY["unknown"],
     ).lower()
     if default_schedule_exhausted_policy not in valid_schedule_policies:
@@ -359,9 +415,9 @@ def load_runtime_config() -> MissedTagsConfig:
     if schedule_exhausted_policy not in valid_schedule_policies:
         schedule_exhausted_policy = SCHEDULE_POLICY["unknown"]
 
-    default_rotation_parent_tag_segment = _default_text("rotation.parent_tag_segment", "Rotation")
-    default_winter_break_label = _default_text("rotation.winter_break_label", "Winter-break")
-    default_post_rotation_label = _default_text("rotation.post_rotation_label", "Dedicated")
+    default_rotation_parent_tag_segment = _default_text(("rotation", "parent_tag_segment"), "Rotation")
+    default_winter_break_label = _default_text(("rotation", "winter_break_label"), "Winter-break")
+    default_post_rotation_label = _default_text(("rotation", "post_rotation_label"), "Dedicated")
 
     return MissedTagsConfig(
         base_missed_tag=_read_string_list(
@@ -453,7 +509,7 @@ def _resolved_base_tag(cfg: MissedTagsConfig) -> str:
         base = str(cfg.base_missed_tag[0]).strip()
         if base:
             return base
-    defaults = _default_string_list("actions.base.tags", fallback=["##Missed-Qs"])
+    defaults = _default_string_list(("actions", "base", "tags"), fallback=["##Missed-Qs"])
     return defaults[0]
 
 
@@ -475,8 +531,15 @@ def _nbme_base_tag(cfg: MissedTagsConfig) -> str:
     return base_tag_path(cfg, cfg.default_nbme_tag_prefix)
 
 
+def _normalize_rotation_label_for_match(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    # Allow user-facing markers (for example, "*Dedicated") without forcing
+    # schedule labels to include the same prefix.
+    return re.sub(r"^[^a-z0-9]+", "", normalized)
+
+
 def _rotation_label_matches(actual: str, expected: str) -> bool:
-    return str(actual or "").strip().lower() == str(expected or "").strip().lower()
+    return _normalize_rotation_label_for_match(actual) == _normalize_rotation_label_for_match(expected)
 
 
 def get_current_or_next_rotation_meta(cfg: MissedTagsConfig) -> tuple[str, str, str]:
@@ -549,12 +612,17 @@ def get_correct_guess_rotation_segment(cfg: MissedTagsConfig) -> str:
     return slug.lower() if cfg.correct_guess_rotation_lowercase else slug
 
 
-def get_correct_guess_tags(cfg: MissedTagsConfig) -> list[str]:
-    if not cfg.correct_guess_include_rotation:
-        return list(cfg.correct_guess_tags)
+def get_correct_guess_tags(cfg: MissedTagsConfig, subtag: str = "") -> list[str]:
+    if cfg.correct_guess_include_rotation:
+        rotation_segment = get_correct_guess_rotation_segment(cfg)
+        tags = [f"{base_tag}::{rotation_segment}" for base_tag in cfg.correct_guess_tags]
+    else:
+        tags = list(cfg.correct_guess_tags)
 
-    rotation_segment = get_correct_guess_rotation_segment(cfg)
-    return [f"{base_tag}::{rotation_segment}" for base_tag in cfg.correct_guess_tags]
+    cleaned_subtag = str(subtag or "").strip()
+    if not cleaned_subtag:
+        return tags
+    return [f"{tag}::{cleaned_subtag}" for tag in tags]
 
 
 def get_missed_month_tag(cfg: MissedTagsConfig) -> str:
@@ -702,12 +770,21 @@ def add_nbme_tag(browser, menu, cfg: MissedTagsConfig):
     def on_trigger():
         prompt_title = PROMPT_NBME_TITLE
         prompt_label = PROMPT_NBME_LABEL
-        form_value, ok = QInputDialog.getText(browser, prompt_title, prompt_label)
+        saved_form_value = _get_saved_prompt_input("nbme_form_prompt")
+        form_value, ok = _positioned_text_prompt(
+            browser, prompt_title, prompt_label, default_text=saved_form_value
+        )
         if not ok:
             return
 
+        form_value = (form_value or "").strip()
+        if form_value == "":
+            _save_prompt_input("nbme_form_prompt", "")
+            showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
+            return
+
         try:
-            form_number = int((form_value or "").strip())
+            form_number = int(form_value)
         except ValueError:
             showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
             return
@@ -715,6 +792,7 @@ def add_nbme_tag(browser, menu, cfg: MissedTagsConfig):
         if form_number <= 0:
             showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
             return
+        _save_prompt_input("nbme_form_prompt", form_value)
 
         if not _ensure_selected_notes(browser):
             return
@@ -766,8 +844,8 @@ def add_uworld_tags(browser, menu, cfg: MissedTagsConfig):
             action_key="uw_test_prompt",
             title=PROMPT_UWORLD_TITLE,
             prompt_label=PROMPT_DEFAULT_LABEL,
-            blank_behavior=PROMPT_BEHAVIOR["base_only"],
-            number_style=PROMPT_STYLE["range_then_number"],
+            blank_behavior=PROMPT_BEHAVIOR_BASE_ONLY,
+            number_style=PROMPT_STYLE_RANGE_THEN_NUMBER,
         )
 
 
@@ -798,8 +876,8 @@ def add_other_resources_actions(
                 action_key="true_learn_test_prompt",
                 title=PROMPT_TRUE_LEARN_TITLE,
                 prompt_label=PROMPT_DEFAULT_LABEL,
-                blank_behavior=PROMPT_BEHAVIOR["base_plus_rotation"],
-                number_style=PROMPT_STYLE["rotation_then_number"],
+                blank_behavior=PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
+                number_style=PROMPT_STYLE_ROTATION_THEN_NUMBER,
                 pad_label=False,
             )
             continue
@@ -829,13 +907,16 @@ def make_test_prompt_handler(
     action_key: str,
     title: str | None = None,
     label: str | None = None,
-    blank_behavior: str = PROMPT_BEHAVIOR["base_plus_rotation"],
-    number_style: str = PROMPT_STYLE["range_then_number"],
+    blank_behavior: str = PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
+    number_style: str = PROMPT_STYLE_RANGE_THEN_NUMBER,
 ):
     def on_trigger():
         prompt_title = (title or PROMPT_DEFAULT_TITLE).strip() or PROMPT_DEFAULT_TITLE
         prompt_label = (label or PROMPT_DEFAULT_LABEL).strip() or PROMPT_DEFAULT_LABEL
-        test_num, ok = QInputDialog.getText(browser, prompt_title, prompt_label)
+        saved_test_num = _get_saved_prompt_input(action_key)
+        test_num, ok = _positioned_text_prompt(
+            browser, prompt_title, prompt_label, default_text=saved_test_num
+        )
         if not ok:
             return
         test_num = (test_num or "").strip()
@@ -843,7 +924,8 @@ def make_test_prompt_handler(
         rotation_segment = get_formatted_rotation_segment(cfg, rot_num_2d, rot_label)
 
         if test_num == "":
-            if blank_behavior == PROMPT_BEHAVIOR["base_only"]:
+            _save_prompt_input(action_key, "")
+            if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
                 formatted_tag = f"{base_tag}"
             else:
                 formatted_tag = f"{base_tag}::{rotation_segment}"
@@ -851,12 +933,13 @@ def make_test_prompt_handler(
             try:
                 tn = int(test_num)
             except ValueError:
-                if blank_behavior == PROMPT_BEHAVIOR["base_only"]:
+                if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
                     formatted_tag = f"{base_tag}"
                 else:
                     formatted_tag = f"{base_tag}::{rotation_segment}"
             else:
-                if number_style == PROMPT_STYLE["rotation_then_number"]:
+                _save_prompt_input(action_key, test_num)
+                if number_style == PROMPT_STYLE_ROTATION_THEN_NUMBER:
                     formatted_tag = f"{base_tag}::{rotation_segment}::{tn:02d}"
                 else:
                     lower = ((tn - 1) // cfg.test_range_block_size) * cfg.test_range_block_size + 1
@@ -894,9 +977,33 @@ def add_key_info_action(browser, menu, cfg: MissedTagsConfig):
 
 def add_correct_guess_action(browser, menu, cfg: MissedTagsConfig):
     action = QAction(cfg.action_label_correct_guess, browser)
-    action.triggered.connect(
-        lambda _: apply_tags_to_selected_notes(
-            browser, get_correct_guess_tags(cfg), action_key="correct_guess", cfg=cfg
+
+    def on_trigger():
+        if not _ensure_selected_notes(browser):
+            return
+
+        saved_subtag = _get_saved_prompt_input("correct_guess_subtag_prompt")
+        subtag, ok = _positioned_text_prompt(
+            browser,
+            PROMPT_CORRECT_GUESS_SUBTAG_TITLE,
+            PROMPT_CORRECT_GUESS_SUBTAG_LABEL,
+            default_text=saved_subtag,
         )
-    )
+        if not ok:
+            return
+
+        subtag = str(subtag or "").strip()
+        if re.search(r"\s", subtag):
+            showInfo(MSG_INVALID_CORRECT_GUESS_SUBTAG)
+            return
+
+        _save_prompt_input("correct_guess_subtag_prompt", subtag)
+        apply_tags_to_selected_notes(
+            browser,
+            get_correct_guess_tags(cfg, subtag=subtag),
+            action_key="correct_guess",
+            cfg=cfg,
+        )
+
+    action.triggered.connect(on_trigger)
     menu.addAction(action)
