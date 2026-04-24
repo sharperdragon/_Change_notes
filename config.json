@@ -116,6 +116,14 @@
         "tags": ["#Custom::#KEY"]
       },
       {
+        "label": "Key Basics ♟️",
+        "tags": ["#Custom::#KEY::Basics"]
+      },
+      {
+        "label": "💼 Management",
+        "tags": ["#Custom::#Management::general"]
+      },
+      {
         "label": "D.O. Med 🌬️",
         "tags": ["#Custom::DO_Med"]
       },
@@ -136,10 +144,6 @@
         "tags": ["#Custom::Surgery_know"]
       },
       {
-        "label": "Management ",
-        "tags": ["#Custom::#Management::general"]
-      },
-      {
         "label": "Management – Tx",
         "tags": ["#Custom::#Management::#Treatment"]
       }
@@ -152,19 +156,19 @@
     "presets": [
       {
         "label": " 🧮 Know Numbers",
-        "tags": ["#Custom::Memorize_topics::Know_Numbers"]
+        "tags": ["#Custom::Memorize::Know_Numbers"]
       },
       {
         "label": " 🧬 Markers/Genes+",
-        "tags": ["#Custom::Memorize_topics::Genes+Markers"]
+        "tags": ["#Custom::Memorize::Genes+Markers"]
       },
       {
         "label": " 🥅 Screen+",
-        "tags": ["#Custom::Memorize_topics::Screening+"]
+        "tags": ["#Custom::Memorize::Screening+"]
       },
       {
         "label": " ⛱️ General",
-        "tags": ["#Custom::Memorize_topics::General"]
+        "tags": ["#Custom::Memorize::General"]
       },
       {
         "label": " 👾 Drug ADRs 😵",

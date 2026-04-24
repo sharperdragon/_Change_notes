@@ -111,6 +111,7 @@ def compile_browser_context_menu(
         menu_label=custom_tags_menu_label,
         config_section=custom_tags_menu_config_section,
         hide_when_no_presets=custom_tags_menu_hide_when_no_presets,
+        add_separator_before=True,
     )
     add_custom_tag_menu_items(
         browser,

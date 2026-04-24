@@ -34,6 +34,13 @@ PROMPT_BEHAVIOR_BASE_ONLY = "base_only"
 PROMPT_STYLE_ROTATION_THEN_NUMBER = "rotation_then_number"
 PROMPT_STYLE_RANGE_THEN_NUMBER = "range_then_number"
 
+# Amboss prompt behavior: when enabled, any non-empty prompt text is converted
+# into child tag segments under Amboss::<rotation>.
+AMBOSS_ALLOW_FREEFORM_CHILD_SEGMENTS = True
+# When freeform child segments are enabled for Amboss, include current rotation
+# between Amboss and user-entered segments.
+AMBOSS_FREEFORM_INCLUDE_ROTATION_SEGMENT = False
+
 MSG_NO_NOTES_SELECTED = "❌ No notes selected."
 MSG_INVALID_INTEGER_TEST_NUMBER = "❌ Please enter a valid integer test number."
 MSG_INVALID_CORRECT_GUESS_SUBTAG = "❌ Subtag cannot include spaces."
@@ -98,6 +105,22 @@ def scrub_resource_label_to_tag(label: str) -> str:
     missed_base = re.sub(r"[^A-Za-z0-9\- ]+", "", missed_base)
     missed_base = re.sub(r"\s+", " ", missed_base).strip()
     return missed_base
+
+
+def _normalize_freeform_tag_path(raw: str) -> str:
+    """Normalize user text to safe Anki tag path segments."""
+    parts = str(raw or "").split("::")
+    normalized: list[str] = []
+    for part in parts:
+        seg = str(part).strip()
+        if not seg:
+            continue
+        seg = re.sub(r"\s+", "_", seg)
+        seg = re.sub(r"[^A-Za-z0-9_+\-.]+", "-", seg)
+        seg = re.sub(r"_+", "_", seg).strip("_-")
+        if seg:
+            normalized.append(seg)
+    return "::".join(normalized)
 
 
 def _to_text(value: Any, fallback: str) -> str:
@@ -716,6 +739,8 @@ def _add_prompt_action(
     blank_behavior: str,
     number_style: str,
     pad_label: bool = True,
+    allow_freeform_child_segments: bool = False,
+    include_rotation_for_freeform: bool = True,
 ) -> None:
     action_text = f"{label:<24}" if pad_label else label
     action = QAction(action_text, browser)
@@ -729,6 +754,8 @@ def _add_prompt_action(
             label=prompt_label,
             blank_behavior=blank_behavior,
             number_style=number_style,
+            allow_freeform_child_segments=allow_freeform_child_segments,
+            include_rotation_for_freeform=include_rotation_for_freeform,
         )
     )
     menu.addAction(action)
@@ -816,6 +843,8 @@ def add_amboss_tag(browser, menu, cfg: MissedTagsConfig):
         prompt_label=PROMPT_DEFAULT_LABEL,
         blank_behavior=cfg.amboss_blank_behavior,
         number_style=cfg.amboss_number_style,
+        allow_freeform_child_segments=AMBOSS_ALLOW_FREEFORM_CHILD_SEGMENTS,
+        include_rotation_for_freeform=AMBOSS_FREEFORM_INCLUDE_ROTATION_SEGMENT,
     )
 
 
@@ -909,6 +938,8 @@ def make_test_prompt_handler(
     label: str | None = None,
     blank_behavior: str = PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
     number_style: str = PROMPT_STYLE_RANGE_THEN_NUMBER,
+    allow_freeform_child_segments: bool = False,
+    include_rotation_for_freeform: bool = True,
 ):
     def on_trigger():
         prompt_title = (title or PROMPT_DEFAULT_TITLE).strip() or PROMPT_DEFAULT_TITLE
@@ -925,27 +956,45 @@ def make_test_prompt_handler(
 
         if test_num == "":
             _save_prompt_input(action_key, "")
-            if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
+            if allow_freeform_child_segments and not include_rotation_for_freeform:
+                formatted_tag = f"{base_tag}"
+            elif blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
                 formatted_tag = f"{base_tag}"
             else:
                 formatted_tag = f"{base_tag}::{rotation_segment}"
         else:
-            try:
-                tn = int(test_num)
-            except ValueError:
-                if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
+            if allow_freeform_child_segments:
+                _save_prompt_input(action_key, test_num)
+                freeform_path = _normalize_freeform_tag_path(test_num)
+                if freeform_path:
+                    if include_rotation_for_freeform:
+                        formatted_tag = f"{base_tag}::{rotation_segment}::{freeform_path}"
+                    else:
+                        formatted_tag = f"{base_tag}::{freeform_path}"
+                elif blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
                     formatted_tag = f"{base_tag}"
                 else:
-                    formatted_tag = f"{base_tag}::{rotation_segment}"
+                    if include_rotation_for_freeform:
+                        formatted_tag = f"{base_tag}::{rotation_segment}"
+                    else:
+                        formatted_tag = f"{base_tag}"
             else:
-                _save_prompt_input(action_key, test_num)
-                if number_style == PROMPT_STYLE_ROTATION_THEN_NUMBER:
-                    formatted_tag = f"{base_tag}::{rotation_segment}::{tn:02d}"
+                try:
+                    tn = int(test_num)
+                except ValueError:
+                    if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
+                        formatted_tag = f"{base_tag}"
+                    else:
+                        formatted_tag = f"{base_tag}::{rotation_segment}"
                 else:
-                    lower = ((tn - 1) // cfg.test_range_block_size) * cfg.test_range_block_size + 1
-                    upper = lower + cfg.test_range_block_size - 1
-                    range_tag = f"{lower}-{upper}"
-                    formatted_tag = f"{base_tag}::{range_tag}::{tn:02d}"
+                    _save_prompt_input(action_key, test_num)
+                    if number_style == PROMPT_STYLE_ROTATION_THEN_NUMBER:
+                        formatted_tag = f"{base_tag}::{rotation_segment}::{tn:02d}"
+                    else:
+                        lower = ((tn - 1) // cfg.test_range_block_size) * cfg.test_range_block_size + 1
+                        upper = lower + cfg.test_range_block_size - 1
+                        range_tag = f"{lower}-{upper}"
+                        formatted_tag = f"{base_tag}::{range_tag}::{tn:02d}"
 
         if not _ensure_selected_notes(browser):
             return
