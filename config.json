@@ -124,7 +124,11 @@
         "tags": ["#Custom::#Management::general"]
       },
       {
-        "label": "D.O. Med 🌬️",
+        "label": "Diagnosis 🎯",
+        "tags": ["#Custom::Diagnosis"]
+      },
+      {
+        "label": "🌬️ D.O. Med",
         "tags": ["#Custom::DO_Med"]
       },
       {
@@ -132,16 +136,12 @@
         "tags": ["#Custom::#Management::#Next_steps"]
       },
       {
-        "label": "Suspend – basic 🧀",
+        "label": "🧀 Suspend – basic",
         "tags": ["#Custom::zAuto_Suspend::basic"]
       },
       {
         "label": "Imaging 🩻",
         "tags": ["#Custom::#Imaging"]
-      },
-      {
-        "label": " 🏥 Surgery",
-        "tags": ["#Custom::Surgery_know"]
       },
       {
         "label": "Management – Tx",
@@ -155,20 +155,24 @@
     },
     "presets": [
       {
+        "label": "🏥 Surgery",
+        "tags": ["#Custom::Surgery_know"]
+      },
+      {
         "label": " 🧮 Know Numbers",
-        "tags": ["#Custom::Memorize::Know_Numbers"]
-      },
-      {
-        "label": " 🧬 Markers/Genes+",
-        "tags": ["#Custom::Memorize::Genes+Markers"]
-      },
-      {
-        "label": " 🥅 Screen+",
-        "tags": ["#Custom::Memorize::Screening+"]
+        "tags": ["#Custom::*Memorize::Know_Numbers"]
       },
       {
         "label": " ⛱️ General",
-        "tags": ["#Custom::Memorize::General"]
+        "tags": ["#Custom::*Memorize::General"]
+      },
+      {
+        "label": " 🧬 Markers/Genes+",
+        "tags": ["#Custom::*Memorize::Genes+Markers"]
+      },
+      {
+        "label": " 🥅 Screen+",
+        "tags": ["#Custom::*Memorize::Screening+"]
       },
       {
         "label": " 👾 Drug ADRs 😵",
