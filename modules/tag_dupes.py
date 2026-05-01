@@ -20,8 +20,9 @@ config_manager = ConfigManager("tag_dupes_config")
 config = {}
 
 DEBUG_MODE = False  # Set to True to enable verbose debug logging
+TAG_DUPES_LOG_FOLDER = "logs"
 now_str = datetime.now().strftime("%m%d_%H%M%S")
-DEBUG_LOG_PATH = Path(__file__).parent / "logs" / "tag_dupes" / f"debug_log_{now_str}.txt"
+DEBUG_LOG_PATH = Path(__file__).parent / TAG_DUPES_LOG_FOLDER / "tag_dupes" / f"debug_log_{now_str}.txt"
 
 def log_debug(msg: str, debug_mode=DEBUG_MODE):
     timestamped = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
@@ -52,7 +53,7 @@ def is_valid_tag(tag):
 FIELD_TO_COMPARE = TAG_DUPES_DEFAULTS["comparison_field"]
 TAG_UNMATCHED = TAG_DUPES_DEFAULTS["tag_unmatched"]
 MULTI_CHILD_LABEL = TAG_DUPES_DEFAULTS["multi_tag_child"]
-log_dir_path = (Path(__file__).parent / "logs" / "merge_tags").resolve()
+log_dir_path = (Path(__file__).parent / TAG_DUPES_LOG_FOLDER / "merge_tags").resolve()
 log_dir_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
 
 
@@ -73,14 +74,13 @@ def _reload_runtime_config():
     if not TAG_UNMATCHED:
         TAG_UNMATCHED = str(config.get("TAG UNMATCHED", tag_unmatched_default)).lower() == "true"
     MULTI_CHILD_LABEL = config.get("multi_tag_child", TAG_DUPES_DEFAULTS["multi_tag_child"])
-    log_folder = config.get("log_folder") or TAG_DUPES_DEFAULTS["log_folder"]
     DEBUG_LOG_PATH = (
-        Path(__file__).parent / log_folder / "tag_dupes" / f"debug_log_{now_str}.txt"
+        Path(__file__).parent / TAG_DUPES_LOG_FOLDER / "tag_dupes" / f"debug_log_{now_str}.txt"
     )
 
 
 _reload_runtime_config()
-log_debug(f"Config: BASE_TAG_LABEL={BASE_TAG_LABEL}, FIELD_TO_COMPARE={FIELD_TO_COMPARE}, TAG_UNMATCHED={TAG_UNMATCHED}, MULTI_CHILD_LABEL={MULTI_CHILD_LABEL}, log_folder={(config.get('log_folder') or 'logs')}")
+log_debug(f"Config: BASE_TAG_LABEL={BASE_TAG_LABEL}, FIELD_TO_COMPARE={FIELD_TO_COMPARE}, TAG_UNMATCHED={TAG_UNMATCHED}, MULTI_CHILD_LABEL={MULTI_CHILD_LABEL}, log_folder={TAG_DUPES_LOG_FOLDER}")
 log_debug(f"Log directory: {log_dir_path}")
 
 

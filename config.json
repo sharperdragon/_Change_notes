@@ -2,49 +2,34 @@
   "global_config": {
     "default_fuzzy": 0.95,
     "default_note_type": "*Nord+",
-    "log_folder": "logs"
-  },
-  "global_fuzzy_opts": {
-    "default_fuzz": 0.97,
-    "min_fuzz": 0.59,
-    "max_fuzz": 1.0
+    "log_folder": "logs",
+    "fuzzy_opts": {
+      "default_fuzz": 0.97,
+      "min_fuzz": 0.55
+    }
   },
   "merge_tags_config": {
     "comparison_field": "Text",
     "default_fuzzy": 0.96,
-    "min_fuzzy": 0.8,
-    "max_fuzzy": 1.0,
+    "min_fuzzy": 0.7,
     "ask_fuzzy_each_time": true,
     "base_tag": "TAGS_MERGED",
-    "log_folder": "",
     "merge_select_only": false,
-    "merge_only_parents": [],
-    "merge_only_from_parents": []
+    "excluded_tags": [],
+    "merge_only_parents": ["#Zank::#Step2_v12", "#Zank::Step1_v12"]
   },
   "merge_images_config": {
     "default_threshold": 0.97,
     "min_threshold": 0.6,
-    "max_threshold": 1.0,
-    "ask_threshold_each_time": true,
     "allowed_models": [],
     "excluded_tags": [
       "First_Aid"
     ],
     "fields_to_scan_for_images": [
       "Extra",
-      "Extra2",
-      "Extra3",
-      "Extra4",
-      "Extra5",
-      "Extra6",
-      "Extra7",
-      "Button",
-      "Front"
+      "Extra2"
     ],
     "merge_behavior": {
-      "wrap_images_in_div": true,
-      "insert_new_line_between_images": true,
-      "append_to_existing_field": true,
       "copy_sketchy_links": true
     },
     "logging": {
@@ -59,12 +44,7 @@
       "no_images_found": "IMG_Uni::no_images"
     }
   },
-  "merge_images_and_tags_config": {
-    "default_fuzzy": 0.99,
-    "min_fuzzy": 0.78,
-    "base_tag": "Tag+IMG_MERGED",
-    "log_folder": ""
-  },
+  "merge_images_and_tags_config": {},
   "merge_scheduling": {
     "merge_similarity_threshold": 85,
     "default_fuzzy": 0.95,
@@ -73,7 +53,6 @@
     "scheduling_merge_log_path": "merged_scheduling.log",
     "use_text_replacements": true,
     "tag_on_merge": "Scheduling::Merged",
-    "abort_on_cancel": true,
     "multi_card_policy": "skip"
   },
   "tag_dupes_config": {
@@ -81,14 +60,13 @@
     "base_tag": "Main_dupe",
     "multi_tag_child": "multiple",
     "tag_unmatched": true,
-    "TAG UNMATCHED": "true",
-    "unmatched_tag": "unmatched",
-    "log_folder": ""
+    "unmatched_tag": "unmatched"
   },
   "delete_empty_notes_config": {
     "protected_notes": [
       "*Nord+",
       "*Nord-focus+",
+      "*Nord-hint",
       "Cloze - Dracula",
       "Basic □",
       "Image Occlusion Enhanced"
@@ -125,22 +103,22 @@
       },
       {
         "label": "Diagnosis 🎯",
-        "tags": ["#Custom::Diagnosis"]
+        "tags": ["#Custom::Task::Diagnosis"]
       },
       {
         "label": "🌬️ D.O. Med",
         "tags": ["#Custom::DO_Med"]
       },
       {
-        "label": "💡 Next steps+",
-        "tags": ["#Custom::#Management::#Next_steps"]
+        "label": "📛 Risks+ ",
+        "tags": ["#Custom::Random::Risk_Factors+"]
       },
       {
         "label": "🧀 Suspend – basic",
         "tags": ["#Custom::zAuto_Suspend::basic"]
       },
       {
-        "label": "Imaging 🩻",
+        "label": "🩻 Imaging",
         "tags": ["#Custom::#Imaging"]
       },
       {
@@ -218,10 +196,11 @@
       "uworld": {
         "label": " 🛃 UWorld",
         "base_tags": [
-          "##Missed-Qs::UW_Tests"
+          "##Missed-Qs::*UW_Tests"
         ],
-        "default_tag_prefix": "UW_Tests",
-        "test_range_block_size": 25
+        "default_tag_prefix": "*UW_Tests",
+        "test_parent_range_block_size": 50,
+        "test_range_block_size": 5
       },
       "nbme": {
         "label": " 🧠 NBME",
@@ -239,7 +218,7 @@
       },
       "multi_missed": {
         "label": "2x Missed 📌",
-        "tag_segment": "2x"
+        "tag_segment": "*2x"
       },
       "key_info": {
         "label": "Key Info 🗝️",

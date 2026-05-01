@@ -1,7 +1,6 @@
 {
   "merge_scheduling": {
     "merge_similarity_threshold": 85,
-    "abort_on_cancel": true,
     "multi_card_policy": "skip",
     "default_fuzzy": "0.95",
     "min_fuzzy": "0.81",

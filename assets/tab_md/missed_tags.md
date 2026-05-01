@@ -9,7 +9,8 @@ This tab configures the canonical missed-question tagging flow, including rotati
 ## High-risk Fields
 - `rotation.schedule`: Invalid dates or overlapping windows can produce incorrect rotation tags.
 - `actions.*.tags` / `actions.*.base_tags`: Wrong tag arrays can apply incorrect or broad tags.
-- `actions.uworld.test_range_block_size`: Bad values can generate misleading bucket tags.
+- `actions.uworld.test_parent_range_block_size`: Bad values can generate incorrect top-level UWorld buckets.
+- `actions.uworld.test_range_block_size`: Bad values can generate incorrect second-level UWorld buckets.
 - `rotation.exhausted_policy`: Wrong fallback policy changes post-schedule behavior.
 
 ## Safe Edit Checklist
@@ -66,7 +67,8 @@ Legacy section names are still merged into `tag_missed_qid_notes` by `ConfigMana
         "label": "UWorld",
         "base_tags": ["##Missed-Qs::UW_Tests"],
         "default_tag_prefix": "UW_Tests",
-        "test_range_block_size": 25
+        "test_parent_range_block_size": 50,
+        "test_range_block_size": 5
       }
     }
   }

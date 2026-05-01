@@ -37,6 +37,14 @@ class ConfigManager:
         "message_no_notes_selected",
         "message_applied_template",
     )
+    LEGACY_GLOBAL_FUZZY_OPTS_SECTION = "global_fuzzy_opts"
+    MERGE_TAGS_SECTION = "merge_tags_config"
+    LEGACY_MERGE_TAGS_PARENTS_KEY = "merge_only_from_parents"
+    CANONICAL_MERGE_TAGS_PARENTS_KEY = "merge_only_parents"
+    MERGE_IMAGES_SECTION = "merge_images_config"
+    HARD_MAX_GLOBAL_FUZZY_KEY = "max_fuzz"
+    HARD_MAX_MERGE_TAGS_KEY = "max_fuzzy"
+    HARD_MAX_MERGE_IMAGES_KEY = "max_threshold"
 
     def __init__(self, addon_name: str, global_config_name: str = None):
         self.addon_name = addon_name
@@ -178,6 +186,83 @@ class ConfigManager:
         return changed
 
     @classmethod
+    def _migrate_global_fuzzy_opts_section(cls, payload: dict) -> bool:
+        """Move legacy root `global_fuzzy_opts` into `global_config.fuzzy_opts`."""
+        legacy_key = cls.LEGACY_GLOBAL_FUZZY_OPTS_SECTION
+        if legacy_key not in payload:
+            return False
+
+        changed = False
+        legacy_value = payload.pop(legacy_key)
+        changed = True
+
+        if not isinstance(legacy_value, dict):
+            return changed
+
+        global_cfg = payload.get("global_config")
+        if not isinstance(global_cfg, dict):
+            global_cfg = {}
+            payload["global_config"] = global_cfg
+            changed = True
+
+        existing_fuzzy_opts = global_cfg.get("fuzzy_opts")
+        if isinstance(existing_fuzzy_opts, dict):
+            # Canonical nested values win when keys overlap.
+            merged_fuzzy_opts = cls.deep_merge_dicts(legacy_value, existing_fuzzy_opts)
+        else:
+            merged_fuzzy_opts = copy.deepcopy(legacy_value)
+
+        if global_cfg.get("fuzzy_opts") != merged_fuzzy_opts:
+            global_cfg["fuzzy_opts"] = merged_fuzzy_opts
+            changed = True
+
+        return changed
+
+    @classmethod
+    def _migrate_merge_tags_parent_keys(cls, payload: dict) -> bool:
+        """Normalize merge_tags parent list to `merge_only_parents` only."""
+        section = payload.get(cls.MERGE_TAGS_SECTION)
+        if not isinstance(section, dict):
+            return False
+
+        legacy_key = cls.LEGACY_MERGE_TAGS_PARENTS_KEY
+        canonical_key = cls.CANONICAL_MERGE_TAGS_PARENTS_KEY
+        if legacy_key not in section:
+            return False
+
+        changed = True
+        legacy_value = section.pop(legacy_key)
+
+        if canonical_key not in section:
+            section[canonical_key] = copy.deepcopy(legacy_value)
+
+        return changed
+
+    @classmethod
+    def _remove_hardcoded_threshold_max_keys(cls, payload: dict) -> bool:
+        """Drop max-threshold keys that are now hardcoded to 1.0."""
+        changed = False
+
+        global_cfg = payload.get("global_config")
+        if isinstance(global_cfg, dict):
+            fuzzy_opts = global_cfg.get("fuzzy_opts")
+            if isinstance(fuzzy_opts, dict) and cls.HARD_MAX_GLOBAL_FUZZY_KEY in fuzzy_opts:
+                fuzzy_opts.pop(cls.HARD_MAX_GLOBAL_FUZZY_KEY, None)
+                changed = True
+
+        merge_tags_cfg = payload.get(cls.MERGE_TAGS_SECTION)
+        if isinstance(merge_tags_cfg, dict) and cls.HARD_MAX_MERGE_TAGS_KEY in merge_tags_cfg:
+            merge_tags_cfg.pop(cls.HARD_MAX_MERGE_TAGS_KEY, None)
+            changed = True
+
+        merge_images_cfg = payload.get(cls.MERGE_IMAGES_SECTION)
+        if isinstance(merge_images_cfg, dict) and cls.HARD_MAX_MERGE_IMAGES_KEY in merge_images_cfg:
+            merge_images_cfg.pop(cls.HARD_MAX_MERGE_IMAGES_KEY, None)
+            changed = True
+
+        return changed
+
+    @classmethod
     def migrate_legacy_config(cls, current_config: dict) -> dict:
         """Return a migrated override payload using canonical section keys."""
         if not isinstance(current_config, dict):
@@ -192,6 +277,9 @@ class ConfigManager:
             )
 
         cls._migrate_missed_tags_sections(migrated)
+        cls._migrate_global_fuzzy_opts_section(migrated)
+        cls._migrate_merge_tags_parent_keys(migrated)
+        cls._remove_hardcoded_threshold_max_keys(migrated)
         return migrated
 
     @classmethod

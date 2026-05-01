@@ -12,26 +12,37 @@ from aqt.qt import QMessageBox
 
 from aqt.browser import Browser as AqtBrowser
 
+# User-tunable settings intentionally kept in-file (not config.json).
+MERGE_IMAGES_AND_TAGS_DEFAULT_FUZZY = 0.99
+MERGE_IMAGES_AND_TAGS_MIN_FUZZY = 0.78
+MERGE_IMAGES_AND_TAGS_BASE_TAG = "Tag+IMG_MERGED"
+MERGE_IMAGES_AND_TAGS_LOG_FOLDER = ""
+
 CONFIG = {}
 
 
 def _reload_runtime_config():
     global CONFIG
 
-    global_fuzzy_opts = ConfigManager("global_fuzzy_opts").load()
-    merge_images_and_tags_cfg = ConfigManager("merge_images_and_tags_config").load()
+    global_cfg = ConfigManager("global_config").load()
     legacy_root_cfg = ConfigManager("_Change_notes").load()
 
     merged_cfg = clone_defaults(IMG_TAGS_MERGE_DEFAULTS)
-    if isinstance(global_fuzzy_opts, dict) and global_fuzzy_opts:
-        merged_cfg["global_fuzzy_opts"] = global_fuzzy_opts
-    elif isinstance(legacy_root_cfg.get("global_fuzzy_opts"), dict):
-        merged_cfg["global_fuzzy_opts"] = legacy_root_cfg["global_fuzzy_opts"]
+    merged_cfg["merge_images_and_tags_config"] = {
+        "default_fuzzy": MERGE_IMAGES_AND_TAGS_DEFAULT_FUZZY,
+        "min_fuzzy": MERGE_IMAGES_AND_TAGS_MIN_FUZZY,
+        "base_tag": MERGE_IMAGES_AND_TAGS_BASE_TAG,
+        "log_folder": MERGE_IMAGES_AND_TAGS_LOG_FOLDER,
+    }
 
-    if isinstance(merge_images_and_tags_cfg, dict) and merge_images_and_tags_cfg:
-        merged_cfg["merge_images_and_tags_config"] = merge_images_and_tags_cfg
-    elif isinstance(legacy_root_cfg.get("merge_images_and_tags_config"), dict):
-        merged_cfg["merge_images_and_tags_config"] = legacy_root_cfg["merge_images_and_tags_config"]
+    fuzzy_opts_new = global_cfg.get("fuzzy_opts") if isinstance(global_cfg, dict) else None
+    fuzzy_opts_old = legacy_root_cfg.get("global_fuzzy_opts")
+
+    if isinstance(fuzzy_opts_new, dict) and fuzzy_opts_new:
+        merged_cfg["fuzzy_opts"] = fuzzy_opts_new
+    elif isinstance(fuzzy_opts_old, dict) and fuzzy_opts_old:
+        # Backward-compat fallback for unmigrated configs.
+        merged_cfg["fuzzy_opts"] = fuzzy_opts_old
 
     CONFIG = merged_cfg
 
@@ -88,10 +99,10 @@ def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None 
         return
     # --- Decide thresholds (prompt once if needed) ---
     if threshold is None and tag_threshold is None:
-        # Pull unified fuzzy settings from global_fuzzy_opts
-        default_threshold = _f("global_fuzzy_opts.default_fuzz", IMG_TAGS_MERGE_DEFAULTS["global_fuzzy_opts"]["default_fuzz"])
-        min_threshold     = _f("global_fuzzy_opts.min_fuzz", IMG_TAGS_MERGE_DEFAULTS["global_fuzzy_opts"]["min_fuzz"])
-        max_threshold     = _f("global_fuzzy_opts.max_fuzz", IMG_TAGS_MERGE_DEFAULTS["global_fuzzy_opts"]["max_fuzz"])
+        # Pull unified fuzzy settings from global_config.fuzzy_opts.
+        default_threshold = _f("fuzzy_opts.default_fuzz", MERGE_IMAGES_AND_TAGS_DEFAULT_FUZZY)
+        min_threshold     = _f("fuzzy_opts.min_fuzz", MERGE_IMAGES_AND_TAGS_MIN_FUZZY)
+        max_threshold     = 1.0
 
         t, ok = prompt_similarity_threshold(
             default=default_threshold,

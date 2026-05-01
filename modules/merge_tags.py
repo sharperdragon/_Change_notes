@@ -23,12 +23,31 @@ base_tag = MERGE_TAGS_DEFAULTS["base_tag"]
 merged_tag = f"{base_tag}::{datetime.now().strftime('%B_%d')}"
 ALLOWED_PARENTS = []
 ALLOWED_PARENTS_LOWER = []
+EXCLUDED_TRANSFER_TAGS = []
+EXCLUDED_TRANSFER_TAGS_LOWER = []
 MERGE_SELECT_ONLY = False
 
+MERGE_TAGS_LOG_FOLDER = "logs"
 
-LOG_DIR = Path(mw.addonManager.addonsFolder()) / "_Change_notes" / "logs" / "merge_tags"
+LOG_DIR = Path(mw.addonManager.addonsFolder()) / "_Change_notes" / MERGE_TAGS_LOG_FOLDER / "merge_tags"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 log_file = LOG_DIR / f"{datetime.now().strftime('%Y-%m')}_merge_tags.log"
+
+
+def _as_string_list(value) -> list[str]:
+    """Normalize config value into a clean list of non-empty strings."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    normalized = []
+    for item in value:
+        if isinstance(item, str):
+            stripped = item.strip()
+            if stripped:
+                normalized.append(stripped)
+    return normalized
 
 
 def _reload_runtime_config():
@@ -37,6 +56,8 @@ def _reload_runtime_config():
     global merged_tag
     global ALLOWED_PARENTS
     global ALLOWED_PARENTS_LOWER
+    global EXCLUDED_TRANSFER_TAGS
+    global EXCLUDED_TRANSFER_TAGS_LOWER
     global MERGE_SELECT_ONLY
 
     global_cfg = ConfigManager("global_config").load()
@@ -48,11 +69,12 @@ def _reload_runtime_config():
     merged_tag = f"{base_tag}::{date_suffix}"
 
     parents_new = config.get("merge_only_parents")
-    parents_old = config.get("merge_only_from_parents", [])
-    ALLOWED_PARENTS = [
-        p for p in (parents_new if parents_new is not None else parents_old) or [] if p
-    ]
+    ALLOWED_PARENTS = _as_string_list(parents_new)
     ALLOWED_PARENTS_LOWER = [p.lower() for p in ALLOWED_PARENTS]
+
+    excluded_tags = config.get("excluded_tags")
+    EXCLUDED_TRANSFER_TAGS = _as_string_list(excluded_tags)
+    EXCLUDED_TRANSFER_TAGS_LOWER = [t.lower() for t in EXCLUDED_TRANSFER_TAGS]
 
     MERGE_SELECT_ONLY = parse_bool(
         config.get("merge_select_only", MERGE_TAGS_DEFAULTS["merge_select_only"]),
@@ -71,8 +93,22 @@ def _is_tag_in_parents(tag: str) -> bool:
             return True
     return False
 
+
+def _is_tag_excluded_from_transfer(tag: str) -> bool:
+    """
+    Returns True if tag equals an excluded tag or starts with 'excluded_tag::'
+    Comparison is case-insensitive.
+    """
+    t = tag.lower()
+    for ex in EXCLUDED_TRANSFER_TAGS_LOWER:
+        if t == ex or t.startswith(ex + "::"):
+            return True
+    return False
+
 # Gate: if MERGE_SELECT_ONLY is False, allow all tags (parents list ignored per spec)
 def tag_is_allowed(tag: str) -> bool:
+    if _is_tag_excluded_from_transfer(tag):
+        return False
     if not MERGE_SELECT_ONLY:
         return True
     return _is_tag_in_parents(tag)
@@ -90,7 +126,11 @@ def log_debug(msg):
 
 # Log effective config (once per module import)
 _reload_runtime_config()
-log_debug(f"Config — MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, ALLOWED_PARENTS={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}")
+log_debug(
+    f"Config — MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, "
+    f"ALLOWED_PARENTS={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}, "
+    f"EXCLUDED_TRANSFER_TAGS={EXCLUDED_TRANSFER_TAGS or '(none)'}"
+)
 
 # --- Fuzzy matching helper ---
 
@@ -110,7 +150,12 @@ def prompt_fuzzy_threshold(default=None):
 def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
     _reload_runtime_config()
     skipped_by_parent_filter = 0
-    log_debug(f"Run start — threshold={threshold}, MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, parents={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}")
+    skipped_by_excluded_transfer = 0
+    log_debug(
+        f"Run start — threshold={threshold}, MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, "
+        f"parents={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}, "
+        f"excluded_transfer={EXCLUDED_TRANSFER_TAGS or '(none)'}"
+    )
 
     col = browser.mw.col
     selected_nids = browser.selectedNotes()
@@ -153,13 +198,16 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
             continue
         all_tags = set()
         notes = [col.get_note(nid) for nid in group]
-        # $ only collect allowed tags for merging when gated on
+        # Only collect tags that are allowed to transfer across notes.
         for note in notes:
             for tag in note.tags:
                 if tag_is_allowed(tag):
                     all_tags.add(tag)
                 else:
-                    skipped_by_parent_filter += 1
+                    if _is_tag_excluded_from_transfer(tag):
+                        skipped_by_excluded_transfer += 1
+                    else:
+                        skipped_by_parent_filter += 1
         for note in notes:
             existing_allowed_tags = {tag for tag in note.tags if tag_is_allowed(tag)}
             if existing_allowed_tags != all_tags:
@@ -170,10 +218,16 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
                 log_debug(f"Updated tags for note {note.id} -> Tags: {note.tags}")
 
     mw.reset()
-    log_debug(f"Completed tag merge. Updated {updated} notes. Skipped tags by parent filter: {skipped_by_parent_filter}")
+    log_debug(
+        f"Completed tag merge. Updated {updated} notes. "
+        f"Skipped tags by parent filter: {skipped_by_parent_filter}. "
+        f"Skipped tags by excluded-transfer filter: {skipped_by_excluded_transfer}"
+    )
     info_msg = f"Updated tags on {updated} duplicate notes."
     if MERGE_SELECT_ONLY:
         info_msg += f"\n(Parent filter active; skipped tags: {skipped_by_parent_filter})"
+    if EXCLUDED_TRANSFER_TAGS:
+        info_msg += f"\n(Excluded-transfer filter active; skipped tags: {skipped_by_excluded_transfer})"
     showInfo(info_msg)
 
 
@@ -190,7 +244,7 @@ def unify_tags_main(browser: Browser | None = None):
     # ? UI config fetch
     default_fuzzy = float(config.get("default_fuzzy", MERGE_TAGS_DEFAULTS["run_default_fuzzy"]))
     min_fuzzy = float(config.get("min_fuzzy", MERGE_TAGS_DEFAULTS["min_fuzzy"]))
-    max_fuzzy = float(config.get("max_fuzzy", MERGE_TAGS_DEFAULTS["max_fuzzy"]))
+    max_fuzzy = 1.0
     ask_each = parse_bool(
         config.get("ask_fuzzy_each_time", MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"]),
         default=MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"],

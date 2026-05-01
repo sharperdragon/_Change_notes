@@ -1,5 +1,9 @@
 {
   "default_fuzzy": "0.95",
   "default_note_type": "*Nord+",
-  "log_folder": "logs"
+  "log_folder": "logs",
+  "fuzzy_opts": {
+    "default_fuzz": 0.97,
+    "min_fuzz": 0.59
+  }
 }

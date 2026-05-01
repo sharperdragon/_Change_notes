@@ -92,7 +92,6 @@ CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
         "Global",
         [
             "global_config",
-            "global_fuzzy_opts",
         ],
     ),
     (
@@ -143,7 +142,6 @@ HIDDEN_LEGACY_SECTIONS = {
 
 SECTION_UI_METADATA: dict[str, dict[str, Any]] = {
     "global_config": {"label": "Global Config", "form_schema": None},
-    "global_fuzzy_opts": {"label": "Global Fuzzy Options", "form_schema": None},
     "add_custom_tags": {"label": "Add Custom Tags", "form_schema": None},
     "add_custom_tags_2": {"label": "Add Custom Tags 2", "form_schema": None},
     MISSED_TAGS_CANONICAL_SECTION: {"label": "Tag Missed QID Notes", "form_schema": None},

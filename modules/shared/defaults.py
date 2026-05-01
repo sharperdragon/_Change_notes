@@ -45,9 +45,10 @@ ADD_MISSED_TAGS_DEFAULTS = {
         },
         "uworld": {
             "label": "🛃UWorld",
-            "base_tags": ["##Missed-Qs::UW_Tests"],
-            "default_tag_prefix": "UW_Tests",
-            "test_range_block_size": 25,
+            "base_tags": ["##Missed-Qs::*UW_Tests"],
+            "default_tag_prefix": "*UW_Tests",
+            "test_parent_range_block_size": 50,
+            "test_range_block_size": 5,
         },
         "nbme": {
             "label": "🧠NBME",
@@ -63,7 +64,7 @@ ADD_MISSED_TAGS_DEFAULTS = {
         },
         "multi_missed": {
             "label": "2x Missed 📌",
-            "tag_segment": "2x",
+            "tag_segment": "*2x",
         },
         "key_info": {
             "label": "Key Info 🗝️",
@@ -122,10 +123,9 @@ MERGE_IMAGES_DEFAULTS = {
 
 
 IMG_TAGS_MERGE_DEFAULTS = {
-    "global_fuzzy_opts": {
+    "fuzzy_opts": {
         "default_fuzz": 0.96,
         "min_fuzz": 0.78,
-        "max_fuzz": 1.00,
     },
     "merge_images_and_tags_config": {},
 }
@@ -133,7 +133,6 @@ IMG_TAGS_MERGE_DEFAULTS = {
 
 MERGE_SCHEDULE_DEFAULTS = {
     "merge_similarity_threshold": 0.94,
-    "abort_on_cancel": True,
     "multi_card_policy": "skip",
     "multi_card_policies": ("skip", "first_card", "all_cards"),
 }
@@ -149,10 +148,10 @@ MERGE_TAGS_DEFAULTS = {
     "base_tag": "TAGS_MERGED",
     "comparison_field": "Text",
     "merge_select_only": False,
+    "excluded_tags": [],
     "prompt_default_fuzzy": 0.98,
     "run_default_fuzzy": 0.97,
     "min_fuzzy": 0.80,
-    "max_fuzzy": 1.0,
     "ask_fuzzy_each_time": True,
 }
 

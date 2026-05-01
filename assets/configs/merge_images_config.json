@@ -1,7 +1,6 @@
 {
   "default_threshold": 0.97,
   "min_threshold": 0.60,
-  "max_threshold": 1.0,
   "ask_threshold_each_time": true,
   "allowed_models": [],
   "excluded_tags": ["First_Aid"],

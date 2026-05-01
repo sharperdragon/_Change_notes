@@ -31,7 +31,8 @@
         "##Missed-Qs::UW_Tests"
       ],
       "default_tag_prefix": "UW_Tests",
-      "test_range_block_size": 25
+      "test_parent_range_block_size": 50,
+      "test_range_block_size": 5
     },
     "nbme": {
       "label": "🧠NBME",

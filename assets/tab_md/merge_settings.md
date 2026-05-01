@@ -27,10 +27,10 @@ This tab groups all merge-related settings for tags, images, mixed merge logic, 
 - `default_fuzzy`, `base_tag`, `log_folder`
 - `merge_select_only`
 - `merge_only_parents`
-- `merge_only_from_parents`
+- `excluded_tags` (blocked from transfer in tag merge)
 
 ### `merge_images_config`
-- Thresholds: `default_threshold`, `min_threshold`, `max_threshold`, `ask_threshold_each_time`
+- Thresholds: `default_threshold`, `min_threshold`, `ask_threshold_each_time` (`max` is fixed at `1.0`)
 - Scope: `allowed_models`, `excluded_tags`, `fields_to_scan_for_images`
 - `merge_behavior`: HTML merge behavior toggles
 - `logging`: popup/file logging controls
@@ -40,6 +40,7 @@ This tab groups all merge-related settings for tags, images, mixed merge logic, 
 - `default_fuzzy`, `min_fuzzy`, `base_tag`, `log_folder`
 
 ### `merge_scheduling`
-- `merge_similarity_threshold`, `abort_on_cancel`, `multi_card_policy`
+- `merge_similarity_threshold`, `multi_card_policy`
+- Threshold prompt cancel behavior is fixed: cancel aborts the run.
 - `default_fuzzy`, `min_fuzzy`, `merge_field_index`
 - `scheduling_merge_log_path`, `use_text_replacements`, `tag_on_merge`

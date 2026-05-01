@@ -27,6 +27,13 @@ from .utils import (
 SKETCHY_PREFIX = "https://dashboard.sketchy.com"
 SKETCHY_DOMAIN_RE = r'https?://(?:[^"/]*\.)?sketchy\.com[^"]+'
 
+# User-tunable settings intentionally kept in-file (not config.json).
+ASK_THRESHOLD_EACH_TIME = True
+MERGE_WRAP_IMAGES_IN_DIV = True
+MERGE_INSERT_NEW_LINE_BETWEEN_IMAGES = True
+MERGE_APPEND_TO_EXISTING_FIELD = True
+MERGE_INSERT_BR_BEFORE_APPENDED_DIV = True
+
 # Insertion policy (top-level for easy future edits).
 IMAGE_INSERT_POLICY = "append_only"
 SUPPORTED_IMAGE_INSERT_POLICIES = {"append_only"}
@@ -80,6 +87,50 @@ def norm_src(s: str) -> str:
     parts = urlsplit(s)
     base = parts.path or s
     return os.path.basename(base).lower()
+
+
+def canonical_img_src(src: str) -> str:
+    """
+    Canonical image source key used for duplicate detection.
+    Drops query/fragment and normalizes scheme/host case.
+    """
+    raw = unescape((src or "").strip())
+    if not raw:
+        return ""
+    parts = urlsplit(raw)
+    scheme = (parts.scheme or "").lower()
+    netloc = (parts.netloc or "").lower()
+    path = parts.path or raw
+    if scheme or netloc:
+        return f"{scheme}://{netloc}{path}"
+    return path
+
+
+def canonical_src_set(srcs) -> set[str]:
+    out = set()
+    for src in srcs or []:
+        key = canonical_img_src(src)
+        if key:
+            out.add(key)
+    return out
+
+
+def _prefix_br_for_appended_div(original_html: str, append_block: str, wrap_in_div: bool) -> str:
+    """
+    When appending a wrapped image block (<div>...</div>) to existing content,
+    optionally add a leading <br> for visual separation.
+    """
+    if not append_block:
+        return append_block
+    if not MERGE_INSERT_BR_BEFORE_APPENDED_DIV or not wrap_in_div:
+        return append_block
+    if not append_block.lstrip().lower().startswith("<div"):
+        return append_block
+    if not (original_html or "").strip():
+        return append_block
+    if re.search(r"<br\s*/?>\s*$", original_html or "", flags=re.IGNORECASE):
+        return append_block
+    return "<br>" + append_block
 
 
 def get_field_names(note):
@@ -386,9 +437,9 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
     note_groups = group_notes_by_similarity(candidates, threshold, "Text", has_excluded_tag)
     # Merge behavior flags
-    wrap_in_div = cfg("merge_behavior.wrap_images_in_div", True)
-    insert_br = cfg("merge_behavior.insert_new_line_between_images", True)
-    append_to_existing = cfg("merge_behavior.append_to_existing_field", True)
+    wrap_in_div = MERGE_WRAP_IMAGES_IN_DIV
+    insert_br = MERGE_INSERT_NEW_LINE_BETWEEN_IMAGES
+    append_to_existing = MERGE_APPEND_TO_EXISTING_FIELD
     image_insert_policy = (
         IMAGE_INSERT_POLICY if IMAGE_INSERT_POLICY in SUPPORTED_IMAGE_INSERT_POLICIES else "append_only"
     )
@@ -501,11 +552,17 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     donor_src_order = field_to_src_order.get(i, [])
                     # Existing images in this field (order as they appear in the note)
                     existing_imgs_ordered = extract_images(updated_fields[i])
-                    existing_srcs_ordered = extract_srcs(existing_imgs_ordered)
-                    existing_srcs_set = set(existing_srcs_ordered)
+                    existing_srcs_set = canonical_src_set(extract_srcs(existing_imgs_ordered))
 
                     # Determine missing srcs in donor order
-                    missing_srcs_ordered = [s for s in donor_src_order if s not in existing_srcs_set]
+                    missing_srcs_ordered = []
+                    queued_src_keys = set()
+                    for src in donor_src_order:
+                        src_key = canonical_img_src(src)
+                        if not src_key or src_key in existing_srcs_set or src_key in queued_src_keys:
+                            continue
+                        missing_srcs_ordered.append(src)
+                        queued_src_keys.add(src_key)
 
                     if not missing_srcs_ordered:
                         continue
@@ -518,15 +575,16 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     original_html = updated_fields[i]
                     if append_to_existing:
                         if append_block:
-                            updated_fields[i] = (original_html or "") + append_block
+                            block_to_append = _prefix_br_for_appended_div(original_html or "", append_block, wrap_in_div)
+                            updated_fields[i] = (original_html or "") + block_to_append
                     else:
                         # Replace the field content with only the newly constructed images.
                         updated_fields[i] = append_block
 
                     # Track donors used for logging
-                    missing_srcs = set(missing_srcs_ordered)
+                    missing_srcs = canonical_src_set(missing_srcs_ordered)
                     for donor in donors:
-                        donor_srcs = set(extract_srcs(extract_images("".join(donor.fields))))
+                        donor_srcs = canonical_src_set(extract_srcs(extract_images("".join(donor.fields))))
                         if donor_srcs & missing_srcs:
                             used_donors.add(donor.id)
 
@@ -552,7 +610,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         if field_names[fi] not in SCAN_FIELDS:
                             continue
                         imgs_now = extract_images(fhtml)
-                        current_field_srcs[fi] = set(extract_srcs(imgs_now))
+                        current_field_srcs[fi] = canonical_src_set(extract_srcs(imgs_now))
 
                     # Track per-field normalized hrefs present (pre + during this pass)
                     field_href_norms = {}
@@ -566,7 +624,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                         field_href_norms[fi] = present
 
                     for grp in donor_link_groups:
-                        grp_set = set(grp["srcs"])
+                        grp_set = canonical_src_set(grp["srcs"])
 
                         # 1) Ideal: a field containing ALL srcs
                         exact_target = next(
@@ -639,7 +697,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
         for i, field in enumerate(note.fields):
             if field_names[i] in SCAN_FIELDS:
                 imgs = extract_images(field)
-                srcs.update(extract_srcs(imgs))
+                srcs.update(canonical_src_set(extract_srcs(imgs)))
         note_to_srcs[note.id] = srcs
 
     # Tag notes with no images at all
@@ -794,7 +852,7 @@ def merge_images_main(selected=None, browser=None):
     default_threshold = cfg("default_threshold", 0.97)
     min_threshold = cfg("min_threshold", 0.80)
     max_threshold = 1.0
-    ask_each = cfg("ask_threshold_each_time", True)
+    ask_each = ASK_THRESHOLD_EACH_TIME
 
     # Decide threshold (prompt or silent clamp)
     if ask_each:

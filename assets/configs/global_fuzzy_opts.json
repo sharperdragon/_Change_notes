@@ -1,5 +1,4 @@
 {
   "default_fuzz": 0.97,
-  "min_fuzz": 0.59,
-  "max_fuzz": 1.0
+  "min_fuzz": 0.59
 }

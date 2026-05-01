@@ -92,24 +92,43 @@ _REPLACEMENTS = load_replacements()
 
 
 def extract_images(text: str) -> list[str]:
-    return re.findall(r'<img [^>]*src="[^"]+"[^>]*>', text or "", re.IGNORECASE)
+    """Return all <img ...> tags from HTML, regardless of quoting style."""
+    return re.findall(r"<img\b[^>]*>", text or "", re.IGNORECASE)
+
+
+def _extract_attr(tag: str, attr: str) -> str | None:
+    """
+    Extract an HTML attribute value from a single tag.
+    Supports attr="...", attr='...', and attr=bare tokens.
+    """
+    if not isinstance(tag, str) or not tag:
+        return None
+    pattern = rf"""\b{re.escape(attr)}\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"""
+    match = re.search(pattern, tag, flags=re.IGNORECASE)
+    if not match:
+        return None
+    for grp in match.groups():
+        if grp is not None:
+            return grp
+    return None
 
 
 def extract_srcs(image_tags: list[str] | set[str]) -> set[str]:
-    return {
-        re.search(r'src="([^"]+)"', img).group(1)
-        for img in image_tags
-        if isinstance(img, str) and 'src="' in img and re.search(r'src="([^"]+)"', img)
-    }
+    srcs = set()
+    for img in image_tags:
+        if not isinstance(img, str):
+            continue
+        src = _extract_attr(img, "src")
+        if src:
+            srcs.add(src)
+    return srcs
 
 
 def clean_img_tag(img_tag: str) -> str:
-    src_match = re.search(r'src="([^"]+)"', img_tag or "", re.IGNORECASE)
-    class_match = re.search(r'class="([^"]+)"', img_tag or "", re.IGNORECASE)
-    if not src_match:
+    src = _extract_attr(img_tag or "", "src")
+    class_attr = _extract_attr(img_tag or "", "class")
+    if not src:
         return ""
-    src = src_match.group(1)
-    class_attr = class_match.group(1) if class_match else None
     return f'<img src="{src}" class="{class_attr}">' if class_attr else f'<img src="{src}">'
 
 
@@ -238,4 +257,3 @@ def group_note_ids_by_similarity(
 ) -> dict[str, list[int]]:
     grouped = group_notes_by_similarity(note_infos, threshold, field_name, has_excluded_tag)
     return {k: [n.id for n in v] for k, v in grouped.items()}
-

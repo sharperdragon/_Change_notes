@@ -2,7 +2,7 @@
   "comparison_field": "Text",
   "base_tag": "Main_dupe",
   "multi_tag_child": "multiple",
-  "TAG UNMATCHED": "true",
+  "tag_unmatched": true,
   "unmatched_tag": "unmatched",
   "log_folder": ""
 }

@@ -10,3 +10,5 @@ modules/logs
 Icon
 */Icon
 _change_notes_shua
+assets/configs
+assets/configs/*

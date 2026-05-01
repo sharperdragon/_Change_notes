@@ -28,6 +28,17 @@ SCHEDULE_POLICY = {
 }
 DEFAULT_OPEN_ENDED_ROTATION_END = "2099-12-31"
 
+# UWorld grouping for numeric test tags:
+#   parent range (for example, 001-050) -> child range (for example, 01-05).
+DEFAULT_UWORLD_PARENT_RANGE_BLOCK_SIZE = 50
+DEFAULT_UWORLD_CHILD_RANGE_BLOCK_SIZE = 5
+DEFAULT_PARENT_RANGE_PAD_WIDTH = 3
+# Keep True to include child range like:
+#   ##Missed-Qs::UW_Tests::051-100::96-100::96
+# Set False only if you intentionally want:
+#   ##Missed-Qs::UW_Tests::051-100::96
+INCLUDE_UWORLD_CHILD_RANGE_SEGMENT = True
+
 PROMPT_BEHAVIOR_BASE_PLUS_ROTATION = "base_plus_rotation"
 PROMPT_BEHAVIOR_BASE_ONLY = "base_only"
 
@@ -97,6 +108,7 @@ class MissedTagsConfig:
     correct_guess_include_rotation: bool
     correct_guess_rotation_lowercase: bool
     correct_guess_unknown_segment: str
+    test_parent_range_block_size: int
     test_range_block_size: int
 
 
@@ -365,10 +377,50 @@ def load_runtime_config() -> MissedTagsConfig:
     default_subset_1_name = _default_text(("actions", "uworld", "label"), "UWorld")
     default_subset_1_tag = _default_string_list(
         ("actions", "uworld", "base_tags"),
-        fallback=[f"{default_base_missed_tag[0]}::UW_Tests"],
+        fallback=[f"{default_base_missed_tag[0]}::*UW_Tests"],
     )
-    default_test_tag_prefix = _default_text(("actions", "uworld", "default_tag_prefix"), "UW_Tests")
-    default_test_range_block_size = _default_positive_int(("actions", "uworld", "test_range_block_size"), 25)
+    default_test_tag_prefix = _default_text(("actions", "uworld", "default_tag_prefix"), "*UW_Tests")
+    legacy_parent_range_default_value = _get_path_value(
+        ADD_MISSED_TAGS_DEFAULTS,
+        ("actions", "uworld", "test_super_range_block_size"),
+    )
+    legacy_parent_range_default = (
+        _to_positive_int(legacy_parent_range_default_value, DEFAULT_UWORLD_PARENT_RANGE_BLOCK_SIZE)
+        if legacy_parent_range_default_value is not _MISSING
+        else DEFAULT_UWORLD_PARENT_RANGE_BLOCK_SIZE
+    )
+    default_test_parent_range_block_size = _default_positive_int(
+        ("actions", "uworld", "test_parent_range_block_size"),
+        legacy_parent_range_default,
+    )
+    default_test_range_block_size = _default_positive_int(
+        ("actions", "uworld", "test_range_block_size"),
+        DEFAULT_UWORLD_CHILD_RANGE_BLOCK_SIZE,
+    )
+    has_explicit_parent_range_block_size = (
+        "test_parent_range_block_size" in uworld_cfg or "test_super_range_block_size" in uworld_cfg
+    )
+    resolved_test_parent_range_block_size = _read_positive_int(
+        uworld_cfg,
+        "test_parent_range_block_size",
+        _read_positive_int(
+            uworld_cfg,
+            "test_super_range_block_size",
+            default_test_parent_range_block_size,
+        ),
+    )
+    # Backward compatibility: old configs only had `test_range_block_size` for a
+    # single-level range model. When no parent range key exists, ignore that old
+    # value and use the new child default so output stays 50 -> 5.
+    resolved_test_range_block_size = (
+        _read_positive_int(
+            uworld_cfg,
+            "test_range_block_size",
+            default_test_range_block_size,
+        )
+        if has_explicit_parent_range_block_size
+        else default_test_range_block_size
+    )
 
     default_subset_2_name = _default_text(("actions", "nbme", "label"), "NBME")
     default_subset_2_tag = _default_string_list(
@@ -390,10 +442,12 @@ def load_runtime_config() -> MissedTagsConfig:
         ("actions", "amboss", "number_style"),
         PROMPT_STYLE_ROTATION_THEN_NUMBER,
     )
-    default_amboss_remove_from_other_menu = _default_bool(("actions", "amboss", "remove_from_other_menu"), True)
+    default_amboss_remove_from_other_menu = _default_bool(
+        ("actions", "amboss", "remove_from_other_menu"), True
+    )
 
     default_action_label_multi_missed = _default_text(("actions", "multi_missed", "label"), "2x Missed")
-    default_multi_miss_tag = _default_text(("actions", "multi_missed", "tag_segment"), "2x")
+    default_multi_miss_tag = _default_text(("actions", "multi_missed", "tag_segment"), "*2x")
 
     default_action_label_key_info = _default_text(("actions", "key_info", "label"), "Key Info")
     default_key_tag_base = _default_text(("actions", "key_info", "tag_base"), "#Custom::#KEY")
@@ -406,8 +460,12 @@ def load_runtime_config() -> MissedTagsConfig:
         ("actions", "correct_guess", "tags"),
         fallback=["#Custom::correct_marked"],
     )
-    default_correct_guess_include_rotation = _default_bool(("actions", "correct_guess", "include_rotation"), True)
-    default_correct_guess_rotation_lowercase = _default_bool(("actions", "correct_guess", "rotation_lowercase"), True)
+    default_correct_guess_include_rotation = _default_bool(
+        ("actions", "correct_guess", "include_rotation"), True
+    )
+    default_correct_guess_rotation_lowercase = _default_bool(
+        ("actions", "correct_guess", "rotation_lowercase"), True
+    )
     default_correct_guess_unknown_segment = _default_text(
         ("actions", "correct_guess", "unknown_segment"),
         "unknown",
@@ -514,11 +572,8 @@ def load_runtime_config() -> MissedTagsConfig:
             "unknown_segment",
             default_correct_guess_unknown_segment,
         ),
-        test_range_block_size=_read_positive_int(
-            uworld_cfg,
-            "test_range_block_size",
-            default_test_range_block_size,
-        ),
+        test_parent_range_block_size=resolved_test_parent_range_block_size,
+        test_range_block_size=resolved_test_range_block_size,
     )
 
 
@@ -991,10 +1046,24 @@ def make_test_prompt_handler(
                     if number_style == PROMPT_STYLE_ROTATION_THEN_NUMBER:
                         formatted_tag = f"{base_tag}::{rotation_segment}::{tn:02d}"
                     else:
-                        lower = ((tn - 1) // cfg.test_range_block_size) * cfg.test_range_block_size + 1
-                        upper = lower + cfg.test_range_block_size - 1
-                        range_tag = f"{lower}-{upper}"
-                        formatted_tag = f"{base_tag}::{range_tag}::{tn:02d}"
+                        parent_lower = (
+                            ((tn - 1) // cfg.test_parent_range_block_size) * cfg.test_parent_range_block_size
+                        ) + 1
+                        parent_upper = parent_lower + cfg.test_parent_range_block_size - 1
+
+                        child_offset = tn - parent_lower
+                        child_lower = parent_lower + (
+                            (child_offset // cfg.test_range_block_size) * cfg.test_range_block_size
+                        )
+                        child_upper = min(parent_upper, child_lower + cfg.test_range_block_size - 1)
+
+                        pad_width = max(DEFAULT_PARENT_RANGE_PAD_WIDTH, len(str(parent_upper)))
+                        parent_range_tag = f"{parent_lower:0{pad_width}d}-{parent_upper:0{pad_width}d}"
+                        if INCLUDE_UWORLD_CHILD_RANGE_SEGMENT:
+                            child_range_tag = f"{child_lower:02d}-{child_upper:02d}"
+                            formatted_tag = f"{base_tag}::{parent_range_tag}::{child_range_tag}::{tn:02d}"
+                        else:
+                            formatted_tag = f"{base_tag}::{parent_range_tag}::{tn:02d}"
 
         if not _ensure_selected_notes(browser):
             return

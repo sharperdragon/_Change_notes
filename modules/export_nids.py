@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime
-from typing import Any, List, Sequence, Tuple
+from typing import Any, List, Tuple
 
 
 """
@@ -22,7 +22,6 @@ Design:
 - No auto-injection. You control where/when to add the action.
 - Compatible with browser.selected_notes() (new) and selectedNotes() (old).
 - Saves a comma-separated NID list to your Desktop.
-- Splits the Anki query into safe chunks to avoid SQLite expression depth limits; writes them into ONE file separated by two blank lines.
 """
 
 
@@ -30,7 +29,7 @@ Design:
 # Anki / Qt imports (use Anki shims to stay version-tolerant)
 try:
     from aqt import mw
-    from aqt.qt import QAction, QApplication, QFileDialog, QWidget, QInputDialog
+    from aqt.qt import QAction, QApplication, QWidget
     from aqt.utils import tooltip, showText
 except Exception:
     # Fallbacks if static checking; at runtime Anki provides these.
@@ -40,16 +39,11 @@ except Exception:
 
     class QAction:  # type: ignore
         def __init__(self, *a, **k): ...
-    class QFileDialog:  # type: ignore
-        AnyFile = 0
-        @staticmethod
-        def getSaveFileName(*a, **k): return ("", "")
-
-
 
 
 _FNAME_SAFE = re.compile(r'[^\w\-. ]+', re.UNICODE)
-CHUNK_SIZE = 850  # keep chunk size configurable at the top of the script
+EXPORT_BASENAME = "selected_nids"  # user-tunable
+EXPORT_FOLDER_NAME = "NID export"  # user-tunable
 
 
 def _sanitize_filename(name: str) -> str:
@@ -98,7 +92,7 @@ def _copy_nids_to_clipboard(nids_or_text) -> None:
 def _ensure_export_dir() -> str:
     """Ensure the Desktop export directory exists and return its path."""
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    export_dir = os.path.join(desktop, "NID export")
+    export_dir = os.path.join(desktop, EXPORT_FOLDER_NAME)
     os.makedirs(export_dir, exist_ok=True)
     return export_dir
 
@@ -114,9 +108,9 @@ def _write_text_to_path(text: str, path: str) -> Tuple[bool, str]:
         return False, f"Failed to save to {path}: {e!r}"
 
 
-# New helper: write error log to Desktop/NID export
+# New helper: write error log to Desktop export folder
 def _write_error_log(details: str) -> str:
-    """Write an error report to ~/Desktop/NID export and return the path.
+    """Write an error report to the Desktop export folder and return the path.
 
     If writing fails, returns an empty string.
     """
@@ -143,10 +137,10 @@ def create_export_nids_action(
     """
     Create a QAction that:
     - Collects selected note IDs from the Browser
-    - Writes two files to your Desktop:
-        1) Comma-separated NIDs (e.g., "121451, 441451, ...")
-        2) Anki query string (e.g., "NID:121451 OR NID:441451 ...")
-    - Copies the first query chunk to the clipboard
+    - Writes one file to your Desktop:
+        1) Comma-separated NIDs (e.g., "121451,441451,...")
+        2) Uses an automatic filename (no prompt)
+    - Copies the simple list to the clipboard
     - Shows a short tooltip summary
     """
     action = QAction(title, parent)
@@ -158,55 +152,32 @@ def create_export_nids_action(
             tooltip("No notes selected.")
             return
 
-        # 2) Ask user for a base name (run-time, not import-time)
-        try:
-            base_text, ok = QInputDialog.getText(parent, "Export name", "Base name for files:")
-        except Exception:
-            ok = False
-            base_text = ""
-        if not ok:
-            tooltip("Export cancelled.")
-            return
-        base = _sanitize_filename(base_text) or "selected_nids"
+        # 2) Use automatic base name (no prompt)
+        base = _sanitize_filename(EXPORT_BASENAME)
 
-        # 3) Build content strings (unchanged logic)
-        comma_str = ", ".join(str(n) for n in nids)
-
-        def _chunks(seq, size):
-            for i in range(0, len(seq), size):
-                yield seq[i:i+size]
-
-        query_chunks = [
-            " OR ".join(f"NID:{n}" for n in chunk)
-            for chunk in _chunks(nids, CHUNK_SIZE)
-        ]
-        # Two empty lines between chunks -> join with 3 newlines
-        query_text = ("\n\n\n").join(query_chunks)
+        # 3) Build content string
+        comma_str = ",".join(str(n) for n in nids)
 
         # 4) Paths with user base name + timestamp (ensure export dir exists)
         export_dir = _ensure_export_dir()
         ts = datetime.now().strftime("%H-%M_%m-%d")
         simple_path = os.path.join(export_dir, f"{base}_{ts}_simple.txt")
-        query_path  = os.path.join(export_dir, f"{base}_{ts}_query.txt")
 
-        # 5) Write files
+        # 5) Write file
         ok1, msg1 = _write_text_to_path(comma_str, simple_path)
-        ok2, msg2 = _write_text_to_path(query_text, query_path)
 
-        # 6) Copy first chunk to clipboard for convenience
-        if query_chunks:
-            _copy_nids_to_clipboard(query_chunks[0])
+        # 6) Copy simple list to clipboard for convenience
+        _copy_nids_to_clipboard(comma_str)
 
         # 7) Report
-        if ok1 and ok2:
+        if ok1:
             tooltip(
                 f"Saved {len(nids)} NIDs.\n"
-                f"- {simple_path}\n"
-                f"- {query_path}\n"
-                f"(Copied CHUNK 1 to clipboard.)"
+                f"Saved to Desktop/{EXPORT_FOLDER_NAME}\n"
+                f"(Copied simple NID list to clipboard.)"
             )
         else:
-            details = "\n".join([msg1, msg2])
+            details = msg1
             log_path = _write_error_log(details)
 
             extra = f"\n\nError log: {log_path}" if log_path else ""

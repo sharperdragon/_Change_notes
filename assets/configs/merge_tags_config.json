@@ -3,12 +3,11 @@
   "base_tag": "TAGS_MERGED",
   "log_folder": "",
   "merge_select_only": "False",
-  "merge_only_parents": [
-    "#OLD_Tags",
-    "sketchymicro",
-    "firstaid"
+  "excluded_tags": [
+    "DoNotTransfer",
+    "Leech"
   ],
-  "merge_only_from_parents": [
+  "merge_only_parents": [
     "#OLD_Tags",
     "sketchymicro",
     "firstaid"
