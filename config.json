@@ -85,86 +85,91 @@
     "enable_backup": true,
     "backup_directory": "~/Anki_Backups/NoteTypeChange"
   },
-  "add_custom_tags": {
-    "submenu_label": " 🎛️ Custom Tags",
-    "group_labels": {},
-    "presets": [
-      {
-        "label": "Key 🔑",
-        "tags": ["#Custom::#KEY"]
-      },
-      {
-        "label": "Key Basics ♟️",
-        "tags": ["#Custom::#KEY::Basics"]
-      },
-      {
-        "label": "💼 Management",
-        "tags": ["#Custom::#Management::general"]
-      },
-      {
-        "label": "Diagnosis 🎯",
-        "tags": ["#Custom::Task::Diagnosis"]
-      },
-      {
-        "label": "🌬️ D.O. Med",
-        "tags": ["#Custom::DO_Med"]
-      },
-      {
-        "label": "📛 Risks+ ",
-        "tags": ["#Custom::Random::Risk_Factors+"]
-      },
-      {
-        "label": "🧀 Suspend – basic",
-        "tags": ["#Custom::zAuto_Suspend::basic"]
-      },
-      {
-        "label": "🩻 Imaging",
-        "tags": ["#Custom::#Imaging"]
-      },
-      {
-        "label": "Management – Tx",
-        "tags": ["#Custom::#Management::#Treatment"]
-      }
-    ]
-  },
-  "add_custom_tags_2": {
-    "submenu_label": " 🧠 + 💉 Tags",
-    "group_labels": {
+  "custom_tags_config": {
+    "add_custom_tags_1": {
+      "submenu_label": " 🎛️ Custom Tags",
+      "group_labels": {},
+      "presets": [
+        {
+          "label": "Key 🔑",
+          "tags": ["#Custom::#KEY"]
+        },
+        {
+          "label": "Key Basics ♟️",
+          "tags": ["#Custom::#KEY::Basics"]
+        },
+        {
+          "label": "💼 Management",
+          "tags": ["#Custom::#Management::general"],
+          "review_shortcut": "Ctrl+Shift+M"
+        },
+        {
+          "label": "Diagnosis 🎯",
+          "tags": ["#Custom::Task::Diagnosis"],
+          "review_shortcut": "Ctrl+Shift+D"
+        },
+        {
+          "label": "🌬️ D.O. Med",
+          "tags": ["#Custom::DO_Med"]
+        },
+        {
+          "label": "📛 Risks+ ",
+          "tags": ["#Custom::Random::Risk_Factors+"],
+          "review_shortcut": "Ctrl+Shift+R"
+        },
+        {
+          "label": "🧀 Suspend – basic",
+          "tags": ["#Custom::zAuto_Suspend::basic"]
+        },
+        {
+          "label": "🩻 Imaging",
+          "tags": ["#Custom::#Imaging"]
+        },
+        {
+          "label": "Neato",
+          "tags": ["#Custom::z_Neato"]
+        }
+      ]
     },
-    "presets": [
-      {
-        "label": "🏥 Surgery",
-        "tags": ["#Custom::Surgery_know"]
+    "add_custom_tags_2": {
+      "submenu_label": " 🧠 + 💉 Tags",
+      "group_labels": {
       },
-      {
-        "label": " 🧮 Know Numbers",
-        "tags": ["#Custom::*Memorize::Know_Numbers"]
-      },
-      {
-        "label": " ⛱️ General",
-        "tags": ["#Custom::*Memorize::General"]
-      },
-      {
-        "label": " 🧬 Markers/Genes+",
-        "tags": ["#Custom::*Memorize::Genes+Markers"]
-      },
-      {
-        "label": " 🥅 Screen+",
-        "tags": ["#Custom::*Memorize::Screening+"]
-      },
-      {
-        "label": " 👾 Drug ADRs 😵",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
-      },
-      {
-        "label": " 👾 Indication 💊",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::Indication"]
-      },
-      {
-        "label": " 👾 MoA ⚙️",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::MoA"]
-      }
-    ]
+      "presets": [
+        {
+          "label": "🏥 Surgery",
+          "tags": ["#Custom::Surgery_know"]
+        },
+        {
+          "label": " 🧮 Know Numbers",
+          "tags": ["#Custom::*Memorize::Know_Numbers"]
+        },
+        {
+          "label": " ⛱️ General",
+          "tags": ["#Custom::*Memorize::General"]
+        },
+        {
+          "label": " 🧬 Markers/Genes+",
+          "tags": ["#Custom::*Memorize::Genes+Markers"]
+        },
+        {
+          "label": " 🥅 Screen+",
+          "tags": ["#Custom::*Memorize::Screening+"]
+        },
+        {
+          "label": " 👾 Drug ADRs 😵",
+          "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
+        },
+        {
+          "label": " 👾 Indication 💊",
+          "tags": ["#Custom::Bugs+Drugs::Drugs::Indication"]
+        },
+        {
+          "label": " 👾 MoA ⚙️",
+          "tags": ["#Custom::Bugs+Drugs::Drugs::MoA"]
+        }
+      ]
+    }
   },
   "tag_missed_qid_notes": {
     "ui": {
@@ -188,58 +193,96 @@
     },
     "actions": {
       "base": {
-        "label": " ♦️ Base",
-        "tags": [
+        "menu_label": "♦️ Base",
+        "child_of_primary_missed": false,
+        "absolute_tags": [
           "##Missed-Qs"
-        ]
+        ],
+        "add_missed_date_context": false
       },
       "uworld": {
-        "label": " 🛃 UWorld",
-        "base_tags": [
-          "##Missed-Qs::*UW_Tests"
-        ],
-        "default_tag_prefix": "*UW_Tests",
-        "test_parent_range_block_size": 50,
-        "test_range_block_size": 5
+        "menu_label": "🛃 UWorld",
+        "child_of_primary_missed": true,
+        "tag_segment": "*UW_Tests",
+        "add_missed_date_context": true,
+        "prompt": {
+          "kind": "number",
+          "number_style": "range_then_number",
+          "range_block_size": 5,
+          "parent_range_block_size": 50
+        }
       },
       "nbme": {
-        "label": " 🧠 NBME",
-        "base_tags": [
-          "##Missed-Qs::NBME"
-        ],
-        "default_tag_prefix": "NBME"
+        "menu_label": "🧠 NBME",
+        "child_of_primary_missed": true,
+        "tag_segment": "NBME",
+        "add_missed_date_context": true,
+        "prompt": {
+          "kind": "form",
+          "number_style": "number_only"
+        }
       },
       "amboss": {
-        "label": " 🦠 Amboss",
-        "base_tag": "##Missed-Qs::Amboss",
-        "blank_behavior": "base_plus_rotation",
-        "number_style": "rotation_then_number",
-        "remove_from_other_menu": true
+        "menu_label": "🦠 Amboss",
+        "child_of_primary_missed": true,
+        "tag_segment": "Amboss",
+        "add_missed_date_context": true,
+        "prompt": {
+          "kind": "number",
+          "number_style": "number_only"
+        }
       },
       "multi_missed": {
-        "label": "2x Missed 📌",
-        "tag_segment": "*2x"
+        "menu_label": "2x Missed 📌",
+        "child_of_primary_missed": true,
+        "tag_segment": "*2x",
+        "add_missed_date_context": true
       },
       "key_info": {
-        "label": "Key Info 🗝️",
-        "tag_base": "#Custom::#KEY"
+        "menu_label": "Key Info 🗝️",
+        "child_of_primary_missed": false,
+        "absolute_tags": [
+          "#Custom::#KEY"
+        ],
+        "add_missed_date_context": false
       },
       "correct_guess": {
-        "label": "Correct Guess 🎫",
-        "tags": [
+        "menu_label": "Correct Guess 🎫",
+        "child_of_primary_missed": false,
+        "absolute_tags": [
           "#Custom::correct_marked"
         ],
+        "add_missed_date_context": false,
         "include_rotation": true,
         "rotation_lowercase": true,
         "unknown_segment": "unknown"
       },
       "other": {
-        "resources": [
-          "Kaplan",
-          "True-Learn",
-          "NBOME"
-        ],
-        "tag_suffix": "Other"
+        "submenu_bool": true,
+        "submenu_label": "Other",
+        "tagging": {
+          "child_of_primary_missed": true,
+          "add_missed_date_context": true,
+          "tag_segment_group": true,
+          "group_segment": "Other"
+        },
+        "actions": [
+          {
+            "menu_label": "Kaplan 🟣",
+            "tag_segment": "Kaplan",
+            "prompt": {
+              "kind": "none"
+            }
+          },
+          {
+            "menu_label": "True-Learn 🌀",
+            "tag_segment": "True-Learn",
+            "prompt": {
+              "kind": "number",
+              "number_style": "rotation_then_number"
+            }
+          }
+        ]
       }
     },
     "Q_Banks": [

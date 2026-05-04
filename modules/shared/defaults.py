@@ -78,7 +78,7 @@ ADD_MISSED_TAGS_DEFAULTS = {
             "unknown_segment": "unknown",
         },
         "other": {
-            "resources": ["Kaplan", "True-Learn", "NBOME"],
+            "resources": ["Kaplan", "True-Learn"],
             "tag_suffix": "Other",
         },
     },

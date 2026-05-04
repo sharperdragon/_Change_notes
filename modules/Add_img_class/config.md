@@ -1,31 +1,33 @@
-# Anki Image Classifier Script
+# Add_img_class Configuration Notes
 
-This Python script batch-updates your Anki notes by automatically adding CSS classes to `<img>` tags based on each image's **native width**, **height**, and **aspect ratio**. It allows for responsive styling and better control of image formatting inside your cards.
+This module adds CSS classes to `<img>` tags in selected notes based on image size and aspect ratio.
 
-## 📋 Features
+## Runtime Config Source
 
-- Automatically classifies images as:
-  - `small` → width < `small_width` (default: 300)
-  - `img-ultra-wide` → aspect ratio > `wide_ratio` (default: 1.9)
-  - `img-landscape` → aspect ratio > `landscape_ratio_min` (default: 1.39)
-  - `img-tall` → aspect ratio < `tall_ratio` (default: 0.75)
-  - `img-square` → aspect ratio between `square_min` and `square_max` (defaults: 0.9–1.1)
-- Merges with any existing `class` attributes on the `<img>` tag.
-- Supports multiple `<img>` tags per field and note.
+Settings are read from the root add-on `config.json` section:
 
-## 🧠 Use Case
-
-This script is useful for users who want to:
-- Apply different CSS styles to images based on their shape/size.
-- Improve visual consistency in Anki cards across devices or themes.
-
-## 🛠 Requirements
-
-- Python 3.x
-- [Pillow](https://python-pillow.org/) for image dimension parsing
-
-### Terminal:
+```json
+"add_img_class": {
+  "small_width": 340,
+  "ultra-wide_ratio": 1.89999999,
+  "landscape_ratio_min": 1.1900000001,
+  "tall_ratio": 0.899999,
+  "square_min": 0.8999991,
+  "square_max": 1.19
+}
 ```
-pip install pillow
 
-```
+## Class Rules
+
+- `small`: `width < small_width`
+- `ultra-wide`: `width / height > ultra-wide_ratio`
+- `img-landscape`: ratio is above `landscape_ratio_min` but not `ultra-wide`
+- `img-tall`: ratio is below `tall_ratio`
+- `img-square`: ratio is between `square_min` and `square_max`
+- `img-default`: used when the image file is missing locally
+- `larger`: optionally added when image filename appears in `larger_imgs.txt`
+
+## Notes
+
+- Existing class attributes are preserved, but managed image-shape classes are replaced each run.
+- This module uses bundled Pillow in `modules/Add_img_class/vendor/`.

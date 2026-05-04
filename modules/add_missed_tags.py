@@ -34,16 +34,18 @@ DEFAULT_UWORLD_PARENT_RANGE_BLOCK_SIZE = 50
 DEFAULT_UWORLD_CHILD_RANGE_BLOCK_SIZE = 5
 DEFAULT_PARENT_RANGE_PAD_WIDTH = 3
 # Keep True to include child range like:
-#   ##Missed-Qs::UW_Tests::051-100::96-100::96
+#   ##Missed-Qs::*UW_Tests::051-100::96-100::96
 # Set False only if you intentionally want:
-#   ##Missed-Qs::UW_Tests::051-100::96
+#   ##Missed-Qs::*UW_Tests::051-100::96
 INCLUDE_UWORLD_CHILD_RANGE_SEGMENT = True
+CANONICAL_UWORLD_TAG_SEGMENT = "*UW_Tests"
 
 PROMPT_BEHAVIOR_BASE_PLUS_ROTATION = "base_plus_rotation"
 PROMPT_BEHAVIOR_BASE_ONLY = "base_only"
 
 PROMPT_STYLE_ROTATION_THEN_NUMBER = "rotation_then_number"
 PROMPT_STYLE_RANGE_THEN_NUMBER = "range_then_number"
+PROMPT_STYLE_NUMBER_ONLY = "number_only"
 
 # Amboss prompt behavior: when enabled, any non-empty prompt text is converted
 # into child tag segments under Amboss::<rotation>.
@@ -74,6 +76,18 @@ EXCLUDE_AUTO_MISS = {
     "correct_guess",
 }
 
+DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT = {
+    "add_key_info_action": False,
+    "base_plain": False,
+    "correct_guess": False,
+    "uw_test_prompt": True,
+    "nbme_form_prompt": True,
+    "amboss_test_prompt": True,
+    "multi_missed": True,
+    "other_resource": True,
+    "true_learn_test_prompt": True,
+}
+
 
 @dataclass(frozen=True)
 class MissedTagsConfig:
@@ -87,6 +101,7 @@ class MissedTagsConfig:
     schedule_exhausted_policy: str
     missed_tags_menu_label: str
     include_day_segment: bool
+    action_add_missed_date_context: dict[str, bool]
     action_label_base: str
     action_label_multi_missed: str
     action_label_key_info: str
@@ -224,6 +239,10 @@ def _read_string_list(data: dict[str, Any], key: str, fallback: list[str]) -> li
     return _to_string_list(data.get(key, fallback), fallback=fallback)
 
 
+def _read_action_add_missed_date_context(action_cfg: dict[str, Any], fallback: bool) -> bool:
+    return _read_bool(action_cfg, "add_missed_date_context", fallback)
+
+
 def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
     normalized: list[tuple[str, str, str]] = []
     if not isinstance(raw, list):
@@ -254,6 +273,314 @@ def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
     return normalized
 
 
+def _build_child_tag(primary_tag: str, segment: str) -> str:
+    normalized_primary = _to_text(primary_tag, "##Missed-Qs")
+    normalized_segment = _to_text(segment, "")
+    if not normalized_segment:
+        return normalized_primary
+    if normalized_segment == normalized_primary or normalized_segment.startswith(
+        f"{normalized_primary}::"
+    ):
+        return normalized_segment
+    return f"{normalized_primary}::{normalized_segment}"
+
+
+def _extract_tag_suffix(tag: Any, fallback: str) -> str:
+    parts = [part.strip() for part in str(tag or "").split("::") if part.strip()]
+    return parts[-1] if parts else fallback
+
+
+def _resolve_standardized_action_tags(
+    action_cfg: dict[str, Any],
+    *,
+    primary_tag: str,
+    default_child_of_primary: bool,
+    default_segments: list[str],
+    default_absolute_tags: list[str],
+) -> list[str]:
+    child_of_primary = _to_bool(
+        action_cfg.get("child_of_primary_missed"),
+        default_child_of_primary,
+    )
+    if child_of_primary:
+        segment_source = action_cfg.get("tag_segment")
+        if segment_source is None:
+            segment_source = action_cfg.get("tag_segments")
+        segments = _to_string_list(segment_source, default_segments)
+        return [_build_child_tag(primary_tag, seg) for seg in segments]
+
+    return _to_string_list(action_cfg.get("absolute_tags"), default_absolute_tags)
+
+
+def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
+    normalized = ConfigManager.deep_merge_dicts({}, cfg)
+    actions_cfg = _as_dict(normalized.get("actions"))
+    if not actions_cfg:
+        return normalized
+
+    action_defaults = _as_dict(normalized.get("action_defaults"))
+    action_defaults_prompt = _as_dict(action_defaults.get("prompt"))
+    default_child_of_primary = _to_bool(action_defaults.get("child_of_primary_missed"), True)
+
+    base_cfg = _as_dict(actions_cfg.get("base"))
+    base_tags_existing = _to_string_list(base_cfg.get("tags"), fallback=["##Missed-Qs"])
+    primary_tag = _to_text(base_tags_existing[0] if base_tags_existing else "##Missed-Qs", "##Missed-Qs")
+
+    def _copy_menu_label(action_cfg: dict[str, Any], target_cfg: dict[str, Any]) -> None:
+        menu_label = _to_text(action_cfg.get("menu_label"), "")
+        if menu_label:
+            target_cfg["label"] = menu_label
+
+    def _apply_add_date_context(action_cfg: dict[str, Any], target_cfg: dict[str, Any]) -> None:
+        if "add_missed_date_context" in action_cfg:
+            target_cfg["add_missed_date_context"] = _to_bool(
+                action_cfg.get("add_missed_date_context"),
+                True,
+            )
+            return
+        if "add_missed_date_context" in action_defaults:
+            target_cfg["add_missed_date_context"] = _to_bool(
+                action_defaults.get("add_missed_date_context"),
+                True,
+            )
+
+    base_cfg = _as_dict(actions_cfg.get("base"))
+    if base_cfg:
+        has_standard_base_keys = any(
+            key in base_cfg for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
+        )
+        if has_standard_base_keys:
+            _copy_menu_label(base_cfg, base_cfg)
+            resolved_base_tags = _resolve_standardized_action_tags(
+                base_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=False,
+                default_segments=[""],
+                default_absolute_tags=[primary_tag],
+            )
+            base_cfg["tags"] = resolved_base_tags
+            if resolved_base_tags:
+                primary_tag = _to_text(resolved_base_tags[0], primary_tag)
+            _apply_add_date_context(base_cfg, base_cfg)
+
+    uworld_cfg = _as_dict(actions_cfg.get("uworld"))
+    if uworld_cfg:
+        has_standard_uworld_keys = any(
+            key in uworld_cfg for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment", "prompt")
+        )
+        if has_standard_uworld_keys:
+            _copy_menu_label(uworld_cfg, uworld_cfg)
+            uworld_tags = _resolve_standardized_action_tags(
+                uworld_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=default_child_of_primary,
+                default_segments=["*UW_Tests"],
+                default_absolute_tags=[f"{primary_tag}::*UW_Tests"],
+            )
+            uworld_cfg["base_tags"] = [_canonicalize_uworld_base_tag_path(tag) for tag in uworld_tags]
+
+            configured_default_prefix = _to_text(uworld_cfg.get("default_tag_prefix"), "")
+            if configured_default_prefix:
+                uworld_cfg["default_tag_prefix"] = _canonicalize_uworld_tag_segment(
+                    configured_default_prefix
+                )
+            else:
+                extracted_suffix = _extract_tag_suffix(uworld_cfg["base_tags"][0], "*UW_Tests")
+                uworld_cfg["default_tag_prefix"] = _canonicalize_uworld_tag_segment(extracted_suffix)
+
+            uworld_prompt = _as_dict(uworld_cfg.get("prompt"))
+
+            parent_range_block_size = _to_positive_int(
+                uworld_prompt.get(
+                    "parent_range_block_size",
+                    uworld_cfg.get("test_parent_range_block_size"),
+                ),
+                0,
+            )
+            if parent_range_block_size > 0:
+                uworld_cfg["test_parent_range_block_size"] = parent_range_block_size
+
+            range_block_size = _to_positive_int(
+                uworld_prompt.get(
+                    "range_block_size",
+                    uworld_cfg.get(
+                        "test_range_block_size",
+                        action_defaults_prompt.get("range_block_size"),
+                    ),
+                ),
+                0,
+            )
+            if range_block_size > 0:
+                uworld_cfg["test_range_block_size"] = range_block_size
+                if "test_parent_range_block_size" not in uworld_cfg:
+                    uworld_cfg["test_parent_range_block_size"] = range_block_size
+
+            _apply_add_date_context(uworld_cfg, uworld_cfg)
+
+    nbme_cfg = _as_dict(actions_cfg.get("nbme"))
+    if nbme_cfg:
+        has_standard_nbme_keys = any(
+            key in nbme_cfg for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment", "prompt")
+        )
+        if has_standard_nbme_keys:
+            _copy_menu_label(nbme_cfg, nbme_cfg)
+            nbme_tags = _resolve_standardized_action_tags(
+                nbme_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=default_child_of_primary,
+                default_segments=["NBME"],
+                default_absolute_tags=[f"{primary_tag}::NBME"],
+            )
+            nbme_cfg["base_tags"] = nbme_tags
+            nbme_cfg["default_tag_prefix"] = _to_text(
+                nbme_cfg.get("default_tag_prefix"),
+                _extract_tag_suffix(nbme_tags[0], "NBME"),
+            )
+            _apply_add_date_context(nbme_cfg, nbme_cfg)
+
+    amboss_cfg = _as_dict(actions_cfg.get("amboss"))
+    if amboss_cfg:
+        has_standard_amboss_keys = any(
+            key in amboss_cfg for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment", "prompt")
+        )
+        if has_standard_amboss_keys:
+            _copy_menu_label(amboss_cfg, amboss_cfg)
+            amboss_tags = _resolve_standardized_action_tags(
+                amboss_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=default_child_of_primary,
+                default_segments=["Amboss"],
+                default_absolute_tags=[f"{primary_tag}::Amboss"],
+            )
+            if amboss_tags:
+                amboss_cfg["base_tag"] = amboss_tags[0]
+
+            amboss_prompt = _as_dict(amboss_cfg.get("prompt"))
+            number_style = _to_text(
+                amboss_prompt.get("number_style", amboss_cfg.get("number_style")),
+                "",
+            )
+            if number_style in {
+                PROMPT_STYLE_ROTATION_THEN_NUMBER,
+                PROMPT_STYLE_RANGE_THEN_NUMBER,
+                PROMPT_STYLE_NUMBER_ONLY,
+            }:
+                amboss_cfg["number_style"] = number_style
+
+            if "blank_behavior" in amboss_cfg:
+                amboss_cfg["blank_behavior"] = _to_text(
+                    amboss_cfg.get("blank_behavior"),
+                    PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
+                )
+            elif "kind" in amboss_prompt:
+                # Friend-style prompt config treats blank/non-numeric as base-only.
+                amboss_cfg["blank_behavior"] = PROMPT_BEHAVIOR_BASE_ONLY
+
+            if "remove_from_other_menu" in amboss_cfg:
+                amboss_cfg["remove_from_other_menu"] = _to_bool(
+                    amboss_cfg.get("remove_from_other_menu"),
+                    True,
+                )
+
+            _apply_add_date_context(amboss_cfg, amboss_cfg)
+
+    multi_missed_cfg = _as_dict(actions_cfg.get("multi_missed"))
+    if multi_missed_cfg:
+        has_standard_multi_keys = any(
+            key in multi_missed_cfg for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
+        )
+        if has_standard_multi_keys:
+            _copy_menu_label(multi_missed_cfg, multi_missed_cfg)
+            if "tag_segment" not in multi_missed_cfg:
+                multi_tags = _resolve_standardized_action_tags(
+                    multi_missed_cfg,
+                    primary_tag=primary_tag,
+                    default_child_of_primary=default_child_of_primary,
+                    default_segments=["2x"],
+                    default_absolute_tags=[f"{primary_tag}::2x"],
+                )
+                resolved_segment = _to_text(multi_tags[0], "2x") if multi_tags else "2x"
+                primary_prefix = f"{primary_tag}::"
+                if resolved_segment.startswith(primary_prefix):
+                    resolved_segment = resolved_segment[len(primary_prefix) :]
+                elif resolved_segment == primary_tag:
+                    resolved_segment = ""
+                multi_missed_cfg["tag_segment"] = resolved_segment or "2x"
+            _apply_add_date_context(multi_missed_cfg, multi_missed_cfg)
+
+    key_info_cfg = _as_dict(actions_cfg.get("key_info"))
+    if key_info_cfg:
+        has_standard_key_info_keys = any(
+            key in key_info_cfg for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
+        )
+        if has_standard_key_info_keys:
+            _copy_menu_label(key_info_cfg, key_info_cfg)
+            key_tags = _resolve_standardized_action_tags(
+                key_info_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=False,
+                default_segments=["#KEY"],
+                default_absolute_tags=[_to_text(key_info_cfg.get("tag_base"), "#Custom::#KEY")],
+            )
+            key_info_cfg["tag_base"] = _to_text(key_tags[0], "#Custom::#KEY") if key_tags else "#Custom::#KEY"
+            _apply_add_date_context(key_info_cfg, key_info_cfg)
+
+    correct_guess_cfg = _as_dict(actions_cfg.get("correct_guess"))
+    if correct_guess_cfg:
+        has_standard_correct_guess_keys = any(
+            key in correct_guess_cfg
+            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
+        )
+        if has_standard_correct_guess_keys:
+            _copy_menu_label(correct_guess_cfg, correct_guess_cfg)
+            correct_guess_cfg["tags"] = _resolve_standardized_action_tags(
+                correct_guess_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=False,
+                default_segments=["correct_marked"],
+                default_absolute_tags=["#Custom::correct_marked"],
+            )
+            _apply_add_date_context(correct_guess_cfg, correct_guess_cfg)
+
+    other_cfg = _as_dict(actions_cfg.get("other"))
+    if other_cfg:
+        has_standard_other_keys = any(key in other_cfg for key in ("tagging", "actions", "submenu_label", "submenu_bool"))
+        if has_standard_other_keys:
+            other_tagging = _as_dict(other_cfg.get("tagging"))
+            legacy_other_actions = other_cfg.get("actions")
+
+            resources: list[str] = []
+            if isinstance(legacy_other_actions, list):
+                for item in legacy_other_actions:
+                    if not isinstance(item, dict):
+                        continue
+                    tag_segment = _to_text(item.get("tag_segment"), "")
+                    if tag_segment:
+                        resources.append(tag_segment)
+            if resources:
+                other_cfg["resources"] = resources
+
+            if _to_bool(other_tagging.get("tag_segment_group"), True):
+                other_cfg["tag_suffix"] = _to_text(
+                    other_tagging.get("group_segment"),
+                    "Other",
+                )
+
+            if "add_missed_date_context" in other_tagging:
+                other_cfg["add_missed_date_context"] = _to_bool(
+                    other_tagging.get("add_missed_date_context"),
+                    True,
+                )
+            elif "add_missed_date_context" in action_defaults:
+                other_cfg["add_missed_date_context"] = _to_bool(
+                    action_defaults.get("add_missed_date_context"),
+                    True,
+                )
+
+    normalized["actions"] = actions_cfg
+    return normalized
+
+
 def _load_merged_missed_tags_config() -> dict[str, Any]:
     # Centralized migration lives in the root ConfigManager.
     ConfigManager.migrate_overrides_once()
@@ -265,8 +592,8 @@ def _normalize_missed_tags_config(raw_cfg: dict[str, Any]) -> dict[str, Any]:
     defaults = ConfigManager.deep_merge_dicts({}, ADD_MISSED_TAGS_DEFAULTS)
     if not isinstance(raw_cfg, dict):
         return defaults
-    # Canonical keys only: no per-key legacy alias remapping in this module.
-    return ConfigManager.deep_merge_dicts(defaults, raw_cfg)
+    canonical = ConfigManager.deep_merge_dicts(defaults, raw_cfg)
+    return _apply_standardized_action_schema(canonical)
 
 
 def _load_missed_tags_override_section() -> dict[str, Any]:
@@ -500,6 +827,42 @@ def load_runtime_config() -> MissedTagsConfig:
     default_winter_break_label = _default_text(("rotation", "winter_break_label"), "Winter-break")
     default_post_rotation_label = _default_text(("rotation", "post_rotation_label"), "Dedicated")
 
+    action_add_missed_date_context = dict(DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT)
+    action_add_missed_date_context["base_plain"] = _read_action_add_missed_date_context(
+        base_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["base_plain"],
+    )
+    action_add_missed_date_context["uw_test_prompt"] = _read_action_add_missed_date_context(
+        uworld_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["uw_test_prompt"],
+    )
+    action_add_missed_date_context["nbme_form_prompt"] = _read_action_add_missed_date_context(
+        nbme_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["nbme_form_prompt"],
+    )
+    action_add_missed_date_context["amboss_test_prompt"] = _read_action_add_missed_date_context(
+        amboss_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["amboss_test_prompt"],
+    )
+    action_add_missed_date_context["multi_missed"] = _read_action_add_missed_date_context(
+        multi_missed_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["multi_missed"],
+    )
+    action_add_missed_date_context["add_key_info_action"] = _read_action_add_missed_date_context(
+        key_info_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["add_key_info_action"],
+    )
+    action_add_missed_date_context["correct_guess"] = _read_action_add_missed_date_context(
+        correct_guess_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["correct_guess"],
+    )
+    other_add_context = _read_action_add_missed_date_context(
+        other_cfg,
+        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["other_resource"],
+    )
+    action_add_missed_date_context["other_resource"] = other_add_context
+    action_add_missed_date_context["true_learn_test_prompt"] = other_add_context
+
     return MissedTagsConfig(
         base_missed_tag=_read_string_list(
             base_cfg,
@@ -527,6 +890,7 @@ def load_runtime_config() -> MissedTagsConfig:
         schedule_exhausted_policy=schedule_exhausted_policy,
         missed_tags_menu_label=_read_text(ui_cfg, "menu_label", default_menu_label),
         include_day_segment=_read_bool(date_cfg, "include_day_segment", default_include_day_segment),
+        action_add_missed_date_context=action_add_missed_date_context,
         action_label_base=_read_text(base_cfg, "label", default_action_label_base),
         action_label_multi_missed=_read_text(multi_missed_cfg, "label", default_action_label_multi_missed),
         action_label_key_info=_read_text(key_info_cfg, "label", default_action_label_key_info),
@@ -591,21 +955,84 @@ def _resolved_base_tag(cfg: MissedTagsConfig) -> str:
     return defaults[0]
 
 
+def _normalize_tag_segment_for_match(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    return re.sub(r"^[^a-z0-9]+", "", normalized)
+
+
+def _canonicalize_uworld_tag_segment(value: str) -> str:
+    segment = str(value or "").strip()
+    if not segment:
+        return CANONICAL_UWORLD_TAG_SEGMENT
+    if _normalize_tag_segment_for_match(segment) == "uw_tests":
+        return CANONICAL_UWORLD_TAG_SEGMENT
+    return segment
+
+
+def _canonicalize_uworld_base_tag_path(tag_path: str) -> str:
+    raw_parts = [str(part).strip() for part in str(tag_path or "").split("::") if str(part).strip()]
+    if not raw_parts:
+        return str(tag_path or "").strip()
+    raw_parts[-1] = _canonicalize_uworld_tag_segment(raw_parts[-1])
+    return "::".join(raw_parts)
+
+
+def _tag_path_contains_segment(tag_path: str, *segments: str) -> bool:
+    normalized_parts = [
+        _normalize_tag_segment_for_match(part)
+        for part in str(tag_path or "").split("::")
+        if str(part).strip()
+    ]
+    normalized_parts = [part for part in normalized_parts if part]
+    if not normalized_parts:
+        return False
+
+    for segment in segments:
+        normalized_segment = _normalize_tag_segment_for_match(segment)
+        if not normalized_segment:
+            continue
+        if any(part == normalized_segment or part.startswith(normalized_segment) for part in normalized_parts):
+            return True
+    return False
+
+
 def _uw_base_tag(cfg: MissedTagsConfig) -> str:
-    for cand in cfg.subset_1_tag + cfg.subset_2_tag:
-        if "UW_Base" in cand or "::UW" in cand:
-            return cand
-    return base_tag_path(cfg, cfg.default_test_tag_prefix)
+    # Honor explicit UWorld base_tags from config first.
+    for cand in cfg.subset_1_tag:
+        cand_text = str(cand).strip()
+        if cand_text:
+            return _canonicalize_uworld_base_tag_path(cand_text)
+
+    # Backward compatibility: recover UWorld tags even if they were placed in
+    # the NBME slot, including prefixed segments like "*UW_Tests".
+    for cand in cfg.subset_2_tag:
+        cand_text = str(cand).strip()
+        if not cand_text:
+            continue
+        if "UW_BASE" in cand_text.upper() or _tag_path_contains_segment(cand_text, "uw", "uworld"):
+            return _canonicalize_uworld_base_tag_path(cand_text)
+
+    return base_tag_path(cfg, _canonicalize_uworld_tag_segment(cfg.default_test_tag_prefix))
 
 
 def _nbme_base_tag(cfg: MissedTagsConfig) -> str:
-    for cand in cfg.subset_2_tag + cfg.subset_1_tag:
-        upper_cand = cand.upper()
-        if "::NBME" in upper_cand or "NBME_BASE" in upper_cand:
-            return cand
+    # Honor explicit NBME base_tags from config first.
+    for cand in cfg.subset_2_tag:
+        cand_text = str(cand).strip()
+        if cand_text:
+            return cand_text
+
+    for cand in cfg.subset_1_tag:
+        cand_text = str(cand).strip()
+        if not cand_text:
+            continue
+        upper_cand = cand_text.upper()
+        if _tag_path_contains_segment(cand_text, "nbme") or "NBME_BASE" in upper_cand:
+            return cand_text
         # Backward compatibility for older COMQUEST-only config overrides.
-        if "::COMQUEST" in upper_cand or "COMQUEST_BASE" in upper_cand:
-            return cand
+        if _tag_path_contains_segment(cand_text, "comquest") or "COMQUEST_BASE" in upper_cand:
+            return cand_text
+
     return base_tag_path(cfg, cfg.default_nbme_tag_prefix)
 
 
@@ -732,6 +1159,12 @@ def _save_note_safe(col, note):
         note.flush()
 
 
+def _should_add_missed_date_context(cfg: MissedTagsConfig, action_key: str) -> bool:
+    if action_key in cfg.action_add_missed_date_context:
+        return bool(cfg.action_add_missed_date_context[action_key])
+    return action_key not in EXCLUDE_AUTO_MISS
+
+
 def apply_tags_to_selected_notes(
     browser,
     tag_list: list[str],
@@ -747,7 +1180,7 @@ def apply_tags_to_selected_notes(
 
     final = list(tag_list or [])
     rotation_warning = ""
-    if action_key not in EXCLUDE_AUTO_MISS:
+    if _should_add_missed_date_context(runtime_cfg, action_key):
         rotation_tag, rotation_warning = get_missed_tag_for_rotation(runtime_cfg)
         final.append(rotation_tag)
         final.append(get_missed_month_tag(runtime_cfg))
@@ -836,6 +1269,7 @@ def add_missed_tag_menu_items(browser, menu):
     add_base_plain_action(browser, tag_menu, cfg)
 
     add_multi_tag(browser, tag_menu, cfg)
+    add_key_info_action(browser, tag_menu, cfg)
 
     add_correct_guess_action(browser, tag_menu, cfg)
 
@@ -1045,6 +1479,8 @@ def make_test_prompt_handler(
                     _save_prompt_input(action_key, test_num)
                     if number_style == PROMPT_STYLE_ROTATION_THEN_NUMBER:
                         formatted_tag = f"{base_tag}::{rotation_segment}::{tn:02d}"
+                    elif number_style == PROMPT_STYLE_NUMBER_ONLY:
+                        formatted_tag = f"{base_tag}::{tn:02d}"
                     else:
                         parent_lower = (
                             ((tn - 1) // cfg.test_parent_range_block_size) * cfg.test_parent_range_block_size

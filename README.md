@@ -37,7 +37,7 @@ Each tool is designed as a standalone module yet integrates seamlessly into the 
 ### Developer Workflow
 
 1. **Add Modules:** Create new Python modules under `modules/` following existing patterns.
-2. **Create Configs:** Add configuration JSON files in `configs/`.
+2. **Add Config Sections:** Add or update section defaults in the root `config.json`.
 3. **Implement Logging:** Ensure detailed logs are written in dedicated subfolders under `logs/`.
 4. **Register Tools:** Update menu and UI registration in `__init__.py` and the target module(s).
 5. **Document:** Provide module docstrings and update this README with new tool descriptions.
@@ -48,7 +48,7 @@ Each tool is designed as a standalone module yet integrates seamlessly into the 
 ## Naming Conventions and File Structure
 
 - **Modules:** Named with lowercase and underscores (e.g., `merge_tags.py`), grouped by functionality.
-- **Configs:** JSON files named with tool identifiers and `_config.json` suffix (e.g., `merge_tags_config.json`).
+- **Config Sections:** Tool settings are grouped by section keys in root `config.json` (e.g., `merge_tags_config`).
 - **Logs:** Stored under `logs/` with subfolders per module, log files named with timestamps (e.g., `merge_tags_run_YYYY-MM-DD.log`).
 - **Assets:** Static resources like text replacements or helper scripts are stored in `modules/assets/`.
 - **Submodules:** Organized as subfolders with `__init__.py` for package recognition.
@@ -70,17 +70,10 @@ _Change_notes/
 ├── config_manager.py
 ├── config_ui.py
 │
-├── configs/                               # Default source for per-module config sections
-│   ├── add_custom_tags.json
-│   ├── tag_missed_qid_notes.json          # Canonical missed-tags section
-│   ├── add_missed_tags.json               # Legacy missed-tags compatibility
-│   └── add_tags.json                      # Legacy compatibility defaults
-│
 ├── logs/
 │
 └── modules/
     ├── utils.py
-    ├── merge_utils.py
     ├── add_custom_tags.py
     ├── add_missed_tags.py
     ├── change_note_types.py
@@ -96,7 +89,6 @@ _Change_notes/
     ├── logs/
     │
     ├── assets/
-    │   ├── merge_utils.py
     │   ├── scrub_match.py
     │   ├── scrub_match_sched.py
     │   └── text_replacements.txt
@@ -139,7 +131,6 @@ _Change_notes/
 
 - `utils/` – shared helpers and safety checks  
 - `assets/` – static resources and scrub/replace rules  
-- `merge_utils.py` – shared merge logic (tags/images/schedule)
 
 Each module includes configuration files and produces detailed logs to facilitate auditing and troubleshooting.
 
@@ -149,61 +140,71 @@ Each module includes configuration files and produces detailed logs to facilitat
 
 _Change_notes employs a layered configuration approach to maximize flexibility:
 
-- **Global Configuration (`config.json`):** Controls overall add-on behavior, UI settings, and default options.
-- **Tool-specific Configuration (`configs/*.json`):** Fine-tunes individual tool behavior such as merge maps, thresholds, and dry-run settings.
-- **Custom Tag Presets (`add_custom_tags` section):** Defines the top-level Custom Tags submenu label, optional per-group display labels, and tag presets. Presets with `group` render in a one-level submenu; presets with no `group` render at the root of `Custom Tags`.
-- **Optional Secondary Custom Tags (`add_custom_tags_2` section):** Same schema as `add_custom_tags`; renders a second top-level custom-tags submenu and is hidden when `presets` is empty.
+- **Default Config File (`config.json`):** Stores section defaults for all tools.
+- **Runtime Overrides (Anki add-on config):** Stores user edits made through Anki's config editor/UI and is merged on top of defaults.
+- **Custom Tag Presets (`custom_tags_config.add_custom_tags_1` section):** Defines the top-level Custom Tags submenu label, optional per-group display labels, and tag presets. Presets with `group` render in a one-level submenu; presets with no `group` render at the root of `Custom Tags`. Optional `review_shortcut` on each preset adds a review-screen hotkey.
+- **Optional Secondary Custom Tags (`custom_tags_config.add_custom_tags_2` section):** Same schema as `add_custom_tags_1`; supports optional per-preset `review_shortcut`, and is hidden when `presets` is empty.
 - **Missed Tags (`tag_missed_qid_notes` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_missed_tags`, `add_tags`, and `tag_selected_notes_config`.
 
 Configuration can be edited using:
 
 - The built-in configuration GUI (`config_ui.py`) for interactive adjustment.
-- Direct editing of JSON files for advanced customization.
+- Direct editing of root `config.json` for advanced customization.
 
-**Example of `merge_tags_config.json`:**
+**Example of `merge_tags_config` in `config.json`:**
 
 ```json
 {
-  "merge_map": {
-    "biology": "science",
-    "bio": "science",
-    "chem": "science"
+  "merge_tags_config": {
+    "comparison_field": "Text",
+    "default_fuzzy": 0.96,
+    "min_fuzzy": 0.7,
+    "ask_fuzzy_each_time": true,
+    "base_tag": "TAGS_MERGED",
+    "merge_select_only": false,
+    "excluded_tags": []
   },
-  "fuzzy_threshold": 0.85,
-  "dry_run": true,
-  "log_path": "logs/merge_tags/merge_tags_run_2024-05-22.log"
 }
 ```
 
-**Example of `add_custom_tags` section:**
+**Example of `custom_tags_config.add_custom_tags_1` section:**
 
 ```json
 {
-  "submenu_label": "Custom Tags",
-  "group_labels": {
-    "Drugs": "💊 Drugs"
-  },
-  "presets": [
-    {
-      "label": "ADRs",
-      "group": "Drugs",
-      "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
-    },
-    {
-      "label": "DO_Med",
-      "tags": ["#Custom::DO_Med"]
+  "custom_tags_config": {
+    "add_custom_tags_1": {
+      "submenu_label": "Custom Tags",
+      "group_labels": {
+        "Drugs": "💊 Drugs"
+      },
+      "presets": [
+        {
+          "label": "ADRs",
+          "group": "Drugs",
+          "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"],
+          "review_shortcut": "Ctrl+Shift+A"
+        },
+        {
+          "label": "DO_Med",
+          "tags": ["#Custom::DO_Med"]
+        }
+      ]
     }
-  ]
+  }
 }
 ```
 
-**Optional `add_custom_tags_2` section:**
+**Optional `custom_tags_config.add_custom_tags_2` section:**
 
 ```json
 {
-  "submenu_label": "Custom Tags 2",
-  "group_labels": {},
-  "presets": []
+  "custom_tags_config": {
+    "add_custom_tags_2": {
+      "submenu_label": "Custom Tags 2",
+      "group_labels": {},
+      "presets": []
+    }
+  }
 }
 ```
 
@@ -240,7 +241,7 @@ Custom-tag no-selection and success messages are hardcoded in `modules/add_custo
 ### For Developers
 
 - Develop new modules under `modules/` with clear separation of concerns.
-- Add configuration files in `configs/`.
+- Add or update section defaults in root `config.json`.
 - Implement detailed logging for transparency.
 - Register new tools in the menu system via `__init__.py` and module menu hook functions.
 - Update this README with documentation for new modules.

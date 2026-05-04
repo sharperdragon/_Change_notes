@@ -11,8 +11,13 @@ from .shared.defaults import ADD_CUSTOM_TAGS_DEFAULTS
 from .shared.menu_styles import build_custom_tags_menu_stylesheet
 
 # ! ----------------------------- CONFIG SECTION -----------------------------
-DEFAULT_CONFIG_SECTION = "add_custom_tags"
+DEFAULT_PARENT_CONFIG_SECTION = "custom_tags_config"
+DEFAULT_CONFIG_SECTION = "add_custom_tags_1"
 DEFAULT_HIDE_WHEN_NO_PRESETS = False
+LEGACY_SECTION_ALIASES: dict[str, tuple[str, ...]] = {
+    "add_custom_tags_1": ("add_custom_tags",),
+    "add_custom_tags_2": (),
+}
 # ! ------------------------------------------------------------------------
 
 # ! --------------------------- OPTIONAL CONFIG KEYS ---------------------------
@@ -20,6 +25,7 @@ CONFIG_KEY_SUBMENU_LABEL = "submenu_label"
 CONFIG_KEY_GROUP_LABELS = "group_labels"
 CONFIG_KEY_PRESETS = "presets"
 CONFIG_KEY_GROUP = "group"
+CONFIG_KEY_REVIEW_SHORTCUT = "review_shortcut"
 # ! -----------------------------------------------------------------------------
 
 # ! ----------------------- HARDCODED UI MESSAGES -----------------------
@@ -47,6 +53,13 @@ def _normalize_group(value: Any) -> str | None:
     return group or None
 
 
+def _normalize_shortcut(value: Any) -> str | None:
+    if value is None:
+        return None
+    shortcut = str(value).strip()
+    return shortcut or None
+
+
 def _normalize_presets(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
@@ -56,7 +69,8 @@ def _normalize_presets(raw: Any) -> list[dict[str, Any]]:
         if not isinstance(preset, dict):
             continue
 
-        label = str(preset.get("label", "")).strip()
+        raw_label = preset.get("label", preset.get("menu_label", ""))
+        label = str(raw_label).strip() if raw_label is not None else ""
         tags = _to_string_list(preset.get("tags", []))
         if not label or not tags:
             continue
@@ -65,6 +79,9 @@ def _normalize_presets(raw: Any) -> list[dict[str, Any]]:
         group = _normalize_group(preset.get(CONFIG_KEY_GROUP))
         if group:
             normalized_preset["group"] = group
+        review_shortcut = _normalize_shortcut(preset.get(CONFIG_KEY_REVIEW_SHORTCUT))
+        if review_shortcut:
+            normalized_preset[CONFIG_KEY_REVIEW_SHORTCUT] = review_shortcut
         normalized.append(normalized_preset)
 
     return normalized
@@ -86,8 +103,37 @@ def _normalize_group_labels(raw: Any) -> dict[str, str]:
 def _load_runtime_config(
     menu_label_override: str | None = None,
     config_section: str = DEFAULT_CONFIG_SECTION,
+    parent_config_section: str = DEFAULT_PARENT_CONFIG_SECTION,
 ) -> tuple[str, dict[str, str], list[dict[str, Any]], str, str]:
-    section_cfg = ConfigManager(config_section).load()
+    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
+    if not isinstance(root_cfg, dict):
+        root_cfg = {}
+
+    section_cfg: dict[str, Any] = {}
+
+    parent_cfg = root_cfg.get(parent_config_section, {})
+    if isinstance(parent_cfg, dict):
+        nested_cfg = parent_cfg.get(config_section)
+        if isinstance(nested_cfg, dict):
+            section_cfg = nested_cfg
+        else:
+            for alias in LEGACY_SECTION_ALIASES.get(config_section, ()):
+                alias_cfg = parent_cfg.get(alias)
+                if isinstance(alias_cfg, dict):
+                    section_cfg = alias_cfg
+                    break
+
+    if not section_cfg:
+        top_level_cfg = root_cfg.get(config_section)
+        if isinstance(top_level_cfg, dict):
+            section_cfg = top_level_cfg
+        else:
+            for alias in LEGACY_SECTION_ALIASES.get(config_section, ()):
+                alias_cfg = root_cfg.get(alias)
+                if isinstance(alias_cfg, dict):
+                    section_cfg = alias_cfg
+                    break
+
     if not isinstance(section_cfg, dict):
         section_cfg = {}
 
@@ -121,6 +167,58 @@ def _save_note_safe(col, note):
         note.flush()
 
 
+def _dedupe_tags(tags: list[str]) -> list[str]:
+    final_tags: list[str] = []
+    seen = set()
+    for tag in tags:
+        if tag and tag not in seen:
+            seen.add(tag)
+            final_tags.append(tag)
+    return final_tags
+
+
+def apply_tags_to_note(col, note, tags: list[str]) -> int:
+    """Apply unique tags to one note and return number of newly added tags."""
+    final_tags = _dedupe_tags(tags)
+    if not final_tags:
+        return 0
+
+    current_tags = set(note.tags)
+    added_count = 0
+    for tag in final_tags:
+        if tag not in current_tags:
+            _add_tag_safe(note, tag)
+            current_tags.add(tag)
+            added_count += 1
+
+    _save_note_safe(col, note)
+    return added_count
+
+
+def iter_reviewer_shortcut_actions(
+    *,
+    config_section: str = DEFAULT_CONFIG_SECTION,
+) -> list[tuple[str, str, list[str]]]:
+    """Return (shortcut, preset_label, tags) entries for reviewer shortcuts."""
+    _, _, presets, _, _ = _load_runtime_config(config_section=config_section)
+
+    actions: list[tuple[str, str, list[str]]] = []
+    seen_shortcuts: set[str] = set()
+    for preset in presets:
+        shortcut = _normalize_shortcut(preset.get(CONFIG_KEY_REVIEW_SHORTCUT))
+        if not shortcut:
+            continue
+
+        shortcut_key = shortcut.lower()
+        if shortcut_key in seen_shortcuts:
+            continue
+
+        seen_shortcuts.add(shortcut_key)
+        actions.append((shortcut, preset["label"], list(preset["tags"])))
+
+    return actions
+
+
 def _apply_tags_to_selected_notes(
     browser,
     tags: list[str],
@@ -133,13 +231,7 @@ def _apply_tags_to_selected_notes(
         showInfo(msg_no_notes_selected)
         return
 
-    # Deduplicate while preserving order
-    final_tags: list[str] = []
-    seen = set()
-    for tag in tags:
-        if tag and tag not in seen:
-            seen.add(tag)
-            final_tags.append(tag)
+    final_tags = _dedupe_tags(tags)
 
     if not final_tags:
         return
@@ -147,11 +239,7 @@ def _apply_tags_to_selected_notes(
     col = browser.mw.col
     for nid in nids:
         note = col.get_note(nid)
-        current_tags = set(note.tags)
-        for tag in final_tags:
-            if tag not in current_tags:
-                _add_tag_safe(note, tag)
-        _save_note_safe(col, note)
+        apply_tags_to_note(col, note, final_tags)
 
     browser.model.reset()
     tooltip(msg_applied_template.format(tag_count=len(final_tags), note_count=len(nids)))

@@ -33,7 +33,7 @@ from .modules.tag_dupes import run_tag_dupes
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
 DEFAULT_CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
-DEFAULT_CUSTOM_TAGS_MENU_CONFIG_SECTION = "add_custom_tags"
+DEFAULT_CUSTOM_TAGS_MENU_CONFIG_SECTION = "add_custom_tags_1"
 DEFAULT_CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
 DEFAULT_CUSTOM_TAGS_MENU_2_LABEL: Optional[str] = None
 DEFAULT_CUSTOM_TAGS_MENU_2_CONFIG_SECTION = "add_custom_tags_2"

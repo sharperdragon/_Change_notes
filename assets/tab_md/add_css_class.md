@@ -9,7 +9,7 @@ This tab controls table/image class assignment helpers used to standardize card 
 
 ## High-risk Fields
 - `add_img_class.square_min` / `square_max`: Bad boundaries misclassify many images.
-- `add_img_class.ultra_wide_ratio` / `landscape_ratio_min` / `tall_ratio`: Incorrect ratios distort class assignment.
+- `add_img_class.ultra-wide_ratio` / `landscape_ratio_min` / `tall_ratio`: Incorrect ratios distort class assignment.
 - `add_table_class.log_path`: Invalid path hides diagnostics when tuning.
 
 ## Safe Edit Checklist
@@ -26,7 +26,7 @@ This tab controls table/image class assignment helpers used to standardize card 
 
 ### `add_img_class`
 - `small_width`: Width cutoff for small image logic.
-- `ultra_wide_ratio`: Aspect ratio threshold for very wide images.
+- `ultra-wide_ratio`: Aspect ratio threshold for very wide images.
 - `landscape_ratio_min`: Minimum ratio for landscape classification.
 - `tall_ratio`: Threshold for portrait/tall classification.
 - `square_min`, `square_max`: Bounds for square-like detection.
@@ -41,7 +41,7 @@ This tab controls table/image class assignment helpers used to standardize card 
   },
   "add_img_class": {
     "small_width": 340,
-    "ultra_wide_ratio": 1.9,
+    "ultra-wide_ratio": 1.9,
     "landscape_ratio_min": 1.19,
     "tall_ratio": 0.9,
     "square_min": 0.9,

@@ -4,14 +4,14 @@
 This tab configures preset tag actions shown in the Browser context menu.
 
 ## Key Sections
-- `add_custom_tags`
-- `add_custom_tags_2` (optional second top-level menu)
+- `custom_tags_config.add_custom_tags_1`
+- `custom_tags_config.add_custom_tags_2` (optional second top-level menu)
 
 ## High-risk Fields
-- `add_custom_tags.presets`: Invalid shape (missing `label` or invalid `tags`) breaks menu actions.
-- `add_custom_tags.submenu_label`: Frequent renames can make menu navigation inconsistent.
-- `add_custom_tags.group_labels`: Keys not matching `presets[].group` will not affect submenu labels.
-- `add_custom_tags_2.presets`: If empty, the second menu stays hidden.
+- `custom_tags_config.add_custom_tags_1.presets`: Invalid shape (missing `label` or invalid `tags`) breaks menu actions.
+- `custom_tags_config.add_custom_tags_1.submenu_label`: Frequent renames can make menu navigation inconsistent.
+- `custom_tags_config.add_custom_tags_1.group_labels`: Keys not matching `presets[].group` will not affect submenu labels.
+- `custom_tags_config.add_custom_tags_2.presets`: If empty, the second menu stays hidden.
 
 ## Safe Edit Checklist
 - Keep `presets` as an array of objects.
@@ -20,12 +20,12 @@ This tab configures preset tag actions shown in the Browser context menu.
 
 ## Field Reference
 
-### Top-level
+### Per menu section
 - `submenu_label`: Root menu label for custom tag presets.
 - `group_labels`: Optional map from group key to displayed submenu label.
 - `presets`: Preset definitions.
 
-`add_custom_tags_2` uses the same fields as `add_custom_tags`.
+`add_custom_tags_2` uses the same fields as `add_custom_tags_1`.
 
 No-selection and success toast messages are hardcoded in code and not editable in config.
 
@@ -38,27 +38,29 @@ No-selection and success toast messages are hardcoded in code and not editable i
 
 ```json
 {
-  "add_custom_tags": {
-    "submenu_label": "Custom Tags",
-    "group_labels": {
-      "Drugs": "💊 Drugs"
-    },
-    "presets": [
-      {
-        "label": "ADRs",
-        "group": "Drugs",
-        "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
+  "custom_tags_config": {
+    "add_custom_tags_1": {
+      "submenu_label": "Custom Tags",
+      "group_labels": {
+        "Drugs": "💊 Drugs"
       },
-      {
-        "label": "DO_Med",
-        "tags": ["#Custom::DO_Med"]
-      }
-    ]
-  },
-  "add_custom_tags_2": {
-    "submenu_label": "Custom Tags 2",
-    "group_labels": {},
-    "presets": []
+      "presets": [
+        {
+          "label": "ADRs",
+          "group": "Drugs",
+          "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
+        },
+        {
+          "label": "DO_Med",
+          "tags": ["#Custom::DO_Med"]
+        }
+      ]
+    },
+    "add_custom_tags_2": {
+      "submenu_label": "Custom Tags 2",
+      "group_labels": {},
+      "presets": []
+    }
   }
 }
 ```

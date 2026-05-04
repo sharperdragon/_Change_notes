@@ -22,9 +22,6 @@ Shared fallback defaults used by multiple tools.
 
 #### Most Important Keys
 
-- `default_fuzzy`: broad fallback similarity value.
-- `default_note_type`: fallback note type. Set this to the note type you most likely use.
-- `log_folder`: default log directory name.
 - `fuzzy_opts.default_fuzz`: default fuzzy value for shared threshold prompts.
 - `fuzzy_opts.min_fuzz`: lower fuzzy bound for shared threshold prompts.
 
@@ -139,18 +136,12 @@ How images are found, matched, inserted, logged, and tagged during image merge w
 
 ### `merge_images_and_tags_config`
 
-Defaults for the combined image-and-tag merge workflow.
+Reserved section for combined image-and-tag merge workflow defaults.
 
-#### Most Important Keys
+#### Current Behavior
 
-- `default_fuzzy`: default similarity threshold.
-- `min_fuzzy`: lower threshold bound.
-- `base_tag`: parent output tag.
-- `log_folder`: log location for this combined workflow.
-
-#### Common Mistakes
-
-- Editing this section expecting it to affect image-only or tag-only runs.
+- Current runtime behavior relies on shared/global fuzzy settings and in-file defaults.
+- Values placed here may be retained for forward compatibility but are not the primary control path today.
 
 ### `delete_empty_notes_config`
 
@@ -190,7 +181,7 @@ Batch note-type conversion behavior, mapping memory, and backups.
 - You want safer backups or a custom backup folder.
 - You want different speed or visibility behavior for large runs.
 
-### `add_custom_tags`
+### `custom_tags_config.add_custom_tags_1`
 
 The first browser preset-tag menu.
 
@@ -198,7 +189,7 @@ The first browser preset-tag menu.
 
 - `submenu_label`: top-level menu label.
 - `group_labels`: optional display labels for groups.
-- `presets`: preset list with `label`, `tags`, and optional `group`.
+- `presets`: preset list with `label`, `tags`, optional `group`, and optional `review_shortcut` (for review-screen hotkeys).
 
 #### When To Edit It
 
@@ -210,15 +201,15 @@ The first browser preset-tag menu.
 - Overloading one menu with too many flat presets.
 - Using unclear preset labels.
 
-### `add_custom_tags_2`
+### `custom_tags_config.add_custom_tags_2`
 
-An optional second preset-tag menu using the same schema as `add_custom_tags`.
+An optional second preset-tag menu using the same schema as `custom_tags_config.add_custom_tags_1`.
 
 #### Most Important Keys
 
 - `submenu_label`: second top-level menu label.
 - `group_labels`: optional display labels for grouped presets.
-- `presets`: second preset list.
+- `presets`: second preset list (same optional `review_shortcut` support).
 
 #### When To Edit It
 
@@ -235,12 +226,17 @@ Menu labels and tagging behavior for missed-question workflows, including UWorld
 #### Most Important Keys
 
 - `ui.menu_label`: top-level menu title.
+- `date.include_day_segment`: include day in missed-date context tags.
 - `rotation.schedule`: rotation windows with `label`, `start`, and `end`.
 - `rotation.exhausted_policy`, `rotation.parent_tag_segment`: post-schedule behavior and tag path segment.
-- `actions.base.tags`: base missed-question tags.
-- `actions.uworld.*`, `actions.nbme.*`, `actions.amboss.*`: source-specific behavior.
-- `actions.uworld.test_parent_range_block_size`, `actions.uworld.test_range_block_size`: UWorld numeric grouping (for example, `001-050::01-05`).
-- `actions.other.resources`, `actions.other.tag_suffix`: custom resource menu and tag suffix.
+- `actions.<action>.menu_label`: menu text for the action.
+- `actions.<action>.child_of_primary_missed`: when `true`, action tags are built under the main missed-tag root.
+- `actions.<action>.tag_segment` / `actions.<action>.absolute_tags`: relative segment vs explicit full tags.
+- `actions.<action>.add_missed_date_context`: whether missed-date context tags are added for the action.
+- `actions.<action>.prompt.kind`: prompt mode (`none`, `number`, `form`).
+- `actions.<action>.prompt.number_style`: number style (`number_only`, `range_then_number`, `rotation_then_number`).
+- `actions.uworld.prompt.parent_range_block_size`, `actions.uworld.prompt.range_block_size`: UWorld numeric grouping (for example, `001-050::01-05`).
+- `actions.other.tagging` and `actions.other.actions`: standardized config for additional resource actions.
 
 #### When To Edit It
 
@@ -251,7 +247,7 @@ Menu labels and tagging behavior for missed-question workflows, including UWorld
 #### Common Mistakes
 
 - Leaving `rotation.schedule` outdated.
-- Mixing legacy missed-tag sections with canonical edits.
+- Mixing legacy per-action keys (`label`, `base_tag`, `base_tags`) with standardized action keys in the same action.
 - Renaming tags without checking saved searches that depend on them.
 
 ### `add_table_class`

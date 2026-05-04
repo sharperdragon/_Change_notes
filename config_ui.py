@@ -84,8 +84,7 @@ DOC_EMPTY_TEMPLATE = (
 DOC_LOAD_ERROR_TEMPLATE = "# {category}\\n\\nFailed to load category guide.\\n\\nError: `{error}`"
 
 MISSED_TAGS_CANONICAL_SECTION = "tag_missed_qid_notes"
-ADD_CUSTOM_TAGS_SECTION = "add_custom_tags"
-ADD_CUSTOM_TAGS_SECTION_2 = "add_custom_tags_2"
+CUSTOM_TAGS_CANONICAL_SECTION = "custom_tags_config"
 
 CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
     (
@@ -97,8 +96,7 @@ CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
     (
         "Custom Tags",
         [
-            "add_custom_tags",
-            "add_custom_tags_2",
+            CUSTOM_TAGS_CANONICAL_SECTION,
         ],
     ),
     (
@@ -134,6 +132,9 @@ CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
 ]
 
 HIDDEN_LEGACY_SECTIONS = {
+    "add_custom_tags",
+    "add_custom_tags_1",
+    "add_custom_tags_2",
     "add_missed_tags",
     "tag_selected_notes_config",
     "add_tags",
@@ -142,8 +143,7 @@ HIDDEN_LEGACY_SECTIONS = {
 
 SECTION_UI_METADATA: dict[str, dict[str, Any]] = {
     "global_config": {"label": "Global Config", "form_schema": None},
-    "add_custom_tags": {"label": "Add Custom Tags", "form_schema": None},
-    "add_custom_tags_2": {"label": "Add Custom Tags 2", "form_schema": None},
+    CUSTOM_TAGS_CANONICAL_SECTION: {"label": "Custom Tags Config", "form_schema": None},
     MISSED_TAGS_CANONICAL_SECTION: {"label": "Tag Missed QID Notes", "form_schema": None},
     "merge_tags_config": {"label": "Merge Tags", "form_schema": None},
     "merge_images_config": {"label": "Merge Images", "form_schema": None},
@@ -666,6 +666,8 @@ class ConfigDialog(QDialog):
                     merged_overrides.pop(section_key, None)
                 else:
                     merged_overrides[section_key] = cleaned_override
+
+            merged_overrides, _ = self.config_manager_cls.prune_redundant_overrides(merged_overrides)
 
             if merged_overrides != existing_overrides:
                 mw.addonManager.writeConfig(
