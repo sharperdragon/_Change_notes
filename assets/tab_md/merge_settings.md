@@ -10,7 +10,7 @@ This tab groups all merge-related settings for tags, images, mixed merge logic, 
 - `merge_scheduling`
 
 ## High-risk Fields
-- `merge_tags_config.default_fuzzy`: Aggressive thresholds can over-merge unrelated notes.
+- `global_config.fuzzy_opts.default_fuzz`: Aggressive thresholds can over-merge unrelated notes.
 - `merge_images_config.fields_to_scan_for_images`: Wrong field list can miss images or merge unwanted data.
 - `merge_images_config.tagging.*`: Misconfigured tags can contaminate large note sets.
 - `merge_scheduling.merge_field_index`: Wrong index compares the wrong field.
@@ -24,23 +24,25 @@ This tab groups all merge-related settings for tags, images, mixed merge logic, 
 ## Field Reference
 
 ### `merge_tags_config`
-- `default_fuzzy`, `base_tag`, `log_folder`
+- Thresholds are sourced from `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`)
+- `base_tag`, `log_folder`
 - `merge_select_only`
 - `merge_only_parents`
 - `excluded_tags` (blocked from transfer in tag merge)
 
 ### `merge_images_config`
-- Thresholds: `default_threshold`, `min_threshold`, `ask_threshold_each_time` (`max` is fixed at `1.0`)
+- Thresholds are sourced from `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`)
+- `ask_threshold_each_time` (`max` is fixed at `1.0`)
 - Scope: `allowed_models`, `excluded_tags`, `fields_to_scan_for_images`
 - `merge_behavior`: HTML merge behavior toggles
 - `logging`: popup/file logging controls
 - `tagging`: tags for merged/donor/unchanged outcomes
 
 ### `merge_images_and_tags_config`
-- `default_fuzzy`, `min_fuzzy`, `base_tag`, `log_folder`
+- Reserved for future combined merge workflow settings.
 
 ### `merge_scheduling`
 - `merge_similarity_threshold`, `multi_card_policy`
 - Threshold prompt cancel behavior is fixed: cancel aborts the run.
-- `default_fuzzy`, `min_fuzzy`, `merge_field_index`
+- `merge_field_index`
 - `scheduling_merge_log_path`, `use_text_replacements`, `tag_on_merge`

@@ -77,18 +77,22 @@ ADD_MISSED_TAGS_DEFAULTS = {
             "rotation_lowercase": True,
             "unknown_segment": "unknown",
         },
+        "correct_tag_missed": {
+            "label": "UW Correct + Missed Tag",
+            "tag_segment": "correct_marked",
+            "add_missed_date_context": True,
+        },
         "other": {
+            "submenu_bool": True,
+            "submenu_label": "Other",
             "resources": ["Kaplan", "True-Learn"],
             "tag_suffix": "Other",
         },
     },
-    "Q_Banks": ["UWORLD", "NBME"],
 }
 
 
 MERGE_IMAGES_DEFAULTS = {
-    "default_threshold": 0.90,
-    "min_threshold": 0.80,
     "ask_threshold_each_time": True,
     "allowed_models": [],
     "excluded_tags": ["First_Aid"],

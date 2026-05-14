@@ -1,6 +1,5 @@
 {
   "global_config": {
-    "default_fuzzy": 0.95,
     "default_note_type": "*Nord+",
     "log_folder": "logs",
     "fuzzy_opts": {
@@ -10,8 +9,6 @@
   },
   "merge_tags_config": {
     "comparison_field": "Text",
-    "default_fuzzy": 0.96,
-    "min_fuzzy": 0.7,
     "ask_fuzzy_each_time": true,
     "base_tag": "TAGS_MERGED",
     "merge_select_only": false,
@@ -19,16 +16,11 @@
     "merge_only_parents": ["#Zank::#Step2_v12", "#Zank::Step1_v12"]
   },
   "merge_images_config": {
-    "default_threshold": 0.97,
-    "min_threshold": 0.6,
     "allowed_models": [],
     "excluded_tags": [
       "First_Aid"
     ],
-    "fields_to_scan_for_images": [
-      "Extra",
-      "Extra2"
-    ],
+    "fields_to_scan_for_images": ["Extra", "Extra2", "Extra3", "Extra4", "Extra5", "Extra6", "Extra7", "Button"],
     "merge_behavior": {
       "copy_sketchy_links": true
     },
@@ -47,8 +39,6 @@
   "merge_images_and_tags_config": {},
   "merge_scheduling": {
     "merge_similarity_threshold": 85,
-    "default_fuzzy": 0.95,
-    "min_fuzzy": 0.81,
     "merge_field_index": 0,
     "scheduling_merge_log_path": "merged_scheduling.log",
     "use_text_replacements": true,
@@ -171,7 +161,7 @@
       ]
     }
   },
-  "tag_missed_qid_notes": {
+  "tag_missed_notes": {
     "ui": {
       "menu_label": "Missed Tags ❌"
     },
@@ -211,6 +201,12 @@
           "range_block_size": 5,
           "parent_range_block_size": 50
         }
+      },
+      "correct_tag_missed": {
+        "menu_label": "🍄 Correct + Missed Tag",
+        "child_of_primary_missed": true,
+        "tag_segment": "correct_marked",
+        "add_missed_date_context": true
       },
       "nbme": {
         "menu_label": "🧠 NBME",
@@ -284,11 +280,7 @@
           }
         ]
       }
-    },
-    "Q_Banks": [
-      "UWORLD",
-      "NBME"
-    ]
+    }
   },
   "add_table_class": {
     "apply_to_existing_classes": true,

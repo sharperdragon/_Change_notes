@@ -23,7 +23,7 @@ class ConfigManager:
         "Add_table_class": "add_table_class",
     }
 
-    MISSED_TAGS_CANONICAL_SECTION = "tag_missed_qid_notes"
+    MISSED_TAGS_CANONICAL_SECTION = "tag_missed_notes"
     MISSED_TAGS_LEGACY_SECTIONS = (
         "add_missed_tags",
         "tag_selected_notes_config",
@@ -55,12 +55,14 @@ class ConfigManager:
     HARD_MAX_GLOBAL_FUZZY_KEY = "max_fuzz"
     HARD_MAX_MERGE_TAGS_KEY = "max_fuzzy"
     HARD_MAX_MERGE_IMAGES_KEY = "max_threshold"
+    DEPRECATED_MERGE_TAGS_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
+    DEPRECATED_MERGE_IMAGES_THRESHOLD_KEYS = ("default_threshold", "min_threshold")
+    DEPRECATED_MERGE_SCHED_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
     MISSED_TAGS_CANONICAL_TOP_LEVEL_KEYS = (
         "ui",
         "date",
         "rotation",
         "actions",
-        "Q_Banks",
         "runtime",
     )
     CANONICAL_UWORLD_TAG_SEGMENT = "*UW_Tests"
@@ -472,11 +474,15 @@ class ConfigManager:
                 )
             else:
                 extracted_suffix = cls._extract_tag_suffix(uworld_tags[0], "*UW_Tests")
-                uworld_action["default_tag_prefix"] = cls._canonicalize_uworld_tag_segment(
-                    extracted_suffix
-                )
+                uworld_action["default_tag_prefix"] = cls._canonicalize_uworld_tag_segment(extracted_suffix)
 
             uworld_prompt = cls._as_dict(uworld_cfg.get("prompt"))
+            parent_range_block_size = cls._to_positive_int(
+                uworld_prompt.get(
+                    "parent_range_block_size",
+                    uworld_cfg.get("test_parent_range_block_size"),
+                )
+            )
             range_block_size = cls._to_positive_int(
                 uworld_prompt.get(
                     "range_block_size",
@@ -486,8 +492,11 @@ class ConfigManager:
                     ),
                 )
             )
+            if parent_range_block_size is None:
+                parent_range_block_size = range_block_size
+            if parent_range_block_size is not None:
+                uworld_action["test_parent_range_block_size"] = parent_range_block_size
             if range_block_size is not None:
-                uworld_action["test_parent_range_block_size"] = range_block_size
                 uworld_action["test_range_block_size"] = range_block_size
 
             cls._apply_friend_add_date_context(
@@ -568,19 +577,20 @@ class ConfigManager:
         if multi_missed_cfg:
             multi_action: dict[str, Any] = {}
             cls._copy_friend_action_label(multi_missed_cfg, multi_action)
+            multi_tags = cls._resolve_friend_action_tags(
+                multi_missed_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=default_child_of_primary,
+                default_segments=["2x"],
+                default_absolute_tags=[f"{primary_tag}::2x"],
+            )
+            multi_action["tags"] = multi_tags
             if "tag_segment" in multi_missed_cfg:
                 multi_action["tag_segment"] = cls._to_text(
                     multi_missed_cfg.get("tag_segment"),
                     "2x",
                 )
             else:
-                multi_tags = cls._resolve_friend_action_tags(
-                    multi_missed_cfg,
-                    primary_tag=primary_tag,
-                    default_child_of_primary=default_child_of_primary,
-                    default_segments=["2x"],
-                    default_absolute_tags=[f"{primary_tag}::2x"],
-                )
                 resolved_segment = cls._to_text(multi_tags[0], "2x") if multi_tags else "2x"
                 primary_prefix = f"{primary_tag}::"
                 if resolved_segment.startswith(primary_prefix):
@@ -614,12 +624,46 @@ class ConfigManager:
             )
             translated_actions["correct_guess"] = correct_guess_action
 
+        uw_correct_missed_cfg = cls._as_dict(legacy_actions.get("correct_tag_missed"))
+        if not uw_correct_missed_cfg:
+            uw_correct_missed_cfg = cls._as_dict(legacy_actions.get("uw_correct_missed"))
+        if uw_correct_missed_cfg:
+            uw_correct_missed_action: dict[str, Any] = {}
+            cls._copy_friend_action_label(uw_correct_missed_cfg, uw_correct_missed_action)
+            uw_correct_tags = cls._resolve_friend_action_tags(
+                uw_correct_missed_cfg,
+                primary_tag=primary_tag,
+                default_child_of_primary=True,
+                default_segments=["correct_marked"],
+                default_absolute_tags=[f"{primary_tag}::correct_marked"],
+            )
+            resolved_tag = cls._to_text(
+                uw_correct_tags[0] if uw_correct_tags else f"{primary_tag}::correct_marked",
+                f"{primary_tag}::correct_marked",
+            )
+            primary_prefix = f"{primary_tag}::"
+            if resolved_tag.startswith(primary_prefix):
+                uw_correct_missed_action["tag_segment"] = resolved_tag[len(primary_prefix) :]
+                uw_correct_missed_action["child_of_primary_missed"] = True
+            else:
+                uw_correct_missed_action["absolute_tags"] = [resolved_tag]
+                uw_correct_missed_action["child_of_primary_missed"] = False
+            uw_correct_missed_action["tags"] = uw_correct_tags
+
+            cls._apply_friend_add_date_context(
+                source_action=uw_correct_missed_cfg,
+                action_defaults=action_defaults,
+                target_action=uw_correct_missed_action,
+            )
+            translated_actions["correct_tag_missed"] = uw_correct_missed_action
+
         other_cfg = cls._as_dict(legacy_actions.get("other"))
         if other_cfg:
             other_action: dict[str, Any] = {}
             other_tagging = cls._as_dict(other_cfg.get("tagging"))
 
             resources: list[str] = []
+            translated_other_actions: list[dict[str, Any]] = []
             legacy_other_actions = other_cfg.get("actions")
             if isinstance(legacy_other_actions, list):
                 for item in legacy_other_actions:
@@ -628,10 +672,28 @@ class ConfigManager:
                     tag_segment = cls._to_text(item.get("tag_segment"), "")
                     if tag_segment:
                         resources.append(tag_segment)
+                    translated_item: dict[str, Any] = {}
+                    cls._copy_friend_action_label(item, translated_item)
+                    for key in (
+                        "child_of_primary_missed",
+                        "absolute_tags",
+                        "tag_segment",
+                        "tag_segments",
+                        "add_missed_date_context",
+                    ):
+                        if key in item:
+                            translated_item[key] = copy.deepcopy(item[key])
+                    prompt_cfg = cls._as_dict(item.get("prompt"))
+                    if prompt_cfg:
+                        translated_item["prompt"] = copy.deepcopy(prompt_cfg)
+                    if translated_item:
+                        translated_other_actions.append(translated_item)
             if not resources:
                 resources = cls._to_string_list(other_cfg.get("resources"), [])
             if resources:
                 other_action["resources"] = resources
+            if translated_other_actions:
+                other_action["actions"] = translated_other_actions
 
             if cls._to_bool(other_tagging.get("tag_segment_group"), True):
                 other_action["tag_suffix"] = cls._to_text(
@@ -706,11 +768,20 @@ class ConfigManager:
         if not isinstance(actions, dict):
             return False
 
+        changed = False
+
+        # Canonicalize action key name for the combined correct-tag action.
+        if "uw_correct_missed" in actions:
+            legacy_action = actions.get("uw_correct_missed")
+            if "correct_tag_missed" not in actions and isinstance(legacy_action, dict):
+                actions["correct_tag_missed"] = legacy_action
+                changed = True
+            del actions["uw_correct_missed"]
+            changed = True
+
         uworld = actions.get("uworld")
         if not isinstance(uworld, dict):
-            return False
-
-        changed = False
+            return changed
 
         if "base_tags" in uworld:
             original_base_tags = uworld.get("base_tags")
@@ -809,8 +880,37 @@ class ConfigManager:
         return changed
 
     @classmethod
+    def _remove_deprecated_per_section_threshold_keys(cls, payload: dict) -> bool:
+        """Drop legacy per-section fuzzy threshold keys in favor of global_config.fuzzy_opts."""
+        changed = False
+
+        merge_tags_cfg = payload.get(cls.MERGE_TAGS_SECTION)
+        if isinstance(merge_tags_cfg, dict):
+            for key in cls.DEPRECATED_MERGE_TAGS_THRESHOLD_KEYS:
+                if key in merge_tags_cfg:
+                    merge_tags_cfg.pop(key, None)
+                    changed = True
+
+        merge_images_cfg = payload.get(cls.MERGE_IMAGES_SECTION)
+        if isinstance(merge_images_cfg, dict):
+            for key in cls.DEPRECATED_MERGE_IMAGES_THRESHOLD_KEYS:
+                if key in merge_images_cfg:
+                    merge_images_cfg.pop(key, None)
+                    changed = True
+
+        merge_sched_cfg = payload.get("merge_scheduling")
+        if isinstance(merge_sched_cfg, dict):
+            for key in cls.DEPRECATED_MERGE_SCHED_THRESHOLD_KEYS:
+                if key in merge_sched_cfg:
+                    merge_sched_cfg.pop(key, None)
+                    changed = True
+
+        return changed
+
+    @classmethod
     def _prune_value_against_default(cls, value: Any, default_value: Any, missing: Any) -> Any:
         """Return `missing` when value is fully redundant vs defaults."""
+
         def _prune(inner_value: Any, inner_default: Any) -> Any:
             if isinstance(inner_value, dict) and isinstance(inner_default, dict):
                 pruned: dict[str, Any] = {}
@@ -881,6 +981,7 @@ class ConfigManager:
         cls._migrate_global_fuzzy_opts_section(migrated)
         cls._migrate_merge_tags_parent_keys(migrated)
         cls._remove_hardcoded_threshold_max_keys(migrated)
+        cls._remove_deprecated_per_section_threshold_keys(migrated)
         return migrated
 
     @classmethod

@@ -29,6 +29,7 @@ DEFAULT_MENU_SEPARATOR_LINE_COLOR_FALLBACK = "rgba(128, 128, 128, 120)"
 DEFAULT_MENU_SEPARATOR_LINE_COLOR_IN_USE = (
     DEFAULT_MENU_SEPARATOR_LINE_COLOR or DEFAULT_MENU_SEPARATOR_LINE_COLOR_FALLBACK
 )
+DEFAULT_MENU_SURFACE_BORDER_RADIUS_PX = 6
 DEFAULT_MENU_SEPARATOR_HEIGHT_PX = 1
 DEFAULT_MENU_SEPARATOR_MARGIN_HORIZONTAL_PX = 0
 DEFAULT_MENU_SEPARATOR_MARGIN_VERTICAL_PX = 0
@@ -140,6 +141,7 @@ def build_missed_tags_menu_stylesheet() -> str:
     surface_and_separator_stylesheet = (
         "QMenu {\n"
         f"    background-color: {DEFAULT_MENU_SURFACE_BACKGROUND_COLOR};\n"
+        f"    border-radius: {DEFAULT_MENU_SURFACE_BORDER_RADIUS_PX}px;\n"
         "}\n"
         "QMenu::item {\n"
         f"    background-color: {DEFAULT_MENU_ITEM_BACKGROUND_COLOR};\n"

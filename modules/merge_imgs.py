@@ -41,6 +41,10 @@ SUPPORTED_IMAGE_INSERT_POLICIES = {"append_only"}
 DEFAULT_CONFIG = clone_defaults(MERGE_IMAGES_DEFAULTS)
 
 CONFIG = {}
+GLOBAL_FUZZY_OPTS = {
+    "default_fuzz": 0.90,
+    "min_fuzz": 0.80,
+}
 
 
 def cfg(path: str, default=None):
@@ -53,6 +57,24 @@ def cfg(path: str, default=None):
     return node
 
 
+def _as_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _load_global_fuzzy_opts() -> dict[str, float]:
+    global_cfg = ConfigManager("global_config").load()
+    fuzzy_opts = global_cfg.get("fuzzy_opts") if isinstance(global_cfg, dict) else None
+    if not isinstance(fuzzy_opts, dict):
+        fuzzy_opts = {}
+    return {
+        "default_fuzz": _as_float(fuzzy_opts.get("default_fuzz"), 0.90),
+        "min_fuzz": _as_float(fuzzy_opts.get("min_fuzz"), 0.80),
+    }
+
+
 # Add-on path and caches
 addon_path = Path(mw.addonManager.addonsFolder()) / "_Change_notes"
 FIELD_NAMES_BY_MID: dict[int, list[str]] = {}
@@ -61,9 +83,11 @@ SCAN_FIELDS = set()
 
 def _reload_runtime_config():
     global CONFIG
+    global GLOBAL_FUZZY_OPTS
     global SCAN_FIELDS
     section = ConfigManager("merge_images_config").load()
     CONFIG = ConfigManager.deep_merge_dicts(DEFAULT_CONFIG, section)
+    GLOBAL_FUZZY_OPTS = _load_global_fuzzy_opts()
     SCAN_FIELDS = set(cfg("fields_to_scan_for_images", []))
 
 
@@ -413,9 +437,9 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
 
     # ! Threshold defaulting (UI prompt moved to merge_images_main)
     if threshold is None:
-        # Use config defaults and clamp to [min, max]
-        default_threshold = cfg("default_threshold", 0.90)
-        min_threshold = cfg("min_threshold", 0.80)
+        # Use global fuzzy defaults and clamp to [min, max]
+        default_threshold = GLOBAL_FUZZY_OPTS["default_fuzz"]
+        min_threshold = GLOBAL_FUZZY_OPTS["min_fuzz"]
         max_threshold = 1.0
         threshold = max(min(default_threshold, max_threshold), min_threshold)
 
@@ -849,8 +873,8 @@ def merge_images_main(selected=None, browser=None):
         return
 
     # ? Gather threshold config here (UI edge)
-    default_threshold = cfg("default_threshold", 0.97)
-    min_threshold = cfg("min_threshold", 0.80)
+    default_threshold = GLOBAL_FUZZY_OPTS["default_fuzz"]
+    min_threshold = GLOBAL_FUZZY_OPTS["min_fuzz"]
     max_threshold = 1.0
     ask_each = ASK_THRESHOLD_EACH_TIME
 

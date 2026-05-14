@@ -144,7 +144,7 @@ _Change_notes employs a layered configuration approach to maximize flexibility:
 - **Runtime Overrides (Anki add-on config):** Stores user edits made through Anki's config editor/UI and is merged on top of defaults.
 - **Custom Tag Presets (`custom_tags_config.add_custom_tags_1` section):** Defines the top-level Custom Tags submenu label, optional per-group display labels, and tag presets. Presets with `group` render in a one-level submenu; presets with no `group` render at the root of `Custom Tags`. Optional `review_shortcut` on each preset adds a review-screen hotkey.
 - **Optional Secondary Custom Tags (`custom_tags_config.add_custom_tags_2` section):** Same schema as `add_custom_tags_1`; supports optional per-preset `review_shortcut`, and is hidden when `presets` is empty.
-- **Missed Tags (`tag_missed_qid_notes` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_missed_tags`, `add_tags`, and `tag_selected_notes_config`.
+- **Missed Tags (`tag_missed_notes` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_missed_tags`, `add_tags`, and `tag_selected_notes_config`.
 
 Configuration can be edited using:
 
@@ -157,8 +157,6 @@ Configuration can be edited using:
 {
   "merge_tags_config": {
     "comparison_field": "Text",
-    "default_fuzzy": 0.96,
-    "min_fuzzy": 0.7,
     "ask_fuzzy_each_time": true,
     "base_tag": "TAGS_MERGED",
     "merge_select_only": false,
@@ -210,11 +208,11 @@ Configuration can be edited using:
 
 Custom-tag no-selection and success messages are hardcoded in `modules/add_custom_tags.py` and are not configurable.
 
-**Example of `tag_missed_qid_notes` UI overrides:**
+**Example of `tag_missed_notes` UI overrides:**
 
 ```json
 {
-  "tag_missed_qid_notes": {
+  "tag_missed_notes": {
     "ui": {
       "menu_label": "Missed Tags ❌",
       "message_invalid_test_number": "❌ Please enter a valid integer test number."

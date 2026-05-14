@@ -83,7 +83,7 @@ DOC_EMPTY_TEMPLATE = (
 )
 DOC_LOAD_ERROR_TEMPLATE = "# {category}\\n\\nFailed to load category guide.\\n\\nError: `{error}`"
 
-MISSED_TAGS_CANONICAL_SECTION = "tag_missed_qid_notes"
+MISSED_TAGS_CANONICAL_SECTION = "tag_missed_notes"
 CUSTOM_TAGS_CANONICAL_SECTION = "custom_tags_config"
 
 CATEGORY_SECTION_MAP: list[tuple[str, list[str]]] = [
@@ -144,7 +144,7 @@ HIDDEN_LEGACY_SECTIONS = {
 SECTION_UI_METADATA: dict[str, dict[str, Any]] = {
     "global_config": {"label": "Global Config", "form_schema": None},
     CUSTOM_TAGS_CANONICAL_SECTION: {"label": "Custom Tags Config", "form_schema": None},
-    MISSED_TAGS_CANONICAL_SECTION: {"label": "Tag Missed QID Notes", "form_schema": None},
+    MISSED_TAGS_CANONICAL_SECTION: {"label": "Tag Missed Notes", "form_schema": None},
     "merge_tags_config": {"label": "Merge Tags", "form_schema": None},
     "merge_images_config": {"label": "Merge Images", "form_schema": None},
     "merge_images_and_tags_config": {"label": "Merge Images + Tags", "form_schema": None},

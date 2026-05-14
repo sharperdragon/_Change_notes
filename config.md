@@ -4,13 +4,13 @@ This guide explains what each config section does and what you can safely edit.
 
 ## Most Users Only Need These Settings
 
-- **Make tag merging stricter or looser**: edit `merge_tags_config` first with `default_fuzzy` and `comparison_field`.
+- **Make tag/image merge matching stricter or looser**: edit `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`).
 - **Restrict tag merges to specific parent tags**: edit `merge_tags_config` with `merge_select_only` and `merge_only_parents`.
 - **Block specific tags from being transferred during tag merge**: edit `merge_tags_config` with `excluded_tags`.
 - **Tag near-duplicates without merging notes**: edit `tag_dupes_config` with `comparison_field`, `tag_unmatched`, and `unmatched_tag`.
 - **Merge scheduling only when notes are very similar**: edit `merge_scheduling` with `merge_similarity_threshold` and `multi_card_policy`.
 - **Exclude notes from image merging**: edit `merge_images_config` with `excluded_tags` and `fields_to_scan_for_images`.
-- **Make image matching stricter or looser**: edit `merge_images_config` with `default_threshold` and `min_threshold`.
+- **Tune image merge strictness**: edit `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`).
 - **Control backups during batch note-type changes**: edit `batch_note_change_config` with `enable_backup` and `backup_directory`.
 - **Protect note types from delete-empty cleanup**: edit `delete_empty_notes_config` with `protected_notes`.
 
@@ -27,8 +27,8 @@ Shared fallback defaults used by multiple tools.
 
 #### Common Mistakes
 
-- Expecting this section to override module-specific settings.
-- Tuning a specific tool here instead of editing that tool's own section.
+- Assuming module sections still own fuzzy thresholds.
+- Tuning module behavior here that is unrelated to fuzzy thresholds.
 - Editing legacy top-level `global_fuzzy_opts` instead of `global_config.fuzzy_opts`.
 
 ### `merge_tags_config`
@@ -38,8 +38,7 @@ How notes are compared for tag merging and how merge output is tagged.
 #### Most Important Keys
 
 - `comparison_field`: note field used for text comparison.
-- `default_fuzzy`: default match threshold.
-- `min_fuzzy`: allowed lower threshold bound (`max` is hardcoded to `1.0`).
+- Threshold defaults come from `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`).
 - `ask_fuzzy_each_time`: prompts for a threshold each run when `true`.
 - `base_tag`: parent tag used for merge output.
 - `merge_select_only`: limits merges to allowed parent tags when `true`.
@@ -55,7 +54,7 @@ How notes are compared for tag merging and how merge output is tagged.
 
 #### Common Mistakes
 
-- Setting `default_fuzzy` too low and over-grouping.
+- Setting `global_config.fuzzy_opts.default_fuzz` too low and over-grouping.
 - Filling `merge_only_parents` but leaving `merge_select_only` set to `false`.
 - Using `excluded_tags` expecting notes with those tags to be skipped entirely (it only blocks tag transfer).
 
@@ -113,7 +112,7 @@ How images are found, matched, inserted, logged, and tagged during image merge w
 
 #### Most Important Keys
 
-- `default_threshold`, `min_threshold`: image match strictness (`max` is hardcoded to `1.0`).
+- Threshold defaults come from `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`).
 - `ask_threshold_each_time`: prompts for a threshold each run when `true`.
 - `fields_to_scan_for_images`: fields scanned for `<img>` tags.
 - `excluded_tags`: notes with these tags are skipped.
@@ -219,7 +218,7 @@ An optional second preset-tag menu using the same schema as `custom_tags_config.
 
 - Forgetting this menu stays hidden when `presets` is empty.
 
-### `tag_missed_qid_notes`
+### `tag_missed_notes`
 
 Menu labels and tagging behavior for missed-question workflows, including UWorld, NBME, AMBOSS, and custom resources.
 
@@ -236,6 +235,8 @@ Menu labels and tagging behavior for missed-question workflows, including UWorld
 - `actions.<action>.prompt.kind`: prompt mode (`none`, `number`, `form`).
 - `actions.<action>.prompt.number_style`: number style (`number_only`, `range_then_number`, `rotation_then_number`).
 - `actions.uworld.prompt.parent_range_block_size`, `actions.uworld.prompt.range_block_size`: UWorld numeric grouping (for example, `001-050::01-05`).
+- `actions.correct_tag_missed`: controls the `UW Correct + Missed Tag` source-selector action (`menu_label`, `tag_segment`, `add_missed_date_context`).
+- `actions.other.submenu_bool`, `actions.other.submenu_label`: put extra resources under an `Other` submenu (or inline when disabled).
 - `actions.other.tagging` and `actions.other.actions`: standardized config for additional resource actions.
 
 #### When To Edit It
@@ -298,7 +299,6 @@ Adds CSS classes to `<img>` tags based on native image size and aspect ratio.
     {
       "merge_tags_config": {
         "comparison_field": "Text",
-        "default_fuzzy": 0.92,
         "merge_select_only": true,
         "excluded_tags": [
           "DoNotTransfer",

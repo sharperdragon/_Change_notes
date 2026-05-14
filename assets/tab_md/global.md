@@ -1,13 +1,13 @@
 # Global
 
 ## What This Tab Controls
-This tab defines shared defaults that multiple modules may inherit when module-specific values are not provided.
+This tab defines shared defaults across modules, including global fuzzy thresholds.
 
 ## Key Sections
 - `global_config`
 
 ## High-risk Fields
-- `global_config.default_fuzzy`: Too low increases false matches; too high can miss intended merges.
+- `global_config.fuzzy_opts.default_fuzz`: Too low increases false matches; too high can miss intended merges.
 - `global_config.default_note_type`: If invalid, operations that rely on a fallback model can misroute.
 - `global_config.fuzzy_opts.min_fuzz`: Extreme bounds can break threshold UX.
 
@@ -20,7 +20,6 @@ This tab defines shared defaults that multiple modules may inherit when module-s
 ## Field Reference
 
 ### `global_config`
-- `default_fuzzy`: Baseline fuzzy threshold used by modules that defer to global defaults.
 - `default_note_type`: Fallback note type used where a target model is required.
 - `log_folder`: Default logging folder/path for modules that emit logs.
 - `fuzzy_opts.default_fuzz`: Preferred default slider/input value for fuzzy comparisons.
@@ -31,7 +30,6 @@ This tab defines shared defaults that multiple modules may inherit when module-s
 ```json
 {
   "global_config": {
-    "default_fuzzy": "0.95",
     "default_note_type": "*Nord+",
     "log_folder": "logs",
     "fuzzy_opts": {

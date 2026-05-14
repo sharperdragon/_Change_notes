@@ -50,6 +50,29 @@ def _as_string_list(value) -> list[str]:
     return normalized
 
 
+def _safe_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _global_fuzzy_opts() -> tuple[float, float]:
+    """Return (default_fuzz, min_fuzz) sourced from global_config.fuzzy_opts."""
+    fuzzy_opts = config.get("fuzzy_opts")
+    if not isinstance(fuzzy_opts, dict):
+        fuzzy_opts = {}
+    default_fuzzy = _safe_float(
+        fuzzy_opts.get("default_fuzz"),
+        MERGE_TAGS_DEFAULTS["run_default_fuzzy"],
+    )
+    min_fuzzy = _safe_float(
+        fuzzy_opts.get("min_fuzz"),
+        MERGE_TAGS_DEFAULTS["min_fuzzy"],
+    )
+    return default_fuzzy, min_fuzzy
+
+
 def _reload_runtime_config():
     global config
     global base_tag
@@ -137,7 +160,8 @@ log_debug(
 def prompt_fuzzy_threshold(default=None):
     """Prompt user for fuzzy threshold (0–100) using a popup input dialog."""
     if default is None:
-        default = int(float(config.get("default_fuzzy", MERGE_TAGS_DEFAULTS["prompt_default_fuzzy"])) * 100)
+        default_fuzzy, _ = _global_fuzzy_opts()
+        default = int(default_fuzzy * 100)
     val, ok = QInputDialog.getInt(
         mw, "Set Fuzzy Match Threshold",
         "Select fuzzy match threshold (0 = loose, 100 = strict):",
@@ -242,8 +266,7 @@ def unify_tags_main(browser: Browser | None = None):
         return
 
     # ? UI config fetch
-    default_fuzzy = float(config.get("default_fuzzy", MERGE_TAGS_DEFAULTS["run_default_fuzzy"]))
-    min_fuzzy = float(config.get("min_fuzzy", MERGE_TAGS_DEFAULTS["min_fuzzy"]))
+    default_fuzzy, min_fuzzy = _global_fuzzy_opts()
     max_fuzzy = 1.0
     ask_each = parse_bool(
         config.get("ask_fuzzy_each_time", MERGE_TAGS_DEFAULTS["ask_fuzzy_each_time"]),
