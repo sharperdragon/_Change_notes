@@ -109,8 +109,10 @@ def prompt_similarity_threshold(
     decimals: int = 2,
     title: str = "Fuzzy Threshold",
     percent_suffix: str = "%",
+    parent=None,
 ) -> tuple[float | None, bool]:
-    dlg = QDialog(mw)
+    dialog_parent = parent or mw
+    dlg = QDialog(dialog_parent)
     dlg.setWindowTitle(title)
     lay = QVBoxLayout(dlg)
 

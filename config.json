@@ -10,7 +10,7 @@
   "merge_tags_config": {
     "comparison_field": "Text",
     "ask_fuzzy_each_time": true,
-    "base_tag": "TAGS_MERGED",
+    "base_tag": "DONE::TAGS_MERGED",
     "merge_select_only": false,
     "excluded_tags": [],
     "merge_only_parents": ["#Zank::#Step2_v12", "#Zank::Step1_v12"]
@@ -30,10 +30,10 @@
       "log_filename_prefix": "merged_images_log_"
     },
     "tagging": {
-      "add_to_merged": "IMG_Uni::received",
-      "add_to_donor": "IMG_Uni::donor",
-      "add_to_unchanged": "IMG_Uni::same",
-      "no_images_found": "IMG_Uni::no_images"
+      "add_to_merged": "DONE::IMG_Uni::received",
+      "add_to_donor": "DONE::IMG_Uni::donor",
+      "add_to_unchanged": "DONE::IMG_Uni::same",
+      "no_images_found": "DONE::IMG_Uni::no_images"
     }
   },
   "merge_images_and_tags_config": {},
@@ -42,7 +42,7 @@
     "merge_field_index": 0,
     "scheduling_merge_log_path": "merged_scheduling.log",
     "use_text_replacements": true,
-    "tag_on_merge": "Scheduling::Merged",
+    "tag_on_merge": "DONE::Scheduling::Merged",
     "multi_card_policy": "skip"
   },
   "tag_dupes_config": {
@@ -166,24 +166,29 @@
       "menu_label": "Missed Tags ❌"
     },
     "date": {
-      "include_day_segment": true
+      "include_day_segment": true,
+      "split_weeks": true
     },
-    "rotation": {
+    "block": {
       "schedule": [
         {
-          "label": "Dedicated",
+          "segment_label": "*Dedicated",
           "start": "2026-03-28",
+          "end": "2026-05-26"
+        },
+        {
+          "segment_label": "*Dedicated::IA",
+          "start": "2026-05-27",
           "end": "2099-12-31"
         }
       ],
       "exhausted_policy": "unknown",
-      "parent_tag_segment": "Rotation",
-      "winter_break_label": "Winter-break",
-      "post_rotation_label": "*Dedicated"
+      "parent_tag_segment": "Rotation"
     },
     "actions": {
       "base": {
         "menu_label": "♦️ Base",
+        "menu_display": false,
         "child_of_primary_missed": false,
         "absolute_tags": [
           "##Missed-Qs"
@@ -199,7 +204,8 @@
           "kind": "number",
           "number_style": "range_then_number",
           "range_block_size": 5,
-          "parent_range_block_size": 50
+          "parent_range_block_size": 50,
+          "show_correct_marked_checkbox": true
         }
       },
       "correct_tag_missed": {
@@ -215,7 +221,8 @@
         "add_missed_date_context": true,
         "prompt": {
           "kind": "form",
-          "number_style": "number_only"
+          "number_style": "number_only",
+          "show_correct_marked_checkbox": true
         }
       },
       "amboss": {
@@ -225,7 +232,8 @@
         "add_missed_date_context": true,
         "prompt": {
           "kind": "number",
-          "number_style": "number_only"
+          "number_style": "number_only",
+          "show_correct_marked_checkbox": false
         }
       },
       "multi_missed": {

@@ -180,13 +180,13 @@ Batch note-type conversion behavior, mapping memory, and backups.
 - You want safer backups or a custom backup folder.
 - You want different speed or visibility behavior for large runs.
 
-### `custom_tags_config.add_custom_tags_1`
+### `custom_tags_config.add_custom_tags_<n>`
 
-The first browser preset-tag menu.
+A browser preset-tag menu section. Any numbered section key (`add_custom_tags_1`, `add_custom_tags_2`, `add_custom_tags_3`, …) is auto-discovered and shown as a top-level menu in ascending numeric order.
 
 #### Most Important Keys
 
-- `submenu_label`: top-level menu label.
+- `submenu_label`: top-level menu label for that section.
 - `group_labels`: optional display labels for groups.
 - `presets`: preset list with `label`, `tags`, optional `group`, and optional `review_shortcut` (for review-screen hotkeys).
 
@@ -194,29 +194,13 @@ The first browser preset-tag menu.
 
 - You want faster manual tagging from the browser.
 - You want grouped presets under cleaner menu labels.
+- You want multiple top-level custom-tag menus split by purpose (for example, workflow vs content tags).
 
 #### Common Mistakes
 
 - Overloading one menu with too many flat presets.
 - Using unclear preset labels.
-
-### `custom_tags_config.add_custom_tags_2`
-
-An optional second preset-tag menu using the same schema as `custom_tags_config.add_custom_tags_1`.
-
-#### Most Important Keys
-
-- `submenu_label`: second top-level menu label.
-- `group_labels`: optional display labels for grouped presets.
-- `presets`: second preset list (same optional `review_shortcut` support).
-
-#### When To Edit It
-
-- You want to separate preset sets, such as content tags vs workflow tags.
-
-#### Common Mistakes
-
-- Forgetting this menu stays hidden when `presets` is empty.
+- Forgetting any section with empty `presets` stays hidden.
 
 ### `tag_missed_notes`
 
@@ -226,9 +210,12 @@ Menu labels and tagging behavior for missed-question workflows, including UWorld
 
 - `ui.menu_label`: top-level menu title.
 - `date.include_day_segment`: include day in missed-date context tags.
-- `rotation.schedule`: rotation windows with `label`, `start`, and `end`.
+- `date.split_weeks`: when `true` and `date.include_day_segment` is `true`, nest day tags under `week_1`..`week_4`.
+- `rotation.schedule`: rotation windows with `segment_label`, `start`, and `end` (`segment_label` is used directly as the final tag child segment).
 - `rotation.exhausted_policy`, `rotation.parent_tag_segment`: post-schedule behavior and tag path segment.
 - `actions.<action>.menu_label`: menu text for the action.
+- `actions.base.menu_display`: show/hide the `Base` action row in the Missed Tags menu.
+- `actions.<action>.prompt.show_correct_marked_checkbox`: show/hide the `correct_marked` checkbox for that specific prompt action.
 - `actions.<action>.child_of_primary_missed`: when `true`, action tags are built under the main missed-tag root.
 - `actions.<action>.tag_segment` / `actions.<action>.absolute_tags`: relative segment vs explicit full tags.
 - `actions.<action>.add_missed_date_context`: whether missed-date context tags are added for the action.
@@ -238,6 +225,12 @@ Menu labels and tagging behavior for missed-question workflows, including UWorld
 - `actions.correct_tag_missed`: controls the `UW Correct + Missed Tag` source-selector action (`menu_label`, `tag_segment`, `add_missed_date_context`).
 - `actions.other.submenu_bool`, `actions.other.submenu_label`: put extra resources under an `Other` submenu (or inline when disabled).
 - `actions.other.tagging` and `actions.other.actions`: standardized config for additional resource actions.
+
+Week mapping used by `date.split_weeks`:
+- `week_1`: days `01-07`
+- `week_2`: days `08-14`
+- `week_3`: days `15-21`
+- `week_4`: days `22-31`
 
 #### When To Edit It
 

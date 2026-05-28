@@ -31,18 +31,11 @@ class ConfigManager:
     )
 
     CUSTOM_TAGS_CANONICAL_SECTION = "custom_tags_config"
-    CUSTOM_TAGS_CANONICAL_CHILD_SECTIONS = (
-        "add_custom_tags_1",
-        "add_custom_tags_2",
-    )
+    CUSTOM_TAGS_PRIMARY_CHILD_SECTION = "add_custom_tags_1"
+    CUSTOM_TAGS_NUMBERED_CHILD_PATTERN = re.compile(r"^add_custom_tags_(\d+)$")
     CUSTOM_TAGS_LEGACY_CHILD_RENAMES = {
-        "add_custom_tags": "add_custom_tags_1",
+        "add_custom_tags": CUSTOM_TAGS_PRIMARY_CHILD_SECTION,
     }
-    LEGACY_TOP_LEVEL_CUSTOM_TAGS_SECTIONS = (
-        "add_custom_tags",
-        "add_custom_tags_1",
-        "add_custom_tags_2",
-    )
     ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS = (
         "message_no_notes_selected",
         "message_applied_template",
@@ -58,10 +51,12 @@ class ConfigManager:
     DEPRECATED_MERGE_TAGS_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
     DEPRECATED_MERGE_IMAGES_THRESHOLD_KEYS = ("default_threshold", "min_threshold")
     DEPRECATED_MERGE_SCHED_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
+    MISSED_TAGS_ROTATION_KEY = "rotation"
+    MISSED_TAGS_LEGACY_BLOCK_KEY = "block"
     MISSED_TAGS_CANONICAL_TOP_LEVEL_KEYS = (
         "ui",
         "date",
-        "rotation",
+        MISSED_TAGS_ROTATION_KEY,
         "actions",
         "runtime",
     )
@@ -92,6 +87,78 @@ class ConfigManager:
     def _load_runtime_config_raw(cls) -> dict:
         current = mw.addonManager.getConfig(cls.ROOT_ADDON_NAME) or {}
         return current if isinstance(current, dict) else {}
+
+    @classmethod
+    def _custom_tags_section_index(cls, key: Any) -> int | None:
+        key_text = str(key).strip() if key is not None else ""
+        match = cls.CUSTOM_TAGS_NUMBERED_CHILD_PATTERN.fullmatch(key_text)
+        if not match:
+            return None
+        return int(match.group(1))
+
+    @classmethod
+    def is_numbered_custom_tags_section_key(cls, key: Any) -> bool:
+        return cls._custom_tags_section_index(key) is not None
+
+    @classmethod
+    def is_custom_tags_leaf_section_key(cls, key: Any) -> bool:
+        key_text = str(key).strip() if key is not None else ""
+        return key_text in cls.CUSTOM_TAGS_LEGACY_CHILD_RENAMES or cls.is_numbered_custom_tags_section_key(
+            key_text
+        )
+
+    @classmethod
+    def ordered_numbered_custom_tags_sections(cls, source: Any) -> list[str]:
+        if isinstance(source, dict):
+            keys = source.keys()
+        elif isinstance(source, (list, tuple, set)):
+            keys = source
+        else:
+            return []
+
+        numbered: list[tuple[int, str]] = []
+        for key in keys:
+            key_text = str(key).strip() if key is not None else ""
+            index = cls._custom_tags_section_index(key_text)
+            if index is None:
+                continue
+            numbered.append((index, key_text))
+
+        numbered.sort(key=lambda item: (item[0], item[1]))
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for _index, key_text in numbered:
+            if key_text in seen:
+                continue
+            seen.add(key_text)
+            ordered.append(key_text)
+        return ordered
+
+    @classmethod
+    def discover_custom_tags_sections(cls, root_cfg: Any = None) -> list[str]:
+        """Return available custom-tag section names in display order."""
+        if root_cfg is None:
+            root_cfg, _ = cls.load_effective_config()
+
+        if not isinstance(root_cfg, dict):
+            return [cls.CUSTOM_TAGS_PRIMARY_CHILD_SECTION]
+
+        canonical = root_cfg.get(cls.CUSTOM_TAGS_CANONICAL_SECTION)
+        if isinstance(canonical, dict):
+            canonical_sections = cls.ordered_numbered_custom_tags_sections(canonical)
+            if canonical_sections:
+                return canonical_sections
+            if isinstance(canonical.get("add_custom_tags"), dict):
+                return [cls.CUSTOM_TAGS_PRIMARY_CHILD_SECTION]
+
+        top_level_sections = cls.ordered_numbered_custom_tags_sections(root_cfg)
+        if top_level_sections:
+            return top_level_sections
+
+        if isinstance(root_cfg.get("add_custom_tags"), dict):
+            return [cls.CUSTOM_TAGS_PRIMARY_CHILD_SECTION]
+
+        return [cls.CUSTOM_TAGS_PRIMARY_CHILD_SECTION]
 
     @classmethod
     def _load_default_config_with_errors(cls) -> tuple[dict, list[str]]:
@@ -143,10 +210,7 @@ class ConfigManager:
                         out[key_text] = copy.deepcopy(value)
             return out
 
-        if (
-            section in cls.CUSTOM_TAGS_CANONICAL_CHILD_SECTIONS
-            or section in cls.LEGACY_TOP_LEVEL_CUSTOM_TAGS_SECTIONS
-        ):
+        if cls.is_custom_tags_leaf_section_key(section):
             return cls._sanitize_custom_tags_leaf(sanitized)
         return sanitized
 
@@ -233,15 +297,20 @@ class ConfigManager:
                 legacy_child_value,
             )
 
-        # Move any top-level legacy sections under custom_tags_config.
-        top_level_to_child = {
-            "add_custom_tags": "add_custom_tags_1",
-            "add_custom_tags_1": "add_custom_tags_1",
-            "add_custom_tags_2": "add_custom_tags_2",
-        }
-        for top_level_key, child_key in top_level_to_child.items():
+        # Move any top-level legacy/numbered sections under custom_tags_config.
+        top_level_sections = []
+        if "add_custom_tags" in payload:
+            top_level_sections.append("add_custom_tags")
+        top_level_sections.extend(cls.ordered_numbered_custom_tags_sections(payload))
+
+        for top_level_key in top_level_sections:
             if top_level_key not in payload:
                 continue
+
+            if top_level_key == "add_custom_tags":
+                child_key = cls.CUSTOM_TAGS_PRIMARY_CHILD_SECTION
+            else:
+                child_key = top_level_key
 
             legacy_value = payload.pop(top_level_key)
             changed = True
@@ -323,6 +392,16 @@ class ConfigManager:
         for key in cls.MISSED_TAGS_CANONICAL_TOP_LEVEL_KEYS:
             if key in payload:
                 subset[key] = copy.deepcopy(payload[key])
+        legacy_rotation = payload.get(cls.MISSED_TAGS_LEGACY_BLOCK_KEY)
+        canonical_rotation = subset.get(cls.MISSED_TAGS_ROTATION_KEY)
+        if isinstance(legacy_rotation, dict):
+            if isinstance(canonical_rotation, dict):
+                # Prefer block syntax when overlapping with rotation keys.
+                subset[cls.MISSED_TAGS_ROTATION_KEY] = cls.deep_merge_dicts(
+                    canonical_rotation, legacy_rotation
+                )
+            elif cls.MISSED_TAGS_ROTATION_KEY not in subset:
+                subset[cls.MISSED_TAGS_ROTATION_KEY] = copy.deepcopy(legacy_rotation)
         return subset
 
     @classmethod
@@ -433,6 +512,17 @@ class ConfigManager:
                 True,
             )
 
+        if "split_weeks" in legacy_value:
+            translated.setdefault("date", {})["split_weeks"] = cls._to_bool(
+                legacy_value.get("split_weeks"),
+                False,
+            )
+        elif "split_weeks" in action_defaults:
+            translated.setdefault("date", {})["split_weeks"] = cls._to_bool(
+                action_defaults.get("split_weeks"),
+                False,
+            )
+
         translated_actions: dict[str, Any] = {}
 
         base_cfg = cls._as_dict(legacy_actions.get("base"))
@@ -440,6 +530,10 @@ class ConfigManager:
             base_action: dict[str, Any] = {}
             if base_cfg:
                 cls._copy_friend_action_label(base_cfg, base_action)
+                if "menu_display" in base_cfg:
+                    base_action["menu_display"] = cls._to_bool(base_cfg.get("menu_display"), True)
+                elif "show_in_menu" in base_cfg:
+                    base_action["menu_display"] = cls._to_bool(base_cfg.get("show_in_menu"), True)
             base_action["tags"] = cls._resolve_friend_action_tags(
                 base_cfg,
                 primary_tag=primary_tag,
@@ -759,6 +853,64 @@ class ConfigManager:
         return changed
 
     @classmethod
+    def _migrate_missed_tags_rotation_key(cls, payload: dict[str, Any]) -> bool:
+        """Canonicalize missed-tags rotation config key from legacy `block`."""
+        section = payload.get(cls.MISSED_TAGS_CANONICAL_SECTION)
+        if not isinstance(section, dict):
+            return False
+
+        legacy_key = cls.MISSED_TAGS_LEGACY_BLOCK_KEY
+        canonical_key = cls.MISSED_TAGS_ROTATION_KEY
+        changed = False
+        if legacy_key in section:
+            changed = True
+            legacy_value = section.pop(legacy_key)
+            canonical_value = section.get(canonical_key)
+            if isinstance(legacy_value, dict):
+                if isinstance(canonical_value, dict):
+                    # Prefer block syntax when both keys are present.
+                    section[canonical_key] = cls.deep_merge_dicts(canonical_value, legacy_value)
+                elif canonical_key not in section:
+                    section[canonical_key] = copy.deepcopy(legacy_value)
+            elif canonical_key not in section:
+                section[canonical_key] = copy.deepcopy(legacy_value)
+
+        rotation_cfg = section.get(canonical_key)
+        if not isinstance(rotation_cfg, dict):
+            return changed
+
+        if "winter_break_label" in rotation_cfg:
+            rotation_cfg.pop("winter_break_label", None)
+            changed = True
+        if "post_rotation_label" in rotation_cfg:
+            rotation_cfg.pop("post_rotation_label", None)
+            changed = True
+
+        schedule = rotation_cfg.get("schedule")
+        if isinstance(schedule, list):
+            normalized_schedule: list[Any] = []
+            schedule_changed = False
+            for item in schedule:
+                if not isinstance(item, dict):
+                    normalized_schedule.append(copy.deepcopy(item))
+                    continue
+
+                normalized_item = copy.deepcopy(item)
+                if "segment_label" not in normalized_item and "label" in normalized_item:
+                    normalized_item["segment_label"] = normalized_item.get("label")
+                    schedule_changed = True
+                if "label" in normalized_item:
+                    normalized_item.pop("label", None)
+                    schedule_changed = True
+                normalized_schedule.append(normalized_item)
+
+            if schedule_changed:
+                rotation_cfg["schedule"] = normalized_schedule
+                changed = True
+
+        return changed
+
+    @classmethod
     def _normalize_missed_tags_uworld_values(cls, payload: dict[str, Any]) -> bool:
         section = payload.get(cls.MISSED_TAGS_CANONICAL_SECTION)
         if not isinstance(section, dict):
@@ -769,6 +921,15 @@ class ConfigManager:
             return False
 
         changed = False
+
+        base = actions.get("base")
+        if isinstance(base, dict):
+            if "menu_display" not in base and "show_in_menu" in base:
+                base["menu_display"] = cls._to_bool(base.get("show_in_menu"), True)
+                changed = True
+            if "show_in_menu" in base:
+                del base["show_in_menu"]
+                changed = True
 
         # Canonicalize action key name for the combined correct-tag action.
         if "uw_correct_missed" in actions:
@@ -977,6 +1138,7 @@ class ConfigManager:
 
         cls._migrate_custom_tags_sections(migrated)
         cls._migrate_missed_tags_sections(migrated)
+        cls._migrate_missed_tags_rotation_key(migrated)
         cls._normalize_missed_tags_uworld_values(migrated)
         cls._migrate_global_fuzzy_opts_section(migrated)
         cls._migrate_merge_tags_parent_keys(migrated)

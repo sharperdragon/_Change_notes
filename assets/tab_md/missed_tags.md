@@ -33,12 +33,19 @@ Legacy section names are still merged into `tag_missed_notes` by `ConfigManager`
 ### `ui`
 - `menu_label`: Root menu label.
 
+### `date`
+- `include_day_segment`: Append the day segment to month tags.
+- `split_weeks`: When `true` and `include_day_segment` is `true`, place day tags under `week_1`..`week_4`.
+- Week mapping:
+- `week_1`: days `01-07`
+- `week_2`: days `08-14`
+- `week_3`: days `15-21`
+- `week_4`: days `22-31`
+
 ### `rotation`
-- `schedule`: Rotation blocks (`label`, `start`, `end`).
+- `schedule`: Rotation windows (`segment_label`, `start`, `end`); `segment_label` is used directly as the final tag child segment.
 - `exhausted_policy`: Behavior when outside configured windows.
 - `parent_tag_segment`: Parent rotation segment in final tags.
-- `winter_break_label`: Winter-break window label.
-- `post_rotation_label`: Post-rotation fallback label.
 
 ### `actions`
 - Shared standardized keys:
@@ -46,6 +53,7 @@ Legacy section names are still merged into `tag_missed_notes` by `ConfigManager`
 - `child_of_primary_missed`: Build tags under the main missed root when `true`.
 - `tag_segment`: Segment used under the missed root.
 - `absolute_tags`: Full tags for actions that should not be child tags.
+- `menu_display`: Optional boolean to show/hide an action in the menu (currently used by `actions.base`).
 - `add_missed_date_context`: Include date context tags for the action.
 - `prompt.kind`: `none`, `number`, or `form`.
 - `prompt.number_style`: `number_only`, `range_then_number`, `rotation_then_number`.
@@ -66,12 +74,16 @@ Legacy section names are still merged into `tag_missed_notes` by `ConfigManager`
   "tag_missed_notes": {
     "ui": { "menu_label": "Missed Tags" },
     "rotation": {
+      "schedule": [
+        { "segment_label": "*Dedicated", "start": "2026-03-28", "end": "2099-12-31" }
+      ],
       "exhausted_policy": "unknown",
       "parent_tag_segment": "Rotation"
     },
     "actions": {
       "base": {
         "menu_label": "♦️ Base",
+        "menu_display": true,
         "child_of_primary_missed": false,
         "absolute_tags": ["##Missed-Qs"],
         "add_missed_date_context": false

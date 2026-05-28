@@ -157,13 +157,14 @@ log_debug(
 
 # --- Fuzzy matching helper ---
 
-def prompt_fuzzy_threshold(default=None):
+def prompt_fuzzy_threshold(default=None, parent=None):
     """Prompt user for fuzzy threshold (0–100) using a popup input dialog."""
     if default is None:
         default_fuzzy, _ = _global_fuzzy_opts()
         default = int(default_fuzzy * 100)
+    dialog_parent = parent or mw
     val, ok = QInputDialog.getInt(
-        mw, "Set Fuzzy Match Threshold",
+        dialog_parent, "Set Fuzzy Match Threshold",
         "Select fuzzy match threshold (0 = loose, 100 = strict):",
         default, 85, 100, 1
     )
@@ -276,7 +277,7 @@ def unify_tags_main(browser: Browser | None = None):
     # Decide threshold (prompt or silent clamp)
     if ask_each:
         default_pct = max(min(int(default_fuzzy * 100), 100), 0)
-        t = prompt_fuzzy_threshold(default=default_pct)
+        t = prompt_fuzzy_threshold(default=default_pct, parent=browser)
         if t is None:
             return  # user canceled
         threshold = max(min(t, max_fuzzy), min_fuzzy)

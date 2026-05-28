@@ -64,7 +64,7 @@ def run_merge_by_similarity(
         config_section.get("multi_card_policy", MERGE_SCHEDULE_DEFAULTS["multi_card_policy"])
     )
 
-    threshold, accepted = prompt_threshold_with_cancel(default=default_threshold)
+    threshold, accepted = prompt_threshold_with_cancel(default=default_threshold, parent=browser)
     if not accepted:
         if abort_on_cancel:
             tooltip("Merge Scheduling cancelled. No changes were applied.")

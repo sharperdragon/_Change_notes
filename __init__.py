@@ -21,23 +21,20 @@ from aqt.browser import Browser
 from aqt.qt import QAction, QMenu
 from aqt.utils import showInfo, tooltip
 
+from .config_manager import ConfigManager
 from .menu_compiler import compile_browser_context_menu
-from .modules.add_custom_tags import apply_tags_to_note, iter_reviewer_shortcut_actions
+from .modules.add_custom_tags import (
+    apply_tags_to_note,
+    discover_custom_tag_sections,
+    iter_reviewer_shortcut_actions,
+)
 from .modules.add_table_class.main import add_class_main
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
-# Set to None to use each section's `submenu_label` from config.
+# Set to None to use the first discovered section's `submenu_label` from config.
 CUSTOM_TAGS_MENU_LABEL: Optional[str] = None
-CUSTOM_TAGS_MENU_CONFIG_SECTION = "add_custom_tags_1"
 CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
-CUSTOM_TAGS_MENU_2_LABEL: Optional[str] = None
-CUSTOM_TAGS_MENU_2_CONFIG_SECTION = "add_custom_tags_2"
-CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS = True
 REVIEW_TAG_SHORTCUTS_ENABLED = True
-REVIEW_TAG_SHORTCUT_CONFIG_SECTIONS = (
-    CUSTOM_TAGS_MENU_CONFIG_SECTION,
-    CUSTOM_TAGS_MENU_2_CONFIG_SECTION,
-)
 REVIEW_TAG_SHORTCUT_SKIP_EXISTING_BINDINGS = False
 REVIEW_TAG_SHORTCUT_SUCCESS_TEMPLATE = "✅ Tagged note: {preset_label}"
 REVIEW_TAG_SHORTCUT_ALREADY_PRESENT_TEMPLATE = "ℹ️ Tag already present: {preset_label}"
@@ -51,11 +48,7 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
         browser,
         menu,
         custom_tags_menu_label=CUSTOM_TAGS_MENU_LABEL,
-        custom_tags_menu_config_section=CUSTOM_TAGS_MENU_CONFIG_SECTION,
         custom_tags_menu_hide_when_no_presets=CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS,
-        custom_tags_menu_2_label=CUSTOM_TAGS_MENU_2_LABEL,
-        custom_tags_menu_2_config_section=CUSTOM_TAGS_MENU_2_CONFIG_SECTION,
-        custom_tags_menu_2_hide_when_no_presets=CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS,
     )
 
 
@@ -94,12 +87,18 @@ def _inject_review_tag_shortcuts(state: str, shortcuts: list[tuple[str, Callable
         if normalized:
             shortcut_index_by_key[normalized] = idx
 
+    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
+    discovered_sections = discover_custom_tag_sections(root_cfg=root_cfg)
+
     newly_added = set()
-    for section in REVIEW_TAG_SHORTCUT_CONFIG_SECTIONS:
+    for section in discovered_sections:
         if not isinstance(section, str) or not section.strip():
             continue
 
-        for shortcut, preset_label, tags in iter_reviewer_shortcut_actions(config_section=section):
+        for shortcut, preset_label, tags in iter_reviewer_shortcut_actions(
+            config_section=section,
+            root_cfg=root_cfg,
+        ):
             shortcut_key = str(shortcut).strip()
             if not shortcut_key:
                 continue

@@ -452,7 +452,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     # Apply model + tag gating from config
     candidates = [n for n in all_note_infos if is_model_allowed(n) and not has_excluded_tag(n)]
 
-    received_tag = cfg("tagging.add_to_merged", "IMG_Uni::received")
+    received_tag = cfg("tagging.add_to_merged", "DONE::IMG_Uni::received")
     unchanged_tag = cfg("tagging.add_to_unchanged", "IMG_Uni::same")
     donor_tag = cfg("tagging.add_to_donor", "IMG_Uni::donor")
     enable_popup = cfg("logging.enable_log_popup", True)
@@ -886,6 +886,7 @@ def merge_images_main(selected=None, browser=None):
             maximum=max_threshold,
             ui="float",
             title="Fuzzy Threshold (Images)",
+            parent=browser,
         )
         if not ok:
             return  # user canceled

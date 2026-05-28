@@ -14,10 +14,6 @@ from .shared.menu_styles import build_custom_tags_menu_stylesheet
 DEFAULT_PARENT_CONFIG_SECTION = "custom_tags_config"
 DEFAULT_CONFIG_SECTION = "add_custom_tags_1"
 DEFAULT_HIDE_WHEN_NO_PRESETS = False
-LEGACY_SECTION_ALIASES: dict[str, tuple[str, ...]] = {
-    "add_custom_tags_1": ("add_custom_tags",),
-    "add_custom_tags_2": (),
-}
 # ! ------------------------------------------------------------------------
 
 # ! --------------------------- OPTIONAL CONFIG KEYS ---------------------------
@@ -100,12 +96,25 @@ def _normalize_group_labels(raw: Any) -> dict[str, str]:
     return normalized
 
 
+def discover_custom_tag_sections(*, root_cfg: dict[str, Any] | None = None) -> list[str]:
+    """Return numbered custom-tag section keys sorted by numeric suffix."""
+    return ConfigManager.discover_custom_tags_sections(root_cfg=root_cfg)
+
+
+def _legacy_aliases_for_section(config_section: str) -> tuple[str, ...]:
+    if config_section == DEFAULT_CONFIG_SECTION:
+        return ("add_custom_tags",)
+    return ()
+
+
 def _load_runtime_config(
     menu_label_override: str | None = None,
     config_section: str = DEFAULT_CONFIG_SECTION,
     parent_config_section: str = DEFAULT_PARENT_CONFIG_SECTION,
+    root_cfg: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, str], list[dict[str, Any]], str, str]:
-    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
+    if root_cfg is None:
+        root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
     if not isinstance(root_cfg, dict):
         root_cfg = {}
 
@@ -117,7 +126,7 @@ def _load_runtime_config(
         if isinstance(nested_cfg, dict):
             section_cfg = nested_cfg
         else:
-            for alias in LEGACY_SECTION_ALIASES.get(config_section, ()):
+            for alias in _legacy_aliases_for_section(config_section):
                 alias_cfg = parent_cfg.get(alias)
                 if isinstance(alias_cfg, dict):
                     section_cfg = alias_cfg
@@ -128,7 +137,7 @@ def _load_runtime_config(
         if isinstance(top_level_cfg, dict):
             section_cfg = top_level_cfg
         else:
-            for alias in LEGACY_SECTION_ALIASES.get(config_section, ()):
+            for alias in _legacy_aliases_for_section(config_section):
                 alias_cfg = root_cfg.get(alias)
                 if isinstance(alias_cfg, dict):
                     section_cfg = alias_cfg
@@ -198,9 +207,10 @@ def apply_tags_to_note(col, note, tags: list[str]) -> int:
 def iter_reviewer_shortcut_actions(
     *,
     config_section: str = DEFAULT_CONFIG_SECTION,
+    root_cfg: dict[str, Any] | None = None,
 ) -> list[tuple[str, str, list[str]]]:
     """Return (shortcut, preset_label, tags) entries for reviewer shortcuts."""
-    _, _, presets, _, _ = _load_runtime_config(config_section=config_section)
+    _, _, presets, _, _ = _load_runtime_config(config_section=config_section, root_cfg=root_cfg)
 
     actions: list[tuple[str, str, list[str]]] = []
     seen_shortcuts: set[str] = set()
@@ -269,6 +279,7 @@ def add_custom_tag_menu_items(
     config_section: str = DEFAULT_CONFIG_SECTION,
     hide_when_no_presets: bool = DEFAULT_HIDE_WHEN_NO_PRESETS,
     add_separator_before: bool = False,
+    root_cfg: dict[str, Any] | None = None,
 ) -> bool:
     (
         submenu_label,
@@ -279,6 +290,7 @@ def add_custom_tag_menu_items(
     ) = _load_runtime_config(
         menu_label_override=menu_label,
         config_section=config_section,
+        root_cfg=root_cfg,
     )
 
     if hide_when_no_presets and not presets:

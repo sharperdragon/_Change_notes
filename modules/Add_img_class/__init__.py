@@ -40,8 +40,22 @@ pil_info = "Pillow not initialized"
 # -----------------------------
 # Regexes at module scope
 # -----------------------------
-# Find <img ... src="..." ...>
-img_tag_re = re.compile(r"<img\b[^>]*\bsrc=(?:\"([^\"]+)\"|'([^']+)')[^>]*>", re.IGNORECASE)
+# Find <img ... src=... ...>
+# Supports:
+# - src="..."
+# - src='...'
+# - src = "..." (space around '=')
+# - src=unquoted-value
+img_tag_re = re.compile(
+    r"<img\b[^>]*\bsrc\s*=\s*(?:\"(?P<src_dq>[^\"]*)\"|'(?P<src_sq>[^']*)'|(?P<src_unquoted>[^\s\"'>]+))[^>]*>",
+    re.IGNORECASE,
+)
+class_attr_re = re.compile(r"(?i)\bclass\s*=\s*([\"'])(.*?)\1", re.DOTALL)
+verification_class_re = re.compile(
+    r"(?i)class\s*=\s*([\"'])[^\"']*(?:ultra-wide|img-landscape|img-tall|img-square|img-default|small|larger)[^\"']*\1"
+)
+
+MANAGED_IMG_CLASS_TAGS = {"ultra-wide", "img-landscape", "img-tall", "img-square", "img-default", "small"}
 
 
 # -----------------------------
@@ -153,10 +167,15 @@ def main(browser) -> bool:
             for i, field in enumerate(fields_list):
                 def replace_img_tag(match):
                     nonlocal updated  # allow this closure to flag note-level updates
-                    src = match.group(1) or match.group(2)
+                    src = (
+                        match.group("src_dq")
+                        or match.group("src_sq")
+                        or match.group("src_unquoted")
+                    )
                     log(f"Image src: {src}")
-                    decoded_src = unquote(src)
-                    img_path = os.path.join(media_folder, decoded_src)
+                    decoded_src = unquote(src or "").strip()
+                    local_src = decoded_src.split("?", 1)[0].split("#", 1)[0].lstrip("/\\")
+                    img_path = os.path.join(media_folder, local_src)
                     if not os.path.exists(img_path):
                         log(f"  ⚠️ image not found in media folder: {img_path}")
                         log("  🌐 external image detected; using fallback class 'img-default'")
@@ -168,15 +187,15 @@ def main(browser) -> bool:
                         return match.group(0)
 
                     old_tag = match.group(0)
-                    CLASS_TAGS = {"ultra-wide", "img-landscape", "img-tall", "img-square", "img-default", "small"}
-
-                    existing_class_match = re.search(r'class="([^"]*)"', old_tag)
+                    existing_class_match = class_attr_re.search(old_tag)
                     if existing_class_match:
-                        existing_classes = existing_class_match.group(1).split()
-                        cleaned_classes = [c for c in existing_classes if c not in CLASS_TAGS]
-                        new_classes = sorted(cleaned_classes + cls.split())
-                        new_class_attr = 'class="' + ' '.join(new_classes) + '"'
-                        new_tag = re.sub(r'class="[^"]*"', new_class_attr, old_tag)
+                        class_quote = existing_class_match.group(1)
+                        existing_classes = existing_class_match.group(2).split()
+                        cleaned_classes = [c for c in existing_classes if c not in MANAGED_IMG_CLASS_TAGS]
+                        new_classes = sorted(set(cleaned_classes + cls.split()))
+                        new_class_attr = f"class={class_quote}{' '.join(new_classes)}{class_quote}"
+                        start, end = existing_class_match.span()
+                        new_tag = old_tag[:start] + new_class_attr + old_tag[end:]
                     else:
                         new_class_attr = 'class="' + cls + '"'
                         new_tag = re.sub(r"\s*(/?)>\s*$", lambda m: (" " + new_class_attr + (" /" if m.group(1) else "") + ">"), old_tag)
@@ -206,11 +225,15 @@ def main(browser) -> bool:
             if updated:
                 log(f"✏️ Saving note {nid}")
                 note.fields = new_fields_list
-                note.flush()
+                try:
+                    mw.col.update_note(note)
+                except Exception as e:
+                    log(f"update_note failed; falling back to note.flush(): {e}")
+                    note.flush()
                 # Post-save verification
                 verified_note = mw.col.get_note(nid)
                 verification_hit = any(
-                    re.search(r'class="[^"]*(?:ultra-wide|img-landscape|img-tall|img-square|img-default|small|larger)[^"]*"', f or '')
+                    verification_class_re.search(f or "")
                     for f in verified_note.fields
                 )
                 if verification_hit:
@@ -223,6 +246,10 @@ def main(browser) -> bool:
                 log(f"No changes for note {nid}")
 
         if updated_any:
+            try:
+                mw.reset()  # refresh Browser/editor so class changes are immediately visible
+            except Exception as e:
+                log(f"mw.reset() failed (non-fatal): {e}")
             log(f"✅ Tags updated in {updated_notes_counter} notes")
             tooltip(f"Add_img_class: {updated_notes_counter} note(s) updated.", period=3000)
         else:

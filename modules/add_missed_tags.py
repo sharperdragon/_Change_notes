@@ -9,10 +9,12 @@ from typing import Any
 from aqt.qt import (
     QAction,
     QApplication,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QInputDialog,
+    QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
@@ -31,6 +33,17 @@ CANONICAL_CONFIG_SECTION = "tag_missed_notes"
 # 0,0 centers the prompt in the active screen.
 PROMPT_DIALOG_OFFSET_CENTER_X = 200
 PROMPT_DIALOG_OFFSET_CENTER_Y = -50
+# Prompt sizing (tunable): increase these if dialog captions/labels appear clipped.
+PROMPT_DIALOG_MIN_WIDTH = 250
+PROMPT_DIALOG_MIN_HEIGHT = 0
+
+# Keep a small margin so prompt windows never hug screen edges.
+PROMPT_DIALOG_SAFE_MARGIN = 16
+CORRECT_MISSED_DIALOG_MIN_WIDTH = 180
+CORRECT_MISSED_DIALOG_MIN_HEIGHT = 0
+# Show or hide the "Base" action in the Missed Tags menu.
+# Canonical config key: actions.base.menu_display
+SHOW_BASE_ACTION_IN_MISSED_TAGS_MENU = True
 
 # ! --------------------------- CHANGE-PRONE VALUES ---------------------------
 SCHEDULE_POLICY = {
@@ -85,8 +98,6 @@ VALID_PROMPT_BLANK_BEHAVIORS = {
 # Amboss prompt behavior: when enabled, any non-empty prompt text is converted
 # into child tag segments under Amboss::<rotation>.
 AMBOSS_ALLOW_FREEFORM_CHILD_SEGMENTS = True
-# When freeform child segments are enabled for Amboss, include current rotation
-# between Amboss and user-entered segments.
 AMBOSS_FREEFORM_INCLUDE_ROTATION_SEGMENT = False
 
 MSG_NO_NOTES_SELECTED = "❌ No notes selected."
@@ -97,7 +108,13 @@ PROMPT_DEFAULT_TITLE = "Enter Test Number"
 PROMPT_DEFAULT_LABEL = "Test #:"
 PROMPT_NBME_TITLE = "Enter NBME Form"
 PROMPT_NBME_LABEL = "Form #:"
-PROMPT_AMBOSS_TITLE = "Enter Amboss Test Number"
+PROMPT_AMBOSS_TITLE = "Enter Amboss Subtag"
+PROMPT_AMBOSS_LABEL = "Subtags:"
+PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL = "correct_marked"
+AMBOSS_CORRECT_MARKED_TAG_SEGMENT = "correct_marked"
+AMBOSS_APPEND_CORRECT_MARKED_STATE_KEY = "amboss_append_correct_marked"
+AMBOSS_APPEND_CORRECT_MARKED_DEFAULT = False
+PROMPT_SHOW_CORRECT_MARKED_CHECKBOX_DEFAULT = False
 PROMPT_UWORLD_TITLE = "Enter UWorld Test Number"
 PROMPT_TRUE_LEARN_TITLE = "Enter True-Learn Test Number"
 PROMPT_CORRECT_GUESS_SUBTAG_TITLE = "Guessed Correct Subtag"
@@ -125,6 +142,38 @@ DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT = {
     "true_learn_test_prompt": True,
 }
 
+STANDARD_ACTION_SCHEMA_KEYS = (
+    "menu_label",
+    "child_of_primary_missed",
+    "absolute_tags",
+    "tag_segment",
+)
+STANDARD_ACTION_SCHEMA_KEYS_WITH_PROMPT = (*STANDARD_ACTION_SCHEMA_KEYS, "prompt")
+STANDARDIZED_ACTION_SCHEMA_SPECS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("base", STANDARD_ACTION_SCHEMA_KEYS),
+    ("uworld", STANDARD_ACTION_SCHEMA_KEYS_WITH_PROMPT),
+    ("nbme", STANDARD_ACTION_SCHEMA_KEYS_WITH_PROMPT),
+    ("amboss", STANDARD_ACTION_SCHEMA_KEYS_WITH_PROMPT),
+    ("multi_missed", STANDARD_ACTION_SCHEMA_KEYS),
+    ("key_info", STANDARD_ACTION_SCHEMA_KEYS),
+    ("correct_guess", STANDARD_ACTION_SCHEMA_KEYS),
+    (CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY, STANDARD_ACTION_SCHEMA_KEYS),
+)
+ACTION_DATE_CONTEXT_RESOLUTION_SPECS: tuple[tuple[str, str, str], ...] = (
+    ("base_plain", "base", "base_plain"),
+    ("uw_test_prompt", "uworld", "uw_test_prompt"),
+    ("nbme_form_prompt", "nbme", "nbme_form_prompt"),
+    ("amboss_test_prompt", "amboss", "amboss_test_prompt"),
+    ("multi_missed", "multi_missed", "multi_missed"),
+    ("add_key_info_action", "key_info", "add_key_info_action"),
+    ("correct_guess", "correct_guess", "correct_guess"),
+    (
+        ACTION_KEY_CORRECT_TAG_MISSED_PROMPT,
+        CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY,
+        ACTION_KEY_CORRECT_TAG_MISSED_PROMPT,
+    ),
+)
+
 
 @dataclass(frozen=True)
 class PromptActionConfig:
@@ -135,6 +184,7 @@ class PromptActionConfig:
     label: str
     allow_freeform_child_segments: bool
     include_rotation_for_freeform: bool
+    show_correct_marked_checkbox: bool = False
 
 
 @dataclass(frozen=True)
@@ -160,7 +210,9 @@ class MissedTagsConfig:
     schedule_exhausted_policy: str
     missed_tags_menu_label: str
     include_day_segment: bool
+    split_weeks: bool
     action_add_missed_date_context: dict[str, bool]
+    show_base_plain_action: bool
     action_label_base: str
     action_label_multi_missed: str
     action_label_key_info: str
@@ -169,8 +221,6 @@ class MissedTagsConfig:
     uw_correct_missed_tag_segment: str
     uw_correct_missed_tags: list[str]
     rotation_parent_tag_segment: str
-    winter_break_tag_label: str
-    post_rotation_tag_label: str
     multi_miss_tag: str
     multi_miss_tags: list[str]
     default_test_tag_prefix: str
@@ -325,6 +375,26 @@ def _normalize_prompt_blank_behavior(value: Any, fallback: str) -> str:
     return normalized if normalized in VALID_PROMPT_BLANK_BEHAVIORS else fallback
 
 
+def _normalize_prompt_settings(
+    prompt_cfg: dict[str, Any],
+    *,
+    default_kind: str,
+    default_number_style: str,
+    default_blank_behavior: str,
+) -> dict[str, Any]:
+    normalized_prompt = _as_dict(prompt_cfg)
+    normalized_prompt["kind"] = _normalize_prompt_kind(normalized_prompt.get("kind"), default_kind)
+    normalized_prompt["number_style"] = _normalize_prompt_number_style(
+        normalized_prompt.get("number_style"),
+        default_number_style,
+    )
+    normalized_prompt["blank_behavior"] = _normalize_prompt_blank_behavior(
+        normalized_prompt.get("blank_behavior"),
+        default_blank_behavior,
+    )
+    return normalized_prompt
+
+
 def _build_prompt_action_config(
     action_cfg: dict[str, Any],
     *,
@@ -335,6 +405,7 @@ def _build_prompt_action_config(
     default_label: str,
     default_allow_freeform_child_segments: bool,
     default_include_rotation_for_freeform: bool,
+    default_show_correct_marked_checkbox: bool,
 ) -> PromptActionConfig:
     prompt_cfg = _as_dict(action_cfg.get("prompt"))
     prompt_kind = _normalize_prompt_kind(prompt_cfg.get("kind"), default_kind)
@@ -355,6 +426,11 @@ def _build_prompt_action_config(
         "include_rotation_for_freeform",
         default_include_rotation_for_freeform,
     )
+    show_correct_marked_checkbox = _read_bool(
+        prompt_cfg,
+        "show_correct_marked_checkbox",
+        default_show_correct_marked_checkbox,
+    )
     return PromptActionConfig(
         kind=prompt_kind,
         number_style=number_style,
@@ -363,6 +439,7 @@ def _build_prompt_action_config(
         label=prompt_label,
         allow_freeform_child_segments=allow_freeform,
         include_rotation_for_freeform=include_rotation_for_freeform,
+        show_correct_marked_checkbox=show_correct_marked_checkbox,
     )
 
 
@@ -372,19 +449,22 @@ def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
         return normalized
 
     for item in raw:
-        label = start = end = ""
+        segment_label = start = end = ""
         if isinstance(item, dict):
-            label = str(item.get("label", "")).strip()
+            segment_label = str(item.get("segment_label", "")).strip()
+            if not segment_label:
+                # Backward compatibility for legacy schedule entries.
+                segment_label = str(item.get("label", "")).strip()
             start = str(item.get("start", "")).strip()
             end = str(item.get("end", "")).strip() or DEFAULT_OPEN_ENDED_ROTATION_END
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
-            label = str(item[0]).strip()
+            segment_label = str(item[0]).strip()
             start = str(item[1]).strip()
             end = str(item[2]).strip() if len(item) >= 3 else DEFAULT_OPEN_ENDED_ROTATION_END
             if not end:
                 end = DEFAULT_OPEN_ENDED_ROTATION_END
 
-        if not label or not start:
+        if not segment_label or not start:
             continue
         try:
             datetime.strptime(start, "%Y-%m-%d")
@@ -392,7 +472,7 @@ def _normalize_rotation_schedule(raw: Any) -> list[tuple[str, str, str]]:
         except Exception:
             continue
 
-        normalized.append((label, start, end))
+        normalized.append((segment_label, start, end))
     return normalized
 
 
@@ -465,66 +545,74 @@ def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
                 True,
             )
 
+    def _has_standard_action_keys(action_cfg: dict[str, Any], keys: tuple[str, ...]) -> bool:
+        return any(key in action_cfg for key in keys)
+
+    def _resolve_action_cfg(action_key: str) -> dict[str, Any]:
+        action_cfg = _as_dict(actions_cfg.get(action_key))
+        if action_key == CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY and not action_cfg:
+            action_cfg = _as_dict(actions_cfg.get(LEGACY_CORRECT_TAG_MISSED_ACTION_KEY))
+            if action_cfg:
+                actions_cfg[CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY] = action_cfg
+        return action_cfg
+
     base_cfg = _as_dict(actions_cfg.get("base"))
-    if base_cfg:
-        has_standard_base_keys = any(
-            key in base_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
-        )
-        if has_standard_base_keys:
-            _copy_menu_label(base_cfg, base_cfg)
-            resolved_base_tags = _resolve_standardized_action_tags(
-                base_cfg,
+    if base_cfg and "menu_display" not in base_cfg and "show_in_menu" in base_cfg:
+        base_cfg["menu_display"] = _to_bool(base_cfg.get("show_in_menu"), True)
+
+    for action_key, schema_keys in STANDARDIZED_ACTION_SCHEMA_SPECS:
+        action_cfg = _resolve_action_cfg(action_key)
+        if not action_cfg or not _has_standard_action_keys(action_cfg, schema_keys):
+            continue
+
+        _copy_menu_label(action_cfg, action_cfg)
+
+        if action_key == "base":
+            resolved_tags = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=False,
                 default_segments=[""],
                 default_absolute_tags=[primary_tag],
             )
-            base_cfg["tags"] = resolved_base_tags
-            if resolved_base_tags:
-                primary_tag = _to_text(resolved_base_tags[0], primary_tag)
-            _apply_add_date_context(base_cfg, base_cfg)
+            action_cfg["tags"] = resolved_tags
+            if resolved_tags:
+                primary_tag = _to_text(resolved_tags[0], primary_tag)
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    uworld_cfg = _as_dict(actions_cfg.get("uworld"))
-    if uworld_cfg:
-        has_standard_uworld_keys = any(
-            key in uworld_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment", "prompt")
-        )
-        if has_standard_uworld_keys:
-            _copy_menu_label(uworld_cfg, uworld_cfg)
-            uworld_tags = _resolve_standardized_action_tags(
-                uworld_cfg,
+        if action_key == "uworld":
+            resolved_tags = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=default_child_of_primary,
                 default_segments=["*UW_Tests"],
                 default_absolute_tags=[f"{primary_tag}::*UW_Tests"],
             )
-            uworld_cfg["base_tags"] = [_canonicalize_uworld_base_tag_path(tag) for tag in uworld_tags]
+            action_cfg["base_tags"] = [_canonicalize_uworld_base_tag_path(tag) for tag in resolved_tags]
 
-            configured_default_prefix = _to_text(uworld_cfg.get("default_tag_prefix"), "")
+            configured_default_prefix = _to_text(action_cfg.get("default_tag_prefix"), "")
             if configured_default_prefix:
-                uworld_cfg["default_tag_prefix"] = _canonicalize_uworld_tag_segment(configured_default_prefix)
+                action_cfg["default_tag_prefix"] = _canonicalize_uworld_tag_segment(configured_default_prefix)
             else:
-                extracted_suffix = _extract_tag_suffix(uworld_cfg["base_tags"][0], "*UW_Tests")
-                uworld_cfg["default_tag_prefix"] = _canonicalize_uworld_tag_segment(extracted_suffix)
+                extracted_suffix = _extract_tag_suffix(action_cfg["base_tags"][0], "*UW_Tests")
+                action_cfg["default_tag_prefix"] = _canonicalize_uworld_tag_segment(extracted_suffix)
 
-            uworld_prompt = _as_dict(uworld_cfg.get("prompt"))
-
+            action_prompt = _as_dict(action_cfg.get("prompt"))
             parent_range_block_size = _to_positive_int(
-                uworld_prompt.get(
+                action_prompt.get(
                     "parent_range_block_size",
-                    uworld_cfg.get("test_parent_range_block_size"),
+                    action_cfg.get("test_parent_range_block_size"),
                 ),
                 0,
             )
             if parent_range_block_size > 0:
-                uworld_cfg["test_parent_range_block_size"] = parent_range_block_size
+                action_cfg["test_parent_range_block_size"] = parent_range_block_size
 
             range_block_size = _to_positive_int(
-                uworld_prompt.get(
+                action_prompt.get(
                     "range_block_size",
-                    uworld_cfg.get(
+                    action_cfg.get(
                         "test_range_block_size",
                         action_defaults_prompt.get("range_block_size"),
                     ),
@@ -532,198 +620,136 @@ def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
                 0,
             )
             if range_block_size > 0:
-                uworld_cfg["test_range_block_size"] = range_block_size
-                if "test_parent_range_block_size" not in uworld_cfg:
-                    uworld_cfg["test_parent_range_block_size"] = range_block_size
+                action_cfg["test_range_block_size"] = range_block_size
+                if "test_parent_range_block_size" not in action_cfg:
+                    action_cfg["test_parent_range_block_size"] = range_block_size
 
-            normalized_uw_prompt = _as_dict(uworld_cfg.get("prompt"))
-            normalized_uw_prompt["kind"] = _normalize_prompt_kind(
-                normalized_uw_prompt.get("kind"),
-                PROMPT_KIND_NUMBER,
+            action_cfg["prompt"] = _normalize_prompt_settings(
+                _as_dict(action_cfg.get("prompt")),
+                default_kind=PROMPT_KIND_NUMBER,
+                default_number_style=PROMPT_STYLE_RANGE_THEN_NUMBER,
+                default_blank_behavior=PROMPT_BEHAVIOR_BASE_ONLY,
             )
-            normalized_uw_prompt["number_style"] = _normalize_prompt_number_style(
-                normalized_uw_prompt.get("number_style"),
-                PROMPT_STYLE_RANGE_THEN_NUMBER,
-            )
-            normalized_uw_prompt["blank_behavior"] = _normalize_prompt_blank_behavior(
-                normalized_uw_prompt.get("blank_behavior"),
-                PROMPT_BEHAVIOR_BASE_ONLY,
-            )
-            uworld_cfg["prompt"] = normalized_uw_prompt
-            _apply_add_date_context(uworld_cfg, uworld_cfg)
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    nbme_cfg = _as_dict(actions_cfg.get("nbme"))
-    if nbme_cfg:
-        has_standard_nbme_keys = any(
-            key in nbme_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment", "prompt")
-        )
-        if has_standard_nbme_keys:
-            _copy_menu_label(nbme_cfg, nbme_cfg)
-            nbme_tags = _resolve_standardized_action_tags(
-                nbme_cfg,
+        if action_key == "nbme":
+            resolved_tags = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=default_child_of_primary,
                 default_segments=["NBME"],
                 default_absolute_tags=[f"{primary_tag}::NBME"],
             )
-            nbme_cfg["base_tags"] = nbme_tags
-            nbme_cfg["default_tag_prefix"] = _to_text(
-                nbme_cfg.get("default_tag_prefix"),
-                _extract_tag_suffix(nbme_tags[0], "NBME"),
+            action_cfg["base_tags"] = resolved_tags
+            action_cfg["default_tag_prefix"] = _to_text(
+                action_cfg.get("default_tag_prefix"),
+                _extract_tag_suffix(resolved_tags[0], "NBME"),
             )
-            normalized_nbme_prompt = _as_dict(nbme_cfg.get("prompt"))
-            normalized_nbme_prompt["kind"] = _normalize_prompt_kind(
-                normalized_nbme_prompt.get("kind"),
-                PROMPT_KIND_FORM,
+            action_cfg["prompt"] = _normalize_prompt_settings(
+                _as_dict(action_cfg.get("prompt")),
+                default_kind=PROMPT_KIND_FORM,
+                default_number_style=PROMPT_STYLE_NUMBER_ONLY,
+                default_blank_behavior=PROMPT_BEHAVIOR_BASE_ONLY,
             )
-            normalized_nbme_prompt["number_style"] = _normalize_prompt_number_style(
-                normalized_nbme_prompt.get("number_style"),
-                PROMPT_STYLE_NUMBER_ONLY,
-            )
-            normalized_nbme_prompt["blank_behavior"] = _normalize_prompt_blank_behavior(
-                normalized_nbme_prompt.get("blank_behavior"),
-                PROMPT_BEHAVIOR_BASE_ONLY,
-            )
-            nbme_cfg["prompt"] = normalized_nbme_prompt
-            _apply_add_date_context(nbme_cfg, nbme_cfg)
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    amboss_cfg = _as_dict(actions_cfg.get("amboss"))
-    if amboss_cfg:
-        has_standard_amboss_keys = any(
-            key in amboss_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment", "prompt")
-        )
-        if has_standard_amboss_keys:
-            _copy_menu_label(amboss_cfg, amboss_cfg)
-            amboss_tags = _resolve_standardized_action_tags(
-                amboss_cfg,
+        if action_key == "amboss":
+            resolved_tags = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=default_child_of_primary,
                 default_segments=["Amboss"],
                 default_absolute_tags=[f"{primary_tag}::Amboss"],
             )
-            if amboss_tags:
-                amboss_cfg["base_tag"] = amboss_tags[0]
+            if resolved_tags:
+                action_cfg["base_tag"] = resolved_tags[0]
 
-            amboss_prompt = _as_dict(amboss_cfg.get("prompt"))
+            action_prompt = _as_dict(action_cfg.get("prompt"))
             number_style = _to_text(
-                amboss_prompt.get("number_style", amboss_cfg.get("number_style")),
+                action_prompt.get("number_style", action_cfg.get("number_style")),
                 "",
             )
-            if number_style in {
-                PROMPT_STYLE_ROTATION_THEN_NUMBER,
-                PROMPT_STYLE_RANGE_THEN_NUMBER,
-                PROMPT_STYLE_NUMBER_ONLY,
-            }:
-                amboss_cfg["number_style"] = number_style
+            if number_style in VALID_PROMPT_NUMBER_STYLES:
+                action_cfg["number_style"] = number_style
 
-            if "blank_behavior" in amboss_cfg:
-                amboss_cfg["blank_behavior"] = _to_text(
-                    amboss_cfg.get("blank_behavior"),
+            if "blank_behavior" in action_cfg:
+                action_cfg["blank_behavior"] = _to_text(
+                    action_cfg.get("blank_behavior"),
                     PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
                 )
-            elif "kind" in amboss_prompt:
+            elif "kind" in action_prompt:
                 # Friend-style prompt config treats blank/non-numeric as base-only.
-                amboss_cfg["blank_behavior"] = PROMPT_BEHAVIOR_BASE_ONLY
+                action_cfg["blank_behavior"] = PROMPT_BEHAVIOR_BASE_ONLY
 
-            if "remove_from_other_menu" in amboss_cfg:
-                amboss_cfg["remove_from_other_menu"] = _to_bool(
-                    amboss_cfg.get("remove_from_other_menu"),
+            if "remove_from_other_menu" in action_cfg:
+                action_cfg["remove_from_other_menu"] = _to_bool(
+                    action_cfg.get("remove_from_other_menu"),
                     True,
                 )
 
-            normalized_amboss_prompt = _as_dict(amboss_cfg.get("prompt"))
-            normalized_amboss_prompt["kind"] = _normalize_prompt_kind(
-                normalized_amboss_prompt.get("kind"),
-                PROMPT_KIND_NUMBER,
+            action_cfg["prompt"] = _normalize_prompt_settings(
+                _as_dict(action_cfg.get("prompt")),
+                default_kind=PROMPT_KIND_NUMBER,
+                default_number_style=_to_text(
+                    action_cfg.get("number_style"),
+                    PROMPT_STYLE_ROTATION_THEN_NUMBER,
+                ),
+                default_blank_behavior=_to_text(
+                    action_cfg.get("blank_behavior"),
+                    PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
+                ),
             )
-            normalized_amboss_prompt["number_style"] = _normalize_prompt_number_style(
-                normalized_amboss_prompt.get("number_style"),
-                _to_text(amboss_cfg.get("number_style"), PROMPT_STYLE_ROTATION_THEN_NUMBER),
-            )
-            normalized_amboss_prompt["blank_behavior"] = _normalize_prompt_blank_behavior(
-                normalized_amboss_prompt.get("blank_behavior", amboss_cfg.get("blank_behavior")),
-                _to_text(amboss_cfg.get("blank_behavior"), PROMPT_BEHAVIOR_BASE_PLUS_ROTATION),
-            )
-            amboss_cfg["prompt"] = normalized_amboss_prompt
-            _apply_add_date_context(amboss_cfg, amboss_cfg)
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    multi_missed_cfg = _as_dict(actions_cfg.get("multi_missed"))
-    if multi_missed_cfg:
-        has_standard_multi_keys = any(
-            key in multi_missed_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
-        )
-        if has_standard_multi_keys:
-            _copy_menu_label(multi_missed_cfg, multi_missed_cfg)
-            multi_tags = _resolve_standardized_action_tags(
-                multi_missed_cfg,
+        if action_key == "multi_missed":
+            resolved_tags = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=default_child_of_primary,
                 default_segments=["2x"],
                 default_absolute_tags=[f"{primary_tag}::2x"],
             )
-            multi_missed_cfg["tags"] = multi_tags
-            if "tag_segment" not in multi_missed_cfg:
-                resolved_segment = _to_text(multi_tags[0], "2x") if multi_tags else "2x"
+            action_cfg["tags"] = resolved_tags
+            if "tag_segment" not in action_cfg:
+                resolved_segment = _to_text(resolved_tags[0], "2x") if resolved_tags else "2x"
                 primary_prefix = f"{primary_tag}::"
                 if resolved_segment.startswith(primary_prefix):
                     resolved_segment = resolved_segment[len(primary_prefix) :]
                 elif resolved_segment == primary_tag:
                     resolved_segment = ""
-                multi_missed_cfg["tag_segment"] = resolved_segment or "2x"
-            _apply_add_date_context(multi_missed_cfg, multi_missed_cfg)
+                action_cfg["tag_segment"] = resolved_segment or "2x"
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    key_info_cfg = _as_dict(actions_cfg.get("key_info"))
-    if key_info_cfg:
-        has_standard_key_info_keys = any(
-            key in key_info_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
-        )
-        if has_standard_key_info_keys:
-            _copy_menu_label(key_info_cfg, key_info_cfg)
-            key_tags = _resolve_standardized_action_tags(
-                key_info_cfg,
+        if action_key == "key_info":
+            resolved_tags = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=False,
                 default_segments=["#KEY"],
-                default_absolute_tags=[_to_text(key_info_cfg.get("tag_base"), "#Custom::#KEY")],
+                default_absolute_tags=[_to_text(action_cfg.get("tag_base"), "#Custom::#KEY")],
             )
-            key_info_cfg["tag_base"] = _to_text(key_tags[0], "#Custom::#KEY") if key_tags else "#Custom::#KEY"
-            _apply_add_date_context(key_info_cfg, key_info_cfg)
+            action_cfg["tag_base"] = _to_text(resolved_tags[0], "#Custom::#KEY") if resolved_tags else "#Custom::#KEY"
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    correct_guess_cfg = _as_dict(actions_cfg.get("correct_guess"))
-    if correct_guess_cfg:
-        has_standard_correct_guess_keys = any(
-            key in correct_guess_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
-        )
-        if has_standard_correct_guess_keys:
-            _copy_menu_label(correct_guess_cfg, correct_guess_cfg)
-            correct_guess_cfg["tags"] = _resolve_standardized_action_tags(
-                correct_guess_cfg,
+        if action_key == "correct_guess":
+            action_cfg["tags"] = _resolve_standardized_action_tags(
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=False,
                 default_segments=["correct_marked"],
                 default_absolute_tags=["#Custom::correct_marked"],
             )
-            _apply_add_date_context(correct_guess_cfg, correct_guess_cfg)
+            _apply_add_date_context(action_cfg, action_cfg)
+            continue
 
-    uw_correct_missed_cfg = _as_dict(actions_cfg.get(CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY))
-    if not uw_correct_missed_cfg:
-        uw_correct_missed_cfg = _as_dict(actions_cfg.get(LEGACY_CORRECT_TAG_MISSED_ACTION_KEY))
-        if uw_correct_missed_cfg:
-            actions_cfg[CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY] = uw_correct_missed_cfg
-    if uw_correct_missed_cfg:
-        has_standard_uw_correct_missed_keys = any(
-            key in uw_correct_missed_cfg
-            for key in ("menu_label", "child_of_primary_missed", "absolute_tags", "tag_segment")
-        )
-        if has_standard_uw_correct_missed_keys:
-            _copy_menu_label(uw_correct_missed_cfg, uw_correct_missed_cfg)
+        if action_key == CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY:
             resolved_tags = _resolve_standardized_action_tags(
-                uw_correct_missed_cfg,
+                action_cfg,
                 primary_tag=primary_tag,
                 default_child_of_primary=True,
                 default_segments=[CORRECT_MARKED_TAG_SEGMENT],
@@ -735,16 +761,14 @@ def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
             )
             primary_prefix = f"{primary_tag}::"
             if resolved_tag.startswith(primary_prefix):
-                uw_correct_missed_cfg["tag_segment"] = (
-                    resolved_tag[len(primary_prefix) :] or CORRECT_MARKED_TAG_SEGMENT
-                )
+                action_cfg["tag_segment"] = resolved_tag[len(primary_prefix) :] or CORRECT_MARKED_TAG_SEGMENT
             else:
-                uw_correct_missed_cfg["tag_segment"] = _extract_tag_suffix(
+                action_cfg["tag_segment"] = _extract_tag_suffix(
                     resolved_tag,
                     CORRECT_MARKED_TAG_SEGMENT,
                 )
-            uw_correct_missed_cfg["tags"] = resolved_tags
-            _apply_add_date_context(uw_correct_missed_cfg, uw_correct_missed_cfg)
+            action_cfg["tags"] = resolved_tags
+            _apply_add_date_context(action_cfg, action_cfg)
 
     other_cfg = _as_dict(actions_cfg.get("other"))
     if other_cfg:
@@ -818,20 +842,12 @@ def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
                         normalized_action.get("add_missed_date_context"),
                         default_add_context,
                     )
-                    prompt_cfg = _as_dict(normalized_action.get("prompt"))
-                    prompt_cfg["kind"] = _normalize_prompt_kind(
-                        prompt_cfg.get("kind"),
-                        PROMPT_KIND_NONE,
+                    normalized_action["prompt"] = _normalize_prompt_settings(
+                        _as_dict(normalized_action.get("prompt")),
+                        default_kind=PROMPT_KIND_NONE,
+                        default_number_style=PROMPT_STYLE_ROTATION_THEN_NUMBER,
+                        default_blank_behavior=PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
                     )
-                    prompt_cfg["number_style"] = _normalize_prompt_number_style(
-                        prompt_cfg.get("number_style"),
-                        PROMPT_STYLE_ROTATION_THEN_NUMBER,
-                    )
-                    prompt_cfg["blank_behavior"] = _normalize_prompt_blank_behavior(
-                        prompt_cfg.get("blank_behavior"),
-                        PROMPT_BEHAVIOR_BASE_PLUS_ROTATION,
-                    )
-                    normalized_action["prompt"] = prompt_cfg
                     normalized_other_actions.append(normalized_action)
                 other_cfg["actions"] = normalized_other_actions
 
@@ -846,11 +862,30 @@ def _load_merged_missed_tags_config() -> dict[str, Any]:
     return section_cfg if isinstance(section_cfg, dict) else {}
 
 
+def _canonicalize_rotation_syntax(cfg: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(cfg, dict):
+        return {}
+
+    normalized = ConfigManager.deep_merge_dicts({}, cfg)
+    rotation_cfg = _as_dict(normalized.get("rotation"))
+    legacy_block_cfg = _as_dict(normalized.get("block"))
+    if legacy_block_cfg:
+        if rotation_cfg:
+            # Prefer block syntax when both keys are present.
+            normalized["rotation"] = ConfigManager.deep_merge_dicts(rotation_cfg, legacy_block_cfg)
+        else:
+            normalized["rotation"] = legacy_block_cfg
+        normalized.pop("block", None)
+
+    return normalized
+
+
 def _normalize_missed_tags_config(raw_cfg: dict[str, Any]) -> dict[str, Any]:
-    defaults = ConfigManager.deep_merge_dicts({}, ADD_MISSED_TAGS_DEFAULTS)
+    defaults = _canonicalize_rotation_syntax(ConfigManager.deep_merge_dicts({}, ADD_MISSED_TAGS_DEFAULTS))
     if not isinstance(raw_cfg, dict):
         return defaults
-    canonical = ConfigManager.deep_merge_dicts(defaults, raw_cfg)
+    canonical_raw_cfg = _canonicalize_rotation_syntax(raw_cfg)
+    canonical = ConfigManager.deep_merge_dicts(defaults, canonical_raw_cfg)
     return _apply_standardized_action_schema(canonical)
 
 
@@ -911,45 +946,91 @@ def _save_prompt_input(prompt_key: str, prompt_value: str) -> None:
     _save_prompt_inputs({prompt_key: prompt_value})
 
 
+def _apply_prompt_dialog_size(dialog, min_width: int, min_height: int) -> None:
+    """Apply a stable minimum size so title/labels are not clipped."""
+    width = max(int(min_width), int(dialog.sizeHint().width()))
+    height = max(int(min_height), int(dialog.sizeHint().height()))
+    dialog.setMinimumSize(width, height)
+    dialog.resize(width, height)
+
+
 def _positioned_text_prompt(parent, title: str, label: str, default_text: str = "") -> tuple[str, bool]:
     dialog = QInputDialog(parent)
     dialog.setInputMode(QInputDialog.InputMode.TextInput)
     dialog.setWindowTitle(title)
     dialog.setLabelText(label)
     dialog.setTextValue(default_text)
-    dialog.adjustSize()
-
-    try:
-        screen = None
-
-        if parent is not None:
-            try:
-                parent_window = parent.window()
-                if parent_window is not None and parent_window.windowHandle() is not None:
-                    screen = parent_window.windowHandle().screen()
-            except Exception:
-                screen = None
-
-            if screen is None:
-                try:
-                    screen = parent.screen()
-                except Exception:
-                    screen = None
-
-        if screen is None:
-            screen = QApplication.primaryScreen()
-
-        if screen is not None:
-            rect = screen.availableGeometry()
-            target_x = rect.x() + (rect.width() - dialog.width()) // 2 + PROMPT_DIALOG_OFFSET_CENTER_X
-            target_y = rect.y() + (rect.height() - dialog.height()) // 2 + PROMPT_DIALOG_OFFSET_CENTER_Y
-            dialog.move(target_x, target_y)
-    except Exception:
-        # Positioning failure should not block the prompt.
-        pass
+    _apply_prompt_dialog_size(
+        dialog,
+        min_width=PROMPT_DIALOG_MIN_WIDTH,
+        min_height=PROMPT_DIALOG_MIN_HEIGHT,
+    )
+    _position_dialog_near_center(dialog, parent)
 
     accepted = bool(dialog.exec())
     return dialog.textValue(), accepted
+
+
+def _positioned_text_prompt_with_checkbox(
+    parent,
+    *,
+    title: str,
+    label: str,
+    default_text: str,
+    checkbox_label: str,
+    checkbox_checked: bool,
+) -> tuple[str, bool, bool]:
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(title)
+
+    root = QVBoxLayout(dialog)
+    prompt_label = QLabel(label, dialog)
+    root.addWidget(prompt_label)
+
+    input_line = QLineEdit(dialog)
+    input_line.setText(default_text)
+    root.addWidget(input_line)
+
+    checkbox = QCheckBox(checkbox_label, dialog)
+    checkbox.setChecked(bool(checkbox_checked))
+    root.addWidget(checkbox)
+
+    button_box = QDialogButtonBox(
+        QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+        dialog,
+    )
+    root.addWidget(button_box)
+    button_box.accepted.connect(dialog.accept)
+    button_box.rejected.connect(dialog.reject)
+
+    _apply_prompt_dialog_size(
+        dialog,
+        min_width=PROMPT_DIALOG_MIN_WIDTH,
+        min_height=PROMPT_DIALOG_MIN_HEIGHT,
+    )
+    _position_dialog_near_center(dialog, parent)
+
+    accepted = bool(dialog.exec())
+    return input_line.text(), bool(checkbox.isChecked()), accepted
+
+
+def _append_tag_segment(tag: str, segment: str) -> str:
+    base = str(tag or "").strip()
+    suffix = str(segment or "").strip()
+    if not base or not suffix:
+        return base
+    parts = [part.strip() for part in base.split("::") if part.strip()]
+    if parts and parts[-1] == suffix:
+        return base
+    return f"{base}::{suffix}"
+
+
+def _correct_marked_checkbox_state_key(action_key: str) -> str:
+    normalized_action = str(action_key or "").strip()
+    if normalized_action == "amboss_test_prompt":
+        return AMBOSS_APPEND_CORRECT_MARKED_STATE_KEY
+    slug = re.sub(r"[^a-z0-9]+", "_", normalized_action.lower()).strip("_")
+    return f"append_correct_marked_{slug or 'default'}"
 
 
 def load_runtime_config() -> MissedTagsConfig:
@@ -975,8 +1056,21 @@ def load_runtime_config() -> MissedTagsConfig:
 
     default_menu_label = _default_text(("ui", "menu_label"), "Missed Tags")
     default_include_day_segment = _default_bool(("date", "include_day_segment"), True)
+    default_split_weeks = _default_bool(("date", "split_weeks"), False)
 
     default_base_missed_tag = _default_string_list(("actions", "base", "tags"), fallback=["##Missed-Qs"])
+    legacy_show_base_default_value = _get_path_value(
+        ADD_MISSED_TAGS_DEFAULTS, ("actions", "base", "show_in_menu")
+    )
+    legacy_show_base_default = (
+        _to_bool(legacy_show_base_default_value, SHOW_BASE_ACTION_IN_MISSED_TAGS_MENU)
+        if legacy_show_base_default_value is not _MISSING
+        else SHOW_BASE_ACTION_IN_MISSED_TAGS_MENU
+    )
+    default_show_base_plain_action = _default_bool(
+        ("actions", "base", "menu_display"),
+        legacy_show_base_default,
+    )
     default_action_label_base = _default_text(("actions", "base", "label"), "Base")
 
     default_subset_1_name = _default_text(("actions", "uworld", "label"), "UWorld")
@@ -1116,6 +1210,7 @@ def load_runtime_config() -> MissedTagsConfig:
         default_label=PROMPT_DEFAULT_LABEL,
         default_allow_freeform_child_segments=False,
         default_include_rotation_for_freeform=True,
+        default_show_correct_marked_checkbox=PROMPT_SHOW_CORRECT_MARKED_CHECKBOX_DEFAULT,
     )
     nbme_prompt_cfg = _build_prompt_action_config(
         nbme_cfg,
@@ -1126,6 +1221,7 @@ def load_runtime_config() -> MissedTagsConfig:
         default_label=PROMPT_NBME_LABEL,
         default_allow_freeform_child_segments=False,
         default_include_rotation_for_freeform=True,
+        default_show_correct_marked_checkbox=PROMPT_SHOW_CORRECT_MARKED_CHECKBOX_DEFAULT,
     )
     amboss_prompt_cfg = _build_prompt_action_config(
         amboss_cfg,
@@ -1133,9 +1229,10 @@ def load_runtime_config() -> MissedTagsConfig:
         default_number_style=default_amboss_number_style,
         default_blank_behavior=default_amboss_blank_behavior,
         default_title=PROMPT_AMBOSS_TITLE,
-        default_label=PROMPT_DEFAULT_LABEL,
+        default_label=PROMPT_AMBOSS_LABEL,
         default_allow_freeform_child_segments=AMBOSS_ALLOW_FREEFORM_CHILD_SEGMENTS,
         default_include_rotation_for_freeform=AMBOSS_FREEFORM_INCLUDE_ROTATION_SEGMENT,
+        default_show_correct_marked_checkbox=PROMPT_SHOW_CORRECT_MARKED_CHECKBOX_DEFAULT,
     )
 
     default_rotation_schedule_raw = _default_value(("rotation", "schedule"))
@@ -1161,8 +1258,6 @@ def load_runtime_config() -> MissedTagsConfig:
         schedule_exhausted_policy = SCHEDULE_POLICY["unknown"]
 
     default_rotation_parent_tag_segment = _default_text(("rotation", "parent_tag_segment"), "Rotation")
-    default_winter_break_label = _default_text(("rotation", "winter_break_label"), "Winter-break")
-    default_post_rotation_label = _default_text(("rotation", "post_rotation_label"), "Dedicated")
     resolved_other_suffix = _read_text(other_cfg, "tag_suffix", default_other_suffix)
     other_default_add_context = _read_action_add_missed_date_context(
         other_cfg,
@@ -1186,15 +1281,17 @@ def load_runtime_config() -> MissedTagsConfig:
                 else f"{resolved_base_tag}::{canonical_label}"
             )
             action_tags = _read_string_list(action_cfg, "tags", fallback=[fallback_tag])
-            action_slug = re.sub(r"[^a-z0-9]+", "_", canonical_label.lower()).strip("_") or f"resource_{idx:02d}"
+            action_slug = (
+                re.sub(r"[^a-z0-9]+", "_", canonical_label.lower()).strip("_") or f"resource_{idx:02d}"
+            )
             action_key = _to_text(action_cfg.get("action_key"), f"other_resource_{idx:02d}_{action_slug}")
             if canonical_label.lower() == "true-learn":
                 action_key = _to_text(action_cfg.get("action_key"), "true_learn_test_prompt")
             prompt_defaults_kind = PROMPT_KIND_NONE
             prompt_defaults_style = PROMPT_STYLE_ROTATION_THEN_NUMBER
             prompt_defaults_blank = PROMPT_BEHAVIOR_BASE_PLUS_ROTATION
-            prompt_defaults_title = PROMPT_TRUE_LEARN_TITLE if canonical_label.lower() == "true-learn" else (
-                PROMPT_DEFAULT_TITLE
+            prompt_defaults_title = (
+                PROMPT_TRUE_LEARN_TITLE if canonical_label.lower() == "true-learn" else (PROMPT_DEFAULT_TITLE)
             )
             prompt_defaults_label = PROMPT_DEFAULT_LABEL
             if canonical_label.lower() == "true-learn":
@@ -1208,6 +1305,7 @@ def load_runtime_config() -> MissedTagsConfig:
                 default_label=prompt_defaults_label,
                 default_allow_freeform_child_segments=False,
                 default_include_rotation_for_freeform=True,
+                default_show_correct_marked_checkbox=PROMPT_SHOW_CORRECT_MARKED_CHECKBOX_DEFAULT,
             )
             include_base_tag = _read_bool(action_cfg, "include_base_tag", False)
             add_context = _read_action_add_missed_date_context(
@@ -1230,7 +1328,9 @@ def load_runtime_config() -> MissedTagsConfig:
             canonical_label = scrub_resource_label_to_tag(resource_name)
             if not canonical_label:
                 continue
-            action_key = f"other_resource_{idx:02d}_{re.sub(r'[^a-z0-9]+', '_', canonical_label.lower()).strip('_')}"
+            action_key = (
+                f"other_resource_{idx:02d}_{re.sub(r'[^a-z0-9]+', '_', canonical_label.lower()).strip('_')}"
+            )
             prompt_kind = PROMPT_KIND_NONE
             prompt_title = PROMPT_DEFAULT_TITLE
             include_base_tag = True
@@ -1262,41 +1362,23 @@ def load_runtime_config() -> MissedTagsConfig:
                 )
             )
 
+    action_cfg_by_section = {
+        "base": base_cfg,
+        "uworld": uworld_cfg,
+        "nbme": nbme_cfg,
+        "amboss": amboss_cfg,
+        "multi_missed": multi_missed_cfg,
+        "key_info": key_info_cfg,
+        "correct_guess": correct_guess_cfg,
+        CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY: uw_correct_missed_cfg,
+    }
     action_add_missed_date_context = dict(DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT)
-    action_add_missed_date_context["base_plain"] = _read_action_add_missed_date_context(
-        base_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["base_plain"],
-    )
-    action_add_missed_date_context["uw_test_prompt"] = _read_action_add_missed_date_context(
-        uworld_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["uw_test_prompt"],
-    )
-    action_add_missed_date_context["nbme_form_prompt"] = _read_action_add_missed_date_context(
-        nbme_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["nbme_form_prompt"],
-    )
-    action_add_missed_date_context["amboss_test_prompt"] = _read_action_add_missed_date_context(
-        amboss_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["amboss_test_prompt"],
-    )
-    action_add_missed_date_context["multi_missed"] = _read_action_add_missed_date_context(
-        multi_missed_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["multi_missed"],
-    )
-    action_add_missed_date_context["add_key_info_action"] = _read_action_add_missed_date_context(
-        key_info_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["add_key_info_action"],
-    )
-    action_add_missed_date_context["correct_guess"] = _read_action_add_missed_date_context(
-        correct_guess_cfg,
-        fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT["correct_guess"],
-    )
-    action_add_missed_date_context[ACTION_KEY_CORRECT_TAG_MISSED_PROMPT] = (
-        _read_action_add_missed_date_context(
-            uw_correct_missed_cfg,
-            fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT[ACTION_KEY_CORRECT_TAG_MISSED_PROMPT],
+    for action_key, source_section, fallback_key in ACTION_DATE_CONTEXT_RESOLUTION_SPECS:
+        source_cfg = _as_dict(action_cfg_by_section.get(source_section))
+        action_add_missed_date_context[action_key] = _read_action_add_missed_date_context(
+            source_cfg,
+            fallback=DEFAULT_ACTION_ADD_MISSED_DATE_CONTEXT[fallback_key],
         )
-    )
     other_add_context = other_default_add_context
     action_add_missed_date_context["other_resource"] = other_add_context
     action_add_missed_date_context["true_learn_test_prompt"] = other_add_context
@@ -1339,7 +1421,13 @@ def load_runtime_config() -> MissedTagsConfig:
         schedule_exhausted_policy=schedule_exhausted_policy,
         missed_tags_menu_label=_read_text(ui_cfg, "menu_label", default_menu_label),
         include_day_segment=_read_bool(date_cfg, "include_day_segment", default_include_day_segment),
+        split_weeks=_read_bool(date_cfg, "split_weeks", default_split_weeks),
         action_add_missed_date_context=action_add_missed_date_context,
+        show_base_plain_action=_read_bool(
+            base_cfg,
+            "menu_display",
+            _read_bool(base_cfg, "show_in_menu", default_show_base_plain_action),
+        ),
         action_label_base=_read_text(base_cfg, "label", default_action_label_base),
         action_label_multi_missed=_read_text(multi_missed_cfg, "label", default_action_label_multi_missed),
         action_label_key_info=_read_text(key_info_cfg, "label", default_action_label_key_info),
@@ -1360,8 +1448,6 @@ def load_runtime_config() -> MissedTagsConfig:
             "parent_tag_segment",
             default_rotation_parent_tag_segment,
         ),
-        winter_break_tag_label=_read_text(rotation_cfg, "winter_break_label", default_winter_break_label),
-        post_rotation_tag_label=_read_text(rotation_cfg, "post_rotation_label", default_post_rotation_label),
         multi_miss_tag=_read_text(multi_missed_cfg, "tag_segment", default_multi_miss_tag),
         multi_miss_tags=resolved_multi_miss_tags,
         default_test_tag_prefix=_read_text(uworld_cfg, "default_tag_prefix", default_test_tag_prefix),
@@ -1537,6 +1623,21 @@ def _position_dialog_near_center(dialog, parent) -> None:
             rect = screen.availableGeometry()
             target_x = rect.x() + (rect.width() - dialog.width()) // 2 + PROMPT_DIALOG_OFFSET_CENTER_X
             target_y = rect.y() + (rect.height() - dialog.height()) // 2 + PROMPT_DIALOG_OFFSET_CENTER_Y
+            min_x = rect.x() + PROMPT_DIALOG_SAFE_MARGIN
+            min_y = rect.y() + PROMPT_DIALOG_SAFE_MARGIN
+            max_x = rect.x() + rect.width() - dialog.width() - PROMPT_DIALOG_SAFE_MARGIN
+            max_y = rect.y() + rect.height() - dialog.height() - PROMPT_DIALOG_SAFE_MARGIN
+
+            if max_x >= min_x:
+                target_x = min(max(target_x, min_x), max_x)
+            else:
+                target_x = rect.x() + max((rect.width() - dialog.width()) // 2, 0)
+
+            if max_y >= min_y:
+                target_y = min(max(target_y, min_y), max_y)
+            else:
+                target_y = rect.y() + max((rect.height() - dialog.height()) // 2, 0)
+
             dialog.move(target_x, target_y)
     except Exception:
         pass
@@ -1573,13 +1674,14 @@ def _prompt_correct_missed_source_and_input(parent, action_label: str) -> tuple[
     )
     root.addWidget(button_box)
 
-    active_source = {"value": None}
+    active_source = remembered_source
 
     def _select_source(source_name: str) -> None:
-        current = active_source["value"]
+        nonlocal active_source
+        current = active_source
         if current in source_buttons and current != source_name:
             source_inputs[current] = input_line.text()
-        active_source["value"] = source_name
+        active_source = source_name
 
         for name, button in source_buttons.items():
             button.setChecked(name == source_name)
@@ -1594,7 +1696,11 @@ def _prompt_correct_missed_source_and_input(parent, action_label: str) -> tuple[
         button.clicked.connect(lambda _, name=source_name: _select_source(name))
 
     _select_source(remembered_source)
-    dialog.adjustSize()
+    _apply_prompt_dialog_size(
+        dialog,
+        min_width=CORRECT_MISSED_DIALOG_MIN_WIDTH,
+        min_height=CORRECT_MISSED_DIALOG_MIN_HEIGHT,
+    )
     _position_dialog_near_center(dialog, parent)
 
     button_box.accepted.connect(dialog.accept)
@@ -1604,10 +1710,10 @@ def _prompt_correct_missed_source_and_input(parent, action_label: str) -> tuple[
     if not accepted:
         return remembered_source, source_inputs.get(remembered_source, ""), False
 
-    chosen_source = active_source["value"]
+    chosen_source = active_source
     source_inputs[chosen_source] = input_line.text()
 
-    prompt_updates = {UWORLD_CORRECT_MISSED_SOURCE_KEY: chosen_source}
+    prompt_updates: dict[str, str] = {UWORLD_CORRECT_MISSED_SOURCE_KEY: chosen_source}
     for source_name in UWORLD_CORRECT_MISSED_SOURCE_OPTIONS:
         prompt_updates[_correct_missed_input_key(source_name)] = source_inputs.get(source_name, "")
     _save_prompt_inputs(prompt_updates)
@@ -1636,17 +1742,6 @@ def _nbme_base_tag(cfg: MissedTagsConfig) -> str:
     return base_tag_path(cfg, cfg.default_nbme_tag_prefix)
 
 
-def _normalize_rotation_label_for_match(value: str) -> str:
-    normalized = str(value or "").strip().lower()
-    # Allow user-facing markers (for example, "*Dedicated") without forcing
-    # schedule labels to include the same prefix.
-    return re.sub(r"^[^a-z0-9]+", "", normalized)
-
-
-def _rotation_label_matches(actual: str, expected: str) -> bool:
-    return _normalize_rotation_label_for_match(actual) == _normalize_rotation_label_for_match(expected)
-
-
 def get_current_or_next_rotation_meta(cfg: MissedTagsConfig) -> tuple[str, str, str]:
     today = datetime.today().date()
     if not cfg.rotation_schedule:
@@ -1671,29 +1766,18 @@ def get_current_or_next_rotation_meta(cfg: MissedTagsConfig) -> tuple[str, str, 
 
     last_end = parsed[-1][3]
     if today > last_end:
-        post_label = str(cfg.post_rotation_tag_label).strip()
-        if post_label:
-            return "00", post_label, ""
         return "00", "Unknown", f"No rotation configured after {last_end.isoformat()}; using Unknown."
     return "00", "Unknown", f"No rotation configured for {today.isoformat()}; using Unknown."
 
 
 def get_formatted_rotation_segment(cfg: MissedTagsConfig, rot_num_2d: str, rot_label: str) -> str:
-    label = str(rot_label or "").strip()
-    if not label:
+    _ = cfg, rot_num_2d
+    segment_label = str(rot_label or "").strip()
+    if not segment_label:
         return "00_Unknown"
-
-    if _rotation_label_matches(label, cfg.winter_break_tag_label):
-        return cfg.winter_break_tag_label
-
-    if _rotation_label_matches(label, cfg.post_rotation_tag_label):
-        return cfg.post_rotation_tag_label
-
-    if label == "Unknown":
+    if segment_label == "Unknown":
         return "00_Unknown"
-
-    rot_num = str(rot_num_2d or "00").strip() or "00"
-    return f"{rot_num}_{label}"
+    return segment_label
 
 
 def get_rotation_segment(cfg: MissedTagsConfig) -> str:
@@ -1707,8 +1791,11 @@ def get_rotation_key_info_tag(cfg: MissedTagsConfig) -> str:
 
 
 def get_correct_guess_rotation_segment(cfg: MissedTagsConfig) -> str:
-    _, rot_label, _ = get_current_or_next_rotation_meta(cfg)
-    raw = str(rot_label or cfg.correct_guess_unknown_segment).strip()
+    rot_num_2d, rot_label, _ = get_current_or_next_rotation_meta(cfg)
+    formatted_segment = get_formatted_rotation_segment(cfg, rot_num_2d, rot_label)
+    raw = str(
+        formatted_segment if formatted_segment != "00_Unknown" else cfg.correct_guess_unknown_segment
+    ).strip()
     raw = raw if raw else cfg.correct_guess_unknown_segment
     slug = re.sub(r"\s+", "-", raw)
     slug = re.sub(r"[^A-Za-z0-9_-]+", "", slug)
@@ -1735,7 +1822,11 @@ def get_missed_month_tag(cfg: MissedTagsConfig) -> str:
     base = _resolved_base_tag(cfg)
     month_segment = f"{now.strftime('%m')}_{now.strftime('%B')}"
     if cfg.include_day_segment:
-        return f"{base}::{now.year}::{month_segment}::{now.strftime('%d')}"
+        day_segment = now.strftime("%d")
+        if cfg.split_weeks:
+            week_segment = min(((now.day - 1) // 7) + 1, 4)
+            return f"{base}::{now.year}::{month_segment}::week_{week_segment}::{day_segment}"
+        return f"{base}::{now.year}::{month_segment}::{day_segment}"
     return f"{base}::{now.year}::{month_segment}"
 
 
@@ -1829,6 +1920,7 @@ def _add_prompt_action(
     pad_label: bool = True,
     allow_freeform_child_segments: bool = False,
     include_rotation_for_freeform: bool = True,
+    show_correct_marked_checkbox: bool = False,
 ) -> None:
     action_text = f"{label:<24}" if pad_label else label
     action = QAction(action_text, browser)
@@ -1844,6 +1936,7 @@ def _add_prompt_action(
             number_style=number_style,
             allow_freeform_child_segments=allow_freeform_child_segments,
             include_rotation_for_freeform=include_rotation_for_freeform,
+            show_correct_marked_checkbox=show_correct_marked_checkbox,
         )
     )
     menu.addAction(action)
@@ -1860,20 +1953,38 @@ def _add_form_prompt_action(
     title: str,
     prompt_label: str,
     pad_label: bool = True,
+    show_correct_marked_checkbox: bool = False,
 ) -> None:
     action_text = f"{label:<24}" if pad_label else label
     action = QAction(action_text, browser)
 
     def on_trigger():
         saved_form_value = _get_saved_prompt_input(action_key)
-        form_value, ok = _positioned_text_prompt(
-            browser,
-            title,
-            prompt_label,
-            default_text=saved_form_value,
-        )
+        append_correct_marked = False
+        checkbox_state_key = ""
+        if show_correct_marked_checkbox:
+            checkbox_state_key = _correct_marked_checkbox_state_key(action_key)
+            saved_append_state = _get_saved_prompt_input(checkbox_state_key)
+            default_append_state = _to_bool(saved_append_state, AMBOSS_APPEND_CORRECT_MARKED_DEFAULT)
+            form_value, append_correct_marked, ok = _positioned_text_prompt_with_checkbox(
+                browser,
+                title=title,
+                label=prompt_label,
+                default_text=saved_form_value,
+                checkbox_label=PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL,
+                checkbox_checked=default_append_state,
+            )
+        else:
+            form_value, ok = _positioned_text_prompt(
+                browser,
+                title,
+                prompt_label,
+                default_text=saved_form_value,
+            )
         if not ok:
             return
+        if checkbox_state_key:
+            _save_prompt_input(checkbox_state_key, "1" if append_correct_marked else "0")
 
         form_value = (form_value or "").strip()
         if form_value == "":
@@ -1898,6 +2009,10 @@ def _add_form_prompt_action(
         if not resolved_base_tags:
             return
         formatted_tags = [f"{tag}::Form_{form_number}" for tag in resolved_base_tags]
+        if append_correct_marked:
+            formatted_tags = [
+                _append_tag_segment(tag, AMBOSS_CORRECT_MARKED_TAG_SEGMENT) for tag in formatted_tags
+            ]
         apply_tags_to_selected_notes(browser, formatted_tags, action_key=action_key, cfg=cfg)
 
     action.triggered.connect(on_trigger)
@@ -1935,6 +2050,7 @@ def _add_schema_driven_action(
             title=prompt_cfg.title,
             prompt_label=prompt_cfg.label,
             pad_label=pad_label,
+            show_correct_marked_checkbox=prompt_cfg.show_correct_marked_checkbox,
         )
         return
 
@@ -1952,6 +2068,7 @@ def _add_schema_driven_action(
         pad_label=pad_label,
         allow_freeform_child_segments=prompt_cfg.allow_freeform_child_segments,
         include_rotation_for_freeform=prompt_cfg.include_rotation_for_freeform,
+        show_correct_marked_checkbox=prompt_cfg.show_correct_marked_checkbox,
     )
 
 
@@ -1973,7 +2090,8 @@ def add_missed_tag_menu_items(browser, menu):
     add_uworld_correct_missed_tag(browser, tag_menu, cfg)
     add_nbme_tag(browser, tag_menu, cfg)
     add_amboss_tag(browser, tag_menu, cfg)
-    add_base_plain_action(browser, tag_menu, cfg)
+    if cfg.show_base_plain_action:
+        add_base_plain_action(browser, tag_menu, cfg)
 
     add_multi_tag(browser, tag_menu, cfg)
     add_key_info_action(browser, tag_menu, cfg)
@@ -2136,7 +2254,9 @@ def add_other_resources_actions(
             canonical = scrub_resource_label_to_tag(resource_name)
             if not canonical:
                 continue
-            action_key = f"other_resource_{idx:02d}_{re.sub(r'[^a-z0-9]+', '_', canonical.lower()).strip('_')}"
+            action_key = (
+                f"other_resource_{idx:02d}_{re.sub(r'[^a-z0-9]+', '_', canonical.lower()).strip('_')}"
+            )
             prompt_cfg = PromptActionConfig(
                 kind=PROMPT_KIND_NONE,
                 number_style=PROMPT_STYLE_ROTATION_THEN_NUMBER,
@@ -2204,16 +2324,34 @@ def make_test_prompt_handler(
     number_style: str = PROMPT_STYLE_RANGE_THEN_NUMBER,
     allow_freeform_child_segments: bool = False,
     include_rotation_for_freeform: bool = True,
+    show_correct_marked_checkbox: bool = False,
 ):
     def on_trigger():
         prompt_title = (title or PROMPT_DEFAULT_TITLE).strip() or PROMPT_DEFAULT_TITLE
         prompt_label = (label or PROMPT_DEFAULT_LABEL).strip() or PROMPT_DEFAULT_LABEL
         saved_test_num = _get_saved_prompt_input(action_key)
-        test_num, ok = _positioned_text_prompt(
-            browser, prompt_title, prompt_label, default_text=saved_test_num
-        )
+        append_correct_marked = False
+        checkbox_state_key = ""
+        if show_correct_marked_checkbox:
+            checkbox_state_key = _correct_marked_checkbox_state_key(action_key)
+            saved_append_state = _get_saved_prompt_input(checkbox_state_key)
+            default_append_state = _to_bool(saved_append_state, AMBOSS_APPEND_CORRECT_MARKED_DEFAULT)
+            test_num, append_correct_marked, ok = _positioned_text_prompt_with_checkbox(
+                browser,
+                title=prompt_title,
+                label=prompt_label,
+                default_text=saved_test_num,
+                checkbox_label=PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL,
+                checkbox_checked=default_append_state,
+            )
+        else:
+            test_num, ok = _positioned_text_prompt(
+                browser, prompt_title, prompt_label, default_text=saved_test_num
+            )
         if not ok:
             return
+        if checkbox_state_key:
+            _save_prompt_input(checkbox_state_key, "1" if append_correct_marked else "0")
         test_num = (test_num or "").strip()
         rot_num_2d, rot_label, _ = get_current_or_next_rotation_meta(cfg)
         rotation_segment = get_formatted_rotation_segment(cfg, rot_num_2d, rot_label)
@@ -2268,6 +2406,10 @@ def make_test_prompt_handler(
                 _save_prompt_input(action_key, test_num)
 
         formatted_tags = [_build_formatted_tag(base_tag) for base_tag in resolved_base_tags]
+        if append_correct_marked:
+            formatted_tags = [
+                _append_tag_segment(tag, AMBOSS_CORRECT_MARKED_TAG_SEGMENT) for tag in formatted_tags
+            ]
 
         if not _ensure_selected_notes(browser):
             return

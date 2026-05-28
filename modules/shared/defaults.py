@@ -28,20 +28,21 @@ ADD_MISSED_TAGS_DEFAULTS = {
     },
     "date": {
         "include_day_segment": True,
+        "split_weeks": False,
     },
     "rotation": {
         "schedule": [
-            {"label": "Dedicated", "start": "2026-03-28", "end": "2099-12-31"},
+            {"segment_label": "*Dedicated", "start": "2026-03-28", "end": "2099-12-31"},
         ],
         "exhausted_policy": "unknown",
         "parent_tag_segment": "Rotation",
-        "winter_break_label": "Winter-break",
-        "post_rotation_label": "Dedicated",
     },
     "actions": {
         "base": {
             "label": "♦️Base",
             "tags": ["##Missed-Qs"],
+            "menu_display": True,
+            "show_in_menu": True,
         },
         "uworld": {
             "label": "🛃UWorld",
@@ -49,11 +50,17 @@ ADD_MISSED_TAGS_DEFAULTS = {
             "default_tag_prefix": "*UW_Tests",
             "test_parent_range_block_size": 50,
             "test_range_block_size": 5,
+            "prompt": {
+                "show_correct_marked_checkbox": False,
+            },
         },
         "nbme": {
             "label": "🧠NBME",
             "base_tags": ["##Missed-Qs::NBME"],
             "default_tag_prefix": "NBME",
+            "prompt": {
+                "show_correct_marked_checkbox": False,
+            },
         },
         "amboss": {
             "label": "🦠Amboss",
@@ -61,6 +68,9 @@ ADD_MISSED_TAGS_DEFAULTS = {
             "blank_behavior": "base_plus_rotation",
             "number_style": "rotation_then_number",
             "remove_from_other_menu": True,
+            "prompt": {
+                "show_correct_marked_checkbox": False,
+            },
         },
         "multi_missed": {
             "label": "2x Missed 📌",
@@ -119,7 +129,7 @@ MERGE_IMAGES_DEFAULTS = {
         "log_filename_prefix": "merged_images_log_",
     },
     "tagging": {
-        "add_to_merged": "IMG_Uni::received",
+        "add_to_merged": "DONE::IMG_Uni::received",
         "add_to_donor": "IMG_Uni::donor",
         "add_to_unchanged": "IMG_Uni::same",
     },
@@ -149,7 +159,7 @@ ADD_TABLE_CLASS_DEFAULTS = {
 
 
 MERGE_TAGS_DEFAULTS = {
-    "base_tag": "TAGS_MERGED",
+    "base_tag": "DONE::TAGS_MERGED",
     "comparison_field": "Text",
     "merge_select_only": False,
     "excluded_tags": [],

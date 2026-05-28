@@ -12,7 +12,7 @@ from aqt import mw
 from aqt.qt import QAction, QMenu
 
 from .config_manager import ConfigManager
-from .modules.add_custom_tags import add_custom_tag_menu_items
+from .modules.add_custom_tags import add_custom_tag_menu_items, discover_custom_tag_sections
 from .modules.Add_img_class import main as add_img_class_main
 from .modules.add_missed_tags import add_missed_tag_menu_items
 from .modules.add_table_class.main import add_class_main
@@ -33,11 +33,7 @@ from .modules.tag_dupes import run_tag_dupes
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
 DEFAULT_CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
-DEFAULT_CUSTOM_TAGS_MENU_CONFIG_SECTION = "add_custom_tags_1"
 DEFAULT_CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
-DEFAULT_CUSTOM_TAGS_MENU_2_LABEL: Optional[str] = None
-DEFAULT_CUSTOM_TAGS_MENU_2_CONFIG_SECTION = "add_custom_tags_2"
-DEFAULT_CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS = True
 MENU_LABEL_EXPORT_UW_QIDS = "Export UW QID tag(s) 🧿"
 MENU_LABEL_ADD_IMG_CLASS = "Add IMG class 🏞️"
 MENU_LABEL_ADD_TABLE_CLASS = "📊 Add Table class (col)"
@@ -81,7 +77,7 @@ def _apply_submenu_item_style(menu: QMenu) -> None:
 
 
 def _run_merge_tags_with_threshold(browser):
-    threshold = prompt_fuzzy_threshold()
+    threshold = prompt_fuzzy_threshold(parent=browser)
     if threshold is not None:
         unify_tags_on_duplicates(browser, threshold)
 
@@ -113,11 +109,7 @@ def compile_browser_context_menu(
     menu,
     *,
     custom_tags_menu_label: Optional[str] = DEFAULT_CUSTOM_TAGS_MENU_LABEL,
-    custom_tags_menu_config_section: str = DEFAULT_CUSTOM_TAGS_MENU_CONFIG_SECTION,
     custom_tags_menu_hide_when_no_presets: bool = DEFAULT_CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS,
-    custom_tags_menu_2_label: Optional[str] = DEFAULT_CUSTOM_TAGS_MENU_2_LABEL,
-    custom_tags_menu_2_config_section: str = DEFAULT_CUSTOM_TAGS_MENU_2_CONFIG_SECTION,
-    custom_tags_menu_2_hide_when_no_presets: bool = DEFAULT_CUSTOM_TAGS_MENU_2_HIDE_WHEN_NO_PRESETS,
 ):
     _apply_submenu_arrow_style(menu)
 
@@ -129,22 +121,19 @@ def compile_browser_context_menu(
 
     # Tag-related root menu entries.
     add_missed_tag_menu_items(browser, menu)
-    add_custom_tag_menu_items(
-        browser,
-        menu,
-        menu_label=custom_tags_menu_label,
-        config_section=custom_tags_menu_config_section,
-        hide_when_no_presets=custom_tags_menu_hide_when_no_presets,
-        add_separator_before=True,
-    )
-    add_custom_tag_menu_items(
-        browser,
-        menu,
-        menu_label=custom_tags_menu_2_label,
-        config_section=custom_tags_menu_2_config_section,
-        hide_when_no_presets=custom_tags_menu_2_hide_when_no_presets,
-        add_separator_before=True,
-    )
+    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
+    custom_tag_sections = discover_custom_tag_sections(root_cfg=root_cfg)
+    for section_index, section_key in enumerate(custom_tag_sections):
+        section_label_override = custom_tags_menu_label if section_index == 0 else None
+        add_custom_tag_menu_items(
+            browser,
+            menu,
+            menu_label=section_label_override,
+            config_section=section_key,
+            hide_when_no_presets=custom_tags_menu_hide_when_no_presets,
+            add_separator_before=True,
+            root_cfg=root_cfg,
+        )
 
     menu.addSeparator()
 

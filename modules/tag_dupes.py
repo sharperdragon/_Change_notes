@@ -84,9 +84,10 @@ log_debug(f"Config: BASE_TAG_LABEL={BASE_TAG_LABEL}, FIELD_TO_COMPARE={FIELD_TO_
 log_debug(f"Log directory: {log_dir_path}")
 
 
-def prompt_fuzzy_threshold(default=TAG_DUPES_DEFAULTS["prompt_fuzzy_threshold"]):
+def prompt_fuzzy_threshold(default=TAG_DUPES_DEFAULTS["prompt_fuzzy_threshold"], parent=None):
+    dialog_parent = parent or mw
     val, ok = QInputDialog.getInt(
-        mw,
+        dialog_parent,
         "Set Fuzzy Match Threshold",
         "Select fuzzy match threshold (0 = loose, 100 = strict):",
         default, 0, 100, 1
@@ -117,7 +118,7 @@ def run_tag_dupes(browser=None, debug=None):
         log_debug("❌ This function must be run from the Anki browser.", debug_mode=debug)
         showInfo("Tag Dupes Error: must run from the Anki browser.")
         return
-    fuzzy_threshold = prompt_fuzzy_threshold()
+    fuzzy_threshold = prompt_fuzzy_threshold(parent=browser)
     if fuzzy_threshold is None:
         log_debug("🚫 Cancelled by user.", debug_mode=debug)
         showInfo("Tag Dupes cancelled by user.")

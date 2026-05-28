@@ -109,7 +109,8 @@ def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None 
             minimum=min_threshold,
             maximum=max_threshold,
             ui="float",
-            title="Fuzzy Threshold (Global)"
+            title="Fuzzy Threshold (Global)",
+            parent=browser,
         )
         if not ok:
             return
