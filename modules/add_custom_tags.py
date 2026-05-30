@@ -21,7 +21,6 @@ CONFIG_KEY_SUBMENU_LABEL = "submenu_label"
 CONFIG_KEY_GROUP_LABELS = "group_labels"
 CONFIG_KEY_PRESETS = "presets"
 CONFIG_KEY_GROUP = "group"
-CONFIG_KEY_REVIEW_SHORTCUT = "review_shortcut"
 # ! -----------------------------------------------------------------------------
 
 # ! ----------------------- HARDCODED UI MESSAGES -----------------------
@@ -49,13 +48,6 @@ def _normalize_group(value: Any) -> str | None:
     return group or None
 
 
-def _normalize_shortcut(value: Any) -> str | None:
-    if value is None:
-        return None
-    shortcut = str(value).strip()
-    return shortcut or None
-
-
 def _normalize_presets(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
@@ -66,18 +58,15 @@ def _normalize_presets(raw: Any) -> list[dict[str, Any]]:
             continue
 
         raw_label = preset.get("label", preset.get("menu_label", ""))
-        label = str(raw_label).strip() if raw_label is not None else ""
+        label = str(raw_label) if raw_label is not None else ""
         tags = _to_string_list(preset.get("tags", []))
-        if not label or not tags:
+        if not label.strip() or not tags:
             continue
 
         normalized_preset: dict[str, Any] = {"label": label, "tags": tags}
         group = _normalize_group(preset.get(CONFIG_KEY_GROUP))
         if group:
             normalized_preset["group"] = group
-        review_shortcut = _normalize_shortcut(preset.get(CONFIG_KEY_REVIEW_SHORTCUT))
-        if review_shortcut:
-            normalized_preset[CONFIG_KEY_REVIEW_SHORTCUT] = review_shortcut
         normalized.append(normalized_preset)
 
     return normalized
@@ -90,8 +79,8 @@ def _normalize_group_labels(raw: Any) -> dict[str, str]:
     normalized: dict[str, str] = {}
     for group_key, group_label in raw.items():
         key = str(group_key).strip()
-        label = str(group_label).strip()
-        if key and label:
+        label = str(group_label) if group_label is not None else ""
+        if key and label.strip():
             normalized[key] = label
     return normalized
 
@@ -146,10 +135,10 @@ def _load_runtime_config(
     if not isinstance(section_cfg, dict):
         section_cfg = {}
 
-    configured_submenu_label = str(section_cfg.get(CONFIG_KEY_SUBMENU_LABEL, "")).strip()
+    configured_submenu_label = str(section_cfg.get(CONFIG_KEY_SUBMENU_LABEL, ""))
     if isinstance(menu_label_override, str) and menu_label_override.strip():
-        submenu_label = menu_label_override.strip()
-    elif configured_submenu_label:
+        submenu_label = menu_label_override
+    elif configured_submenu_label.strip():
         submenu_label = configured_submenu_label
     else:
         submenu_label = ADD_CUSTOM_TAGS_DEFAULTS["submenu_label"]
@@ -204,31 +193,6 @@ def apply_tags_to_note(col, note, tags: list[str]) -> int:
     return added_count
 
 
-def iter_reviewer_shortcut_actions(
-    *,
-    config_section: str = DEFAULT_CONFIG_SECTION,
-    root_cfg: dict[str, Any] | None = None,
-) -> list[tuple[str, str, list[str]]]:
-    """Return (shortcut, preset_label, tags) entries for reviewer shortcuts."""
-    _, _, presets, _, _ = _load_runtime_config(config_section=config_section, root_cfg=root_cfg)
-
-    actions: list[tuple[str, str, list[str]]] = []
-    seen_shortcuts: set[str] = set()
-    for preset in presets:
-        shortcut = _normalize_shortcut(preset.get(CONFIG_KEY_REVIEW_SHORTCUT))
-        if not shortcut:
-            continue
-
-        shortcut_key = shortcut.lower()
-        if shortcut_key in seen_shortcuts:
-            continue
-
-        seen_shortcuts.add(shortcut_key)
-        actions.append((shortcut, preset["label"], list(preset["tags"])))
-
-    return actions
-
-
 def _apply_tags_to_selected_notes(
     browser,
     tags: list[str],
@@ -267,8 +231,8 @@ def _apply_menu_style(menu: QMenu) -> None:
 
 def _display_group_label(group_key: str, group_labels: dict[str, str]) -> str:
     configured = group_labels.get(group_key, "")
-    normalized = str(configured).strip()
-    return normalized or group_key
+    text = str(configured)
+    return text if text.strip() else group_key
 
 
 def add_custom_tag_menu_items(

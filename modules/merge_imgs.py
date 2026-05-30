@@ -754,9 +754,7 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
                     mw.col.update_note(note)
 
     if same_tagged_nids:
-        formatted_same = "✅ IMG_Uni::same tagged:\nNID:" + " OR NID:".join(
-            str(nid) for nid in sorted(same_tagged_nids)
-        )
+        formatted_same = "✅ IMG_Uni::same tagged:\nNID:" + ",".join(str(nid) for nid in sorted(same_tagged_nids))
         log_entries.append(formatted_same)
 
     summary = f"📊 Summary:\n🧬 Images Merged: {merged}\n🧾 Notes Tagged Same: {len(same_tagged_nids)}\n"

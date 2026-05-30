@@ -34,6 +34,26 @@ from .modules.tag_dupes import run_tag_dupes
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
 DEFAULT_CUSTOM_TAGS_MENU_LABEL = " 🎛️ Custom Tags"
 DEFAULT_CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
+GLOBAL_SECTION_KEY = "global_config"
+GLOBAL_MAIN_MENU_SEPARATOR_BEFORE_KEY = "main_context_menu_separator_before"
+GLOBAL_MAIN_MENU_SEPARATOR_AFTER_EDIT_KEY = "main_context_menu_separator_after_edit_menu"
+MENU_ITEM_KEY_MISSED_TAGS = "missed_tags_menu"
+MENU_ITEM_KEY_OTHER_ACTIONS = "other_actions_menu"
+MENU_ITEM_KEY_ADD_IMG_CLASS = "add_img_class_action"
+MENU_ITEM_KEY_MERGE_MENU = "merge_menu"
+MENU_ITEM_KEY_EDIT_MENU = "edit_menu"
+DEFAULT_MAIN_MENU_SEPARATOR_BEFORE: dict[str, bool] = {
+    MENU_ITEM_KEY_MISSED_TAGS: True,
+    "add_custom_tags_1": False,
+    "add_custom_tags_2": False,
+    "add_custom_tags_3": False,
+    MENU_ITEM_KEY_OTHER_ACTIONS: True,
+    MENU_ITEM_KEY_ADD_IMG_CLASS: False,
+    MENU_ITEM_KEY_MERGE_MENU: True,
+    MENU_ITEM_KEY_EDIT_MENU: False,
+}
+DEFAULT_MAIN_MENU_SEPARATOR_BEFORE_FALLBACK = False
+DEFAULT_MAIN_MENU_SEPARATOR_AFTER_EDIT_MENU = True
 MENU_LABEL_EXPORT_UW_QIDS = "Export UW QID tag(s) 🧿"
 MENU_LABEL_ADD_IMG_CLASS = "Add IMG class 🏞️"
 MENU_LABEL_ADD_TABLE_CLASS = "📊 Add Table class (col)"
@@ -104,6 +124,55 @@ def _should_show_batch_change_action(browser, selected_nids: list[int]) -> bool:
     return _selected_note_type_count(browser, selected_nids) > 1
 
 
+def _as_dict(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _load_main_menu_separator_config(root_cfg: dict | None) -> tuple[dict[str, object], bool]:
+    root_cfg_dict = _as_dict(root_cfg)
+    global_cfg = _as_dict(root_cfg_dict.get(GLOBAL_SECTION_KEY))
+    separator_before_cfg = _as_dict(global_cfg.get(GLOBAL_MAIN_MENU_SEPARATOR_BEFORE_KEY))
+    separator_after_edit = parse_bool(
+        global_cfg.get(
+            GLOBAL_MAIN_MENU_SEPARATOR_AFTER_EDIT_KEY,
+            DEFAULT_MAIN_MENU_SEPARATOR_AFTER_EDIT_MENU,
+        ),
+        default=DEFAULT_MAIN_MENU_SEPARATOR_AFTER_EDIT_MENU,
+    )
+    return separator_before_cfg, separator_after_edit
+
+
+def _main_menu_separator_before_enabled(separator_before_cfg: dict[str, object], item_key: str) -> bool:
+    default = DEFAULT_MAIN_MENU_SEPARATOR_BEFORE.get(
+        item_key,
+        DEFAULT_MAIN_MENU_SEPARATOR_BEFORE_FALLBACK,
+    )
+    return parse_bool(separator_before_cfg.get(item_key, default), default=default)
+
+
+def _add_separator_if_needed(menu) -> QAction | None:
+    actions = menu.actions()
+    if actions and actions[-1].isSeparator():
+        return None
+    return menu.addSeparator()
+
+
+def _add_separator_before_item_if_enabled(
+    menu,
+    separator_before_cfg: dict[str, object],
+    item_key: str,
+) -> QAction | None:
+    if not _main_menu_separator_before_enabled(separator_before_cfg, item_key):
+        return None
+    return _add_separator_if_needed(menu)
+
+
+def _rollback_separator_if_item_not_added(menu, separator_action: QAction | None, *, item_added: bool) -> None:
+    if item_added or separator_action is None:
+        return
+    menu.removeAction(separator_action)
+
+
 def compile_browser_context_menu(
     browser,
     menu,
@@ -117,25 +186,46 @@ def compile_browser_context_menu(
     if not selected:
         return
 
-    menu.addSeparator()
+    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
+    separator_before_cfg, separator_after_edit_menu = _load_main_menu_separator_config(root_cfg)
 
     # Tag-related root menu entries.
+    missed_separator = _add_separator_before_item_if_enabled(
+        menu,
+        separator_before_cfg,
+        MENU_ITEM_KEY_MISSED_TAGS,
+    )
+    menu_actions_before_missed = len(menu.actions())
     add_missed_tag_menu_items(browser, menu)
-    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
+    missed_menu_added = len(menu.actions()) > menu_actions_before_missed
+    _rollback_separator_if_item_not_added(
+        menu,
+        missed_separator,
+        item_added=missed_menu_added,
+    )
+
     custom_tag_sections = discover_custom_tag_sections(root_cfg=root_cfg)
     for section_index, section_key in enumerate(custom_tag_sections):
         section_label_override = custom_tags_menu_label if section_index == 0 else None
-        add_custom_tag_menu_items(
+        custom_separator = _add_separator_before_item_if_enabled(
+            menu,
+            separator_before_cfg,
+            section_key,
+        )
+        custom_menu_added = add_custom_tag_menu_items(
             browser,
             menu,
             menu_label=section_label_override,
             config_section=section_key,
             hide_when_no_presets=custom_tags_menu_hide_when_no_presets,
-            add_separator_before=True,
+            add_separator_before=False,
             root_cfg=root_cfg,
         )
-
-    menu.addSeparator()
+        _rollback_separator_if_item_not_added(
+            menu,
+            custom_separator,
+            item_added=custom_menu_added,
+        )
 
     other_actions_menu = QMenu(MENU_LABEL_OTHER_ACTIONS, menu)
     other_actions_menu.setObjectName("otherActionsMenu")
@@ -160,11 +250,21 @@ def compile_browser_context_menu(
     added_other_actions = True
 
     if added_other_actions:
+        _add_separator_before_item_if_enabled(
+            menu,
+            separator_before_cfg,
+            MENU_ITEM_KEY_OTHER_ACTIONS,
+        )
         menu.addMenu(other_actions_menu)
 
     # Context menu image/table classifiers.
     classify_imgs_action = QAction(MENU_LABEL_ADD_IMG_CLASS, browser)
     classify_imgs_action.triggered.connect(lambda: add_img_class_main(browser))
+    _add_separator_before_item_if_enabled(
+        menu,
+        separator_before_cfg,
+        MENU_ITEM_KEY_ADD_IMG_CLASS,
+    )
     menu.addAction(classify_imgs_action)
 
     # Create submenus for grouped actions.
@@ -217,9 +317,19 @@ def compile_browser_context_menu(
         added_edit = True
 
     if added_merge:
-        menu.addSeparator()
+        _add_separator_before_item_if_enabled(
+            menu,
+            separator_before_cfg,
+            MENU_ITEM_KEY_MERGE_MENU,
+        )
         menu.addMenu(merge_menu)
 
     if added_edit:
+        _add_separator_before_item_if_enabled(
+            menu,
+            separator_before_cfg,
+            MENU_ITEM_KEY_EDIT_MENU,
+        )
         menu.addMenu(edit_menu)
-        menu.addSeparator()
+        if separator_after_edit_menu:
+            _add_separator_if_needed(menu)

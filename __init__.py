@@ -14,30 +14,20 @@ Compatibility:
 
 """
 
-from typing import Callable, Optional
+from typing import Optional
 
 from aqt import gui_hooks, mw
 from aqt.browser import Browser
 from aqt.qt import QAction, QMenu
-from aqt.utils import showInfo, tooltip
+from aqt.utils import showInfo
 
-from .config_manager import ConfigManager
 from .menu_compiler import compile_browser_context_menu
-from .modules.add_custom_tags import (
-    apply_tags_to_note,
-    discover_custom_tag_sections,
-    iter_reviewer_shortcut_actions,
-)
 from .modules.add_table_class.main import add_class_main
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
 # Set to None to use the first discovered section's `submenu_label` from config.
 CUSTOM_TAGS_MENU_LABEL: Optional[str] = None
 CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
-REVIEW_TAG_SHORTCUTS_ENABLED = True
-REVIEW_TAG_SHORTCUT_SKIP_EXISTING_BINDINGS = False
-REVIEW_TAG_SHORTCUT_SUCCESS_TEMPLATE = "✅ Tagged note: {preset_label}"
-REVIEW_TAG_SHORTCUT_ALREADY_PRESENT_TEMPLATE = "ℹ️ Tag already present: {preset_label}"
 ADDON_MODULE_NAME = __name__
 # ! -----------------------------------------------------------------------------
 
@@ -52,106 +42,10 @@ def on_browser_will_show_context_menu(browser: Browser, menu):
     )
 
 
-def _apply_reviewer_shortcut_tags(reviewer, preset_label: str, tags: list[str]) -> None:
-    card = getattr(reviewer, "card", None)
-    if card is None:
-        return
-
-    col = getattr(reviewer.mw, "col", None)
-    if col is None:
-        return
-
-    try:
-        note = card.note()
-    except Exception:
-        return
-
-    added_count = apply_tags_to_note(col, note, tags)
-    if added_count > 0:
-        tooltip(REVIEW_TAG_SHORTCUT_SUCCESS_TEMPLATE.format(preset_label=preset_label))
-    else:
-        tooltip(REVIEW_TAG_SHORTCUT_ALREADY_PRESENT_TEMPLATE.format(preset_label=preset_label))
-
-
-def _inject_review_tag_shortcuts(state: str, shortcuts: list[tuple[str, Callable]]) -> None:
-    if not REVIEW_TAG_SHORTCUTS_ENABLED or state != "review":
-        return
-
-    reviewer = getattr(mw, "reviewer", None)
-    if reviewer is None:
-        return
-
-    shortcut_index_by_key: dict[str, int] = {}
-    for idx, (key, _handler) in enumerate(shortcuts):
-        normalized = str(key).strip().lower()
-        if normalized:
-            shortcut_index_by_key[normalized] = idx
-
-    root_cfg = ConfigManager(ConfigManager.ROOT_ADDON_NAME).load()
-    discovered_sections = discover_custom_tag_sections(root_cfg=root_cfg)
-
-    newly_added = set()
-    for section in discovered_sections:
-        if not isinstance(section, str) or not section.strip():
-            continue
-
-        for shortcut, preset_label, tags in iter_reviewer_shortcut_actions(
-            config_section=section,
-            root_cfg=root_cfg,
-        ):
-            shortcut_key = str(shortcut).strip()
-            if not shortcut_key:
-                continue
-
-            shortcut_lc = shortcut_key.lower()
-            if shortcut_lc in newly_added:
-                continue
-            handler = (
-                lambda label=preset_label, preset_tags=list(tags), r=reviewer: _apply_reviewer_shortcut_tags(
-                    r,
-                    label,
-                    preset_tags,
-                )
-            )
-
-            if shortcut_lc in shortcut_index_by_key:
-                if REVIEW_TAG_SHORTCUT_SKIP_EXISTING_BINDINGS:
-                    continue
-                shortcuts[shortcut_index_by_key[shortcut_lc]] = (shortcut_key, handler)
-                newly_added.add(shortcut_lc)
-                continue
-
-            shortcuts.append(
-                (
-                    shortcut_key,
-                    handler,
-                )
-            )
-            newly_added.add(shortcut_lc)
-            shortcut_index_by_key[shortcut_lc] = len(shortcuts) - 1
-
-
 # Ensures the browser context menu is only hooked once
 if not getattr(mw, "_change_note_type_menu_injected", False):
     gui_hooks.browser_will_show_context_menu.append(on_browser_will_show_context_menu)
     mw._change_note_type_menu_injected = True
-
-
-if not getattr(mw, "_change_notes_review_shortcuts_hooked", False):
-    if hasattr(gui_hooks, "state_shortcuts_will_change"):
-        gui_hooks.state_shortcuts_will_change.append(_inject_review_tag_shortcuts)
-    else:
-        try:
-            from anki.hooks import addHook
-
-            addHook(
-                "reviewStateShortcuts",
-                lambda shortcuts: _inject_review_tag_shortcuts("review", shortcuts),
-            )
-        except Exception:
-            pass
-    mw._change_notes_review_shortcuts_hooked = True
-
 
 # Adds a submenu under Tools > Add-ons for quick access to browser-based operations.
 # Currently includes placeholders to focus the browser window.

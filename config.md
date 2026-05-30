@@ -11,6 +11,7 @@ This guide explains what each config section does and what you can safely edit.
 - **Merge scheduling only when notes are very similar**: edit `merge_scheduling` with `merge_similarity_threshold` and `multi_card_policy`.
 - **Exclude notes from image merging**: edit `merge_images_config` with `excluded_tags` and `fields_to_scan_for_images`.
 - **Tune image merge strictness**: edit `global_config.fuzzy_opts` (`default_fuzz`, `min_fuzz`).
+- **Control separator breaks in the Browser right-click menu**: edit `global_config.main_context_menu_separator_before` and `global_config.main_context_menu_separator_after_edit_menu`.
 - **Control backups during batch note-type changes**: edit `batch_note_change_config` with `enable_backup` and `backup_directory`.
 - **Protect note types from delete-empty cleanup**: edit `delete_empty_notes_config` with `protected_notes`.
 
@@ -24,6 +25,16 @@ Shared fallback defaults used by multiple tools.
 
 - `fuzzy_opts.default_fuzz`: default fuzzy value for shared threshold prompts.
 - `fuzzy_opts.min_fuzz`: lower fuzzy bound for shared threshold prompts.
+- `main_context_menu_separator_before`: per-top-level-item bool map for adding a separator before this add-on's Browser right-click menu entries.
+- `main_context_menu_separator_after_edit_menu`: add trailing separator after `Edit Menu`.
+
+`main_context_menu_separator_before` supported keys:
+- `missed_tags_menu`
+- `add_custom_tags_1`, `add_custom_tags_2`, `add_custom_tags_3` (and any additional `add_custom_tags_<n>` section keys you create)
+- `other_actions_menu`
+- `add_img_class_action`
+- `merge_menu`
+- `edit_menu`
 
 #### Common Mistakes
 
@@ -188,7 +199,7 @@ A browser preset-tag menu section. Any numbered section key (`add_custom_tags_1`
 
 - `submenu_label`: top-level menu label for that section.
 - `group_labels`: optional display labels for groups.
-- `presets`: preset list with `label`, `tags`, optional `group`, and optional `review_shortcut` (for review-screen hotkeys).
+- `presets`: preset list with `label`, `tags`, and optional `group`.
 
 #### When To Edit It
 

@@ -5,7 +5,18 @@
     "fuzzy_opts": {
       "default_fuzz": 0.97,
       "min_fuzz": 0.55
-    }
+    },
+    "main_context_menu_separator_before": {
+      "missed_tags_menu": true,
+      "add_custom_tags_1": true,
+      "add_custom_tags_2": false,
+      "add_custom_tags_3": false,
+      "other_actions_menu": true,
+      "add_img_class_action": false,
+      "merge_menu": true,
+      "edit_menu": false
+    },
+    "main_context_menu_separator_after_edit_menu": true
   },
   "merge_tags_config": {
     "comparison_field": "Text",
@@ -20,7 +31,7 @@
     "excluded_tags": [
       "First_Aid"
     ],
-    "fields_to_scan_for_images": ["Extra", "Extra2", "Extra3", "Extra4", "Extra5", "Extra6", "Extra7", "Button"],
+    "fields_to_scan_for_images": ["Extra","Button"],
     "merge_behavior": {
       "copy_sketchy_links": true
     },
@@ -89,23 +100,12 @@
           "tags": ["#Custom::#KEY::Basics"]
         },
         {
-          "label": "💼 Management",
-          "tags": ["#Custom::#Management::general"],
-          "review_shortcut": "Ctrl+Shift+M"
-        },
-        {
-          "label": "Diagnosis 🎯",
-          "tags": ["#Custom::Task::Diagnosis"],
-          "review_shortcut": "Ctrl+Shift+D"
-        },
-        {
           "label": "🌬️ D.O. Med",
           "tags": ["#Custom::DO_Med"]
         },
         {
           "label": "📛 Risks+ ",
-          "tags": ["#Custom::Random::Risk_Factors+"],
-          "review_shortcut": "Ctrl+Shift+R"
+          "tags": ["#Custom::Random::Risk_Factors+"]
         },
         {
           "label": "🧀 Suspend – basic",
@@ -123,8 +123,7 @@
     },
     "add_custom_tags_2": {
       "submenu_label": " 🧠 + 💉 Tags",
-      "group_labels": {
-      },
+      "group_labels": {},
       "presets": [
         {
           "label": "🏥 Surgery",
@@ -143,10 +142,6 @@
           "tags": ["#Custom::*Memorize::Genes+Markers"]
         },
         {
-          "label": " 🥅 Screen+",
-          "tags": ["#Custom::*Memorize::Screening+"]
-        },
-        {
           "label": " 👾 Drug ADRs 😵",
           "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
         },
@@ -157,6 +152,24 @@
         {
           "label": " 👾 MoA ⚙️",
           "tags": ["#Custom::Bugs+Drugs::Drugs::MoA"]
+        }
+      ]
+    },
+    "add_custom_tags_3": {
+      "submenu_label": "🧰 Task-Tags",
+      "group_labels": {},
+      "presets": [
+        {
+          "label": "💼 Management",
+          "tags": ["#Custom::#Management::general"]
+        },
+        {
+          "label": "Diagnosis 🎯",
+          "tags": ["#Custom::Task::Diagnosis"]
+        },
+        {
+          "label": " 🥅 Screen+",
+          "tags": ["#Custom::*Memorize::Screening+"]
         }
       ]
     }

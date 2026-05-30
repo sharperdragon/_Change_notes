@@ -102,12 +102,13 @@ AMBOSS_FREEFORM_INCLUDE_ROTATION_SEGMENT = False
 
 MSG_NO_NOTES_SELECTED = "❌ No notes selected."
 MSG_INVALID_INTEGER_TEST_NUMBER = "❌ Please enter a valid integer test number."
+MSG_INVALID_NBME_INPUT = "❌ Please enter a positive form number or a tag path."
 MSG_INVALID_CORRECT_GUESS_SUBTAG = "❌ Subtag cannot include spaces."
 MSG_INVALID_CORRECT_MARKED_SOURCE_INPUT = "❌ Please enter a value."
 PROMPT_DEFAULT_TITLE = "Enter Test Number"
 PROMPT_DEFAULT_LABEL = "Test #:"
-PROMPT_NBME_TITLE = "Enter NBME Form"
-PROMPT_NBME_LABEL = "Form #:"
+PROMPT_NBME_TITLE = "Enter NBME Form or Path"
+PROMPT_NBME_LABEL = "Form # or path:"
 PROMPT_AMBOSS_TITLE = "Enter Amboss Subtag"
 PROMPT_AMBOSS_LABEL = "Subtags:"
 PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL = "correct_marked"
@@ -265,6 +266,22 @@ def _normalize_freeform_tag_path(raw: str) -> str:
         if seg:
             normalized.append(seg)
     return "::".join(normalized)
+
+
+def _normalize_nbme_child_path(raw: str) -> str:
+    """Accept either a positive form number or a freeform NBME child path."""
+    value = str(raw or "").strip()
+    if not value:
+        return ""
+
+    try:
+        form_number = int(value)
+    except ValueError:
+        return _normalize_freeform_tag_path(value)
+
+    if form_number <= 0:
+        return ""
+    return f"Form_{form_number}"
 
 
 def _to_text(value: Any, fallback: str) -> str:
@@ -828,12 +845,15 @@ def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
                         scrub_resource_label_to_tag(label) or f"Resource_{idx + 1:02d}",
                     )
                     default_segment = f"{tag_suffix}::{tag_segment}" if tag_suffix else tag_segment
+                    default_absolute_tag = (
+                        _build_child_tag(primary_tag, default_segment) if default_child else default_segment
+                    )
                     resolved_tags = _resolve_standardized_action_tags(
                         normalized_action,
                         primary_tag=primary_tag,
                         default_child_of_primary=default_child,
                         default_segments=[default_segment],
-                        default_absolute_tags=[_build_child_tag(primary_tag, default_segment)],
+                        default_absolute_tags=[default_absolute_tag],
                     )
                     normalized_action["tags"] = resolved_tags
                     if label:
@@ -1687,8 +1707,10 @@ def _prompt_correct_missed_source_and_input(parent, action_label: str) -> tuple[
             button.setChecked(name == source_name)
 
         input_line.setText(source_inputs.get(source_name, ""))
-        if source_name in {"UWorld", "NBME"}:
+        if source_name == "UWorld":
             input_line.setPlaceholderText("Enter integer")
+        elif source_name == "NBME":
+            input_line.setPlaceholderText("Enter form # or path (e.g., CMS::OBGYN::6)")
         else:
             input_line.setPlaceholderText("Enter tag input")
 
@@ -1989,17 +2011,12 @@ def _add_form_prompt_action(
         form_value = (form_value or "").strip()
         if form_value == "":
             _save_prompt_input(action_key, "")
-            showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
+            showInfo(MSG_INVALID_NBME_INPUT)
             return
 
-        try:
-            form_number = int(form_value)
-        except ValueError:
-            showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
-            return
-
-        if form_number <= 0:
-            showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
+        nbme_child_path = _normalize_nbme_child_path(form_value)
+        if not nbme_child_path:
+            showInfo(MSG_INVALID_NBME_INPUT)
             return
         _save_prompt_input(action_key, form_value)
 
@@ -2008,7 +2025,7 @@ def _add_form_prompt_action(
         resolved_base_tags = [str(tag).strip() for tag in base_tags if str(tag).strip()]
         if not resolved_base_tags:
             return
-        formatted_tags = [f"{tag}::Form_{form_number}" for tag in resolved_base_tags]
+        formatted_tags = [f"{tag}::{nbme_child_path}" for tag in resolved_base_tags]
         if append_correct_marked:
             formatted_tags = [
                 _append_tag_segment(tag, AMBOSS_CORRECT_MARKED_TAG_SEGMENT) for tag in formatted_tags
@@ -2205,16 +2222,12 @@ def add_uworld_correct_missed_tag(browser, menu, cfg: MissedTagsConfig):
             source_tag = _format_uworld_test_tag(cfg, uworld_base_tag, test_number)
             formatted_tag = f"{source_tag}::{correct_marked_segment}"
         elif selected_source == "NBME":
-            try:
-                form_number = int(raw_input)
-            except ValueError:
-                showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
-                return
-            if form_number <= 0:
-                showInfo(MSG_INVALID_INTEGER_TEST_NUMBER)
+            nbme_child_path = _normalize_nbme_child_path(raw_input)
+            if not nbme_child_path:
+                showInfo(MSG_INVALID_NBME_INPUT)
                 return
             nbme_base_tag = _nbme_base_tag(cfg)
-            source_tag = f"{nbme_base_tag}::Form_{form_number}"
+            source_tag = f"{nbme_base_tag}::{nbme_child_path}"
             formatted_tag = f"{source_tag}::{correct_marked_segment}"
         elif selected_source == "Amboss":
             normalized_input = _normalize_freeform_tag_path(raw_input)

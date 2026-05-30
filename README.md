@@ -142,7 +142,7 @@ _Change_notes employs a layered configuration approach to maximize flexibility:
 
 - **Default Config File (`config.json`):** Stores section defaults for all tools.
 - **Runtime Overrides (Anki add-on config):** Stores user edits made through Anki's config editor/UI and is merged on top of defaults.
-- **Custom Tag Presets (`custom_tags_config.add_custom_tags_<n>` sections):** Any numbered section (for example `_1`, `_2`, `_3`) is discovered automatically and rendered as its own top-level custom-tags menu in ascending numeric order. Each section supports optional per-group display labels and per-preset `review_shortcut`. Sections with empty `presets` are hidden.
+- **Custom Tag Presets (`custom_tags_config.add_custom_tags_<n>` sections):** Any numbered section (for example `_1`, `_2`, `_3`) is discovered automatically and rendered as its own top-level custom-tags menu in ascending numeric order. Each section supports optional per-group display labels. Sections with empty `presets` are hidden.
 - **Missed Tags (`tag_missed_notes` section):** Canonical source for missed-tag UI labels/messages and base defaults, with legacy merge support from `add_missed_tags`, `add_tags`, and `tag_selected_notes_config`.
 
 Configuration can be edited using:
@@ -178,8 +178,7 @@ Configuration can be edited using:
         {
           "label": "ADRs",
           "group": "Drugs",
-          "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"],
-          "review_shortcut": "Ctrl+Shift+A"
+          "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
         },
         {
           "label": "DO_Med",
