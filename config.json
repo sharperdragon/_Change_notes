@@ -24,7 +24,7 @@
     "base_tag": "DONE::TAGS_MERGED",
     "merge_select_only": false,
     "excluded_tags": [],
-    "merge_only_parents": ["#Zank::#Step2_v12", "#Zank::Step1_v12"]
+    "merge_only_parents": ["#Zank::#Step2_v12", "#Zank__Step1_v12"]
   },
   "merge_images_config": {
     "allowed_models": [],
@@ -196,7 +196,7 @@
         }
       ],
       "exhausted_policy": "unknown",
-      "parent_tag_segment": "Rotation"
+      "parent_tag_segment": "Block"
     },
     "actions": {
       "base": {
@@ -246,7 +246,7 @@
         "prompt": {
           "kind": "number",
           "number_style": "number_only",
-          "show_correct_marked_checkbox": false
+          "show_correct_marked_checkbox": true
         }
       },
       "multi_missed": {

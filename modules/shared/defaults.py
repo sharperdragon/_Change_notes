@@ -35,7 +35,7 @@ ADD_MISSED_TAGS_DEFAULTS = {
             {"segment_label": "*Dedicated", "start": "2026-03-28", "end": "2099-12-31"},
         ],
         "exhausted_policy": "unknown",
-        "parent_tag_segment": "Rotation",
+        "parent_tag_segment": "Block",
     },
     "actions": {
         "base": {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aqt import mw
-from aqt.qt import QDialog, QDialogButtonBox, QDoubleSpinBox, QVBoxLayout
+from aqt.qt import QCheckBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QVBoxLayout
 
 try:
     from ..config_manager import ConfigManager  # type: ignore
@@ -36,6 +36,7 @@ __all__ = [
     "load_config",
     "save_config",
     "get_field_index_from_config",
+    "prompt_checkbox_option",
     "prompt_similarity_threshold",
 ]
 
@@ -155,3 +156,92 @@ def prompt_similarity_threshold(
         val = max(min(val, maximum), minimum)
 
     return val, True
+
+
+def prompt_checkbox_option(
+    *,
+    title: str,
+    checkbox_label: str,
+    checked: bool = True,
+    remember_section: str | None = None,
+    remember_key: str | None = None,
+    parent=None,
+) -> bool | None:
+    """Show an OK/Cancel dialog with one checkbox; returns None when canceled."""
+    def _as_dict(value):
+        return value if isinstance(value, dict) else {}
+
+    def _to_optional_bool(value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"1", "true", "yes", "on"}:
+                return True
+            if lowered in {"0", "false", "no", "off"}:
+                return False
+        return None
+
+    def _load_saved_checkbox_state(section_name: str, state_key: str) -> bool | None:
+        if ConfigManager is None:
+            return None
+        try:
+            section_override = ConfigManager.get_override_section(section_name)
+            runtime_cfg = _as_dict(section_override.get("runtime"))
+            states = _as_dict(runtime_cfg.get("last_checkbox_states"))
+            return _to_optional_bool(states.get(state_key))
+        except Exception:
+            return None
+
+    def _save_checkbox_state(section_name: str, state_key: str, state_value: bool) -> None:
+        if ConfigManager is None:
+            return
+        try:
+            section_override = ConfigManager.get_override_section(section_name)
+            runtime_cfg = _as_dict(section_override.get("runtime"))
+            states = _as_dict(runtime_cfg.get("last_checkbox_states"))
+            existing_state = _to_optional_bool(states.get(state_key))
+            if existing_state == state_value:
+                return
+
+            updated_override = ConfigManager.deep_merge_dicts({}, section_override)
+            updated_runtime_cfg = _as_dict(updated_override.get("runtime"))
+            updated_states = _as_dict(updated_runtime_cfg.get("last_checkbox_states"))
+            updated_states[state_key] = bool(state_value)
+            updated_runtime_cfg["last_checkbox_states"] = updated_states
+            updated_override["runtime"] = updated_runtime_cfg
+            ConfigManager.save_section_override(section_name, updated_override)
+        except Exception:
+            return
+
+    remember_section_name = str(remember_section or "").strip()
+    remember_state_key = str(remember_key or "").strip()
+    remember_enabled = bool(remember_section_name and remember_state_key)
+
+    initial_checked = bool(checked)
+    if remember_enabled:
+        saved_state = _load_saved_checkbox_state(remember_section_name, remember_state_key)
+        if saved_state is not None:
+            initial_checked = saved_state
+
+    dialog_parent = parent or mw
+    dlg = QDialog(dialog_parent)
+    dlg.setWindowTitle(title)
+    lay = QVBoxLayout(dlg)
+
+    checkbox = QCheckBox(checkbox_label, dlg)
+    checkbox.setChecked(initial_checked)
+    lay.addWidget(checkbox)
+
+    btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+    btns.accepted.connect(dlg.accept)
+    btns.rejected.connect(dlg.reject)
+    lay.addWidget(btns)
+
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+
+    selected_value = bool(checkbox.isChecked())
+    if remember_enabled:
+        _save_checkbox_state(remember_section_name, remember_state_key, selected_value)
+    return selected_value

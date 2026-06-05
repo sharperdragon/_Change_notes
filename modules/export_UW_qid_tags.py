@@ -5,7 +5,7 @@ Export UW QID tags from selected notes in the Browser.
 Exports:
 - Matches UW tags using configurable segment/prefix rules
 - Dedupe + sorted
-- Writes to Desktop with timestamp
+- Optionally writes to Desktop with timestamp
 - Copies OR-joined tags to clipboard
 """
 
@@ -19,6 +19,8 @@ from typing import Iterable, List, Set
 from aqt import mw
 from aqt.qt import QAction, QApplication
 from aqt.utils import showInfo, tooltip
+
+from .utils import prompt_checkbox_option
 
 # ----------------------------
 # User-configurable constants
@@ -45,12 +47,17 @@ OUTPUT_DIR = Path.home() / "Desktop"
 TS_FORMAT = "%H-%M_%m-%d"  # your preferred timestamp format
 OUTPUT_BASENAME = "anki_export_uw_qid_tags"
 CLIPBOARD_JOINER = " OR "
+WRITE_TXT_TO_DESKTOP_DEFAULT = True
+WRITE_TXT_TO_DESKTOP_LABEL = "Write .txt file to Desktop"
+EXPORT_OPTIONS_TITLE = "Export UW QID Tags"
+WRITE_TXT_TO_DESKTOP_MEMORY_SECTION = "global_config"
+WRITE_TXT_TO_DESKTOP_MEMORY_KEY = "export_uw_qid_write_txt_to_desktop"
 
 
 @dataclass(frozen=True)
 class ExportResult:
     tags: List[str]
-    output_path: Path
+    output_path: Path | None
 
 
 def _now_stamp() -> str:
@@ -127,6 +134,18 @@ def copy_to_clipboard(text: str) -> None:
     QApplication.clipboard().setText(text)
 
 
+def _prompt_write_txt_to_desktop(parent) -> bool | None:
+    """Ask whether to write a Desktop .txt file. Returns None if canceled."""
+    return prompt_checkbox_option(
+        title=EXPORT_OPTIONS_TITLE,
+        checkbox_label=WRITE_TXT_TO_DESKTOP_LABEL,
+        checked=WRITE_TXT_TO_DESKTOP_DEFAULT,
+        remember_section=WRITE_TXT_TO_DESKTOP_MEMORY_SECTION,
+        remember_key=WRITE_TXT_TO_DESKTOP_MEMORY_KEY,
+        parent=parent,
+    )
+
+
 def run_export_for_selected_notes(browser) -> ExportResult | None:
     """
     Browser action handler: export matching UW tags for selected notes.
@@ -147,14 +166,26 @@ def run_export_for_selected_notes(browser) -> ExportResult | None:
         )
         return None
 
-    out_path = export_tags_to_desktop(tags)
+    write_txt = _prompt_write_txt_to_desktop(browser)
+    if write_txt is None:
+        tooltip("Export canceled.")
+        return None
+
+    out_path = export_tags_to_desktop(tags) if write_txt else None
     copy_to_clipboard(CLIPBOARD_JOINER.join(tags))
 
-    showInfo(
-        f"Exported {len(tags)} UW QID tag(s).\n\n"
-        f"Saved to:\n{out_path}\n\n"
-        "Copied to clipboard."
-    )
+    if out_path:
+        showInfo(
+            f"Exported {len(tags)} UW QID tag(s).\n\n"
+            f"Saved to:\n{out_path}\n\n"
+            "Copied to clipboard."
+        )
+    else:
+        showInfo(
+            f"Exported {len(tags)} UW QID tag(s).\n\n"
+            "Desktop .txt save skipped.\n\n"
+            "Copied to clipboard."
+        )
 
     return ExportResult(tags=tags, output_path=out_path)
 

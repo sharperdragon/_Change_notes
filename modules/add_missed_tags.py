@@ -51,6 +51,8 @@ SCHEDULE_POLICY = {
     "next": "next",
 }
 DEFAULT_OPEN_ENDED_ROTATION_END = "2099-12-31"
+MISSED_CONTEXT_PARENT_TAG_SEGMENT = "Block"
+LEGACY_MISSED_CONTEXT_PARENT_TAG_SEGMENT = "Rotation"
 
 # UWorld grouping for numeric test tags:
 #   parent range (for example, 001-050) -> child range (for example, 01-05).
@@ -111,7 +113,8 @@ PROMPT_NBME_TITLE = "Enter NBME Form or Path"
 PROMPT_NBME_LABEL = "Form # or path:"
 PROMPT_AMBOSS_TITLE = "Enter Amboss Subtag"
 PROMPT_AMBOSS_LABEL = "Subtags:"
-PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL = "correct_marked"
+# Checkbox label used on every prompt that can append the correct_marked tag.
+PROMPT_CORRECT_MARKED_CHECKBOX_LABEL = "Correct+Marked"
 AMBOSS_CORRECT_MARKED_TAG_SEGMENT = "correct_marked"
 AMBOSS_APPEND_CORRECT_MARKED_STATE_KEY = "amboss_append_correct_marked"
 AMBOSS_APPEND_CORRECT_MARKED_DEFAULT = False
@@ -375,6 +378,20 @@ def _read_string_list(data: dict[str, Any], key: str, fallback: list[str]) -> li
 
 def _read_action_add_missed_date_context(action_cfg: dict[str, Any], fallback: bool) -> bool:
     return _read_bool(action_cfg, "add_missed_date_context", fallback)
+
+
+def _normalize_missed_context_parent_tag_segment(
+    value: Any,
+    fallback: str = MISSED_CONTEXT_PARENT_TAG_SEGMENT,
+) -> str:
+    segment = _to_text(value, fallback)
+    segment_parts = [part.strip() for part in segment.split("::") if part.strip()]
+    final_segment = segment_parts[-1] if segment_parts else segment
+    if _normalize_tag_segment_for_match(final_segment) == _normalize_tag_segment_for_match(
+        LEGACY_MISSED_CONTEXT_PARENT_TAG_SEGMENT
+    ):
+        return MISSED_CONTEXT_PARENT_TAG_SEGMENT
+    return segment
 
 
 def _normalize_prompt_kind(value: Any, fallback: str) -> str:
@@ -749,7 +766,9 @@ def _apply_standardized_action_schema(cfg: dict[str, Any]) -> dict[str, Any]:
                 default_segments=["#KEY"],
                 default_absolute_tags=[_to_text(action_cfg.get("tag_base"), "#Custom::#KEY")],
             )
-            action_cfg["tag_base"] = _to_text(resolved_tags[0], "#Custom::#KEY") if resolved_tags else "#Custom::#KEY"
+            action_cfg["tag_base"] = (
+                _to_text(resolved_tags[0], "#Custom::#KEY") if resolved_tags else "#Custom::#KEY"
+            )
             _apply_add_date_context(action_cfg, action_cfg)
             continue
 
@@ -1277,7 +1296,9 @@ def load_runtime_config() -> MissedTagsConfig:
     if schedule_exhausted_policy not in valid_schedule_policies:
         schedule_exhausted_policy = SCHEDULE_POLICY["unknown"]
 
-    default_rotation_parent_tag_segment = _default_text(("rotation", "parent_tag_segment"), "Rotation")
+    default_rotation_parent_tag_segment = _normalize_missed_context_parent_tag_segment(
+        _default_text(("rotation", "parent_tag_segment"), MISSED_CONTEXT_PARENT_TAG_SEGMENT),
+    )
     resolved_other_suffix = _read_text(other_cfg, "tag_suffix", default_other_suffix)
     other_default_add_context = _read_action_add_missed_date_context(
         other_cfg,
@@ -1463,9 +1484,12 @@ def load_runtime_config() -> MissedTagsConfig:
             default_uw_correct_missed_tag_segment,
         ),
         uw_correct_missed_tags=resolved_uw_correct_missed_tags,
-        rotation_parent_tag_segment=_read_text(
-            rotation_cfg,
-            "parent_tag_segment",
+        rotation_parent_tag_segment=_normalize_missed_context_parent_tag_segment(
+            _read_text(
+                rotation_cfg,
+                "parent_tag_segment",
+                default_rotation_parent_tag_segment,
+            ),
             default_rotation_parent_tag_segment,
         ),
         multi_miss_tag=_read_text(multi_missed_cfg, "tag_segment", default_multi_miss_tag),
@@ -1855,7 +1879,8 @@ def get_missed_month_tag(cfg: MissedTagsConfig) -> str:
 def get_missed_tag_for_rotation(cfg: MissedTagsConfig) -> tuple[str, str]:
     rot_num_2d, rot_label, warning = get_current_or_next_rotation_meta(cfg)
     segment = get_formatted_rotation_segment(cfg, rot_num_2d, rot_label)
-    return base_tag_path(cfg, cfg.rotation_parent_tag_segment, segment), warning
+    parent_segment = _normalize_missed_context_parent_tag_segment(cfg.rotation_parent_tag_segment)
+    return base_tag_path(cfg, parent_segment, segment), warning
 
 
 def _add_tag_safe(note, tag: str):
@@ -1993,7 +2018,7 @@ def _add_form_prompt_action(
                 title=title,
                 label=prompt_label,
                 default_text=saved_form_value,
-                checkbox_label=PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL,
+                checkbox_label=PROMPT_CORRECT_MARKED_CHECKBOX_LABEL,
                 checkbox_checked=default_append_state,
             )
         else:
@@ -2354,7 +2379,7 @@ def make_test_prompt_handler(
                 title=prompt_title,
                 label=prompt_label,
                 default_text=saved_test_num,
-                checkbox_label=PROMPT_AMBOSS_APPEND_CORRECT_MARKED_LABEL,
+                checkbox_label=PROMPT_CORRECT_MARKED_CHECKBOX_LABEL,
                 checkbox_checked=default_append_state,
             )
         else:

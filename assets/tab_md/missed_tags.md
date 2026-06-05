@@ -45,7 +45,7 @@ Legacy section names are still merged into `tag_missed_notes` by `ConfigManager`
 ### `rotation`
 - `schedule`: Rotation windows (`segment_label`, `start`, `end`); `segment_label` is used directly as the final tag child segment.
 - `exhausted_policy`: Behavior when outside configured windows.
-- `parent_tag_segment`: Parent rotation segment in final tags.
+- `parent_tag_segment`: Parent block segment in final tags.
 
 ### `actions`
 - Shared standardized keys:
@@ -78,7 +78,7 @@ Legacy section names are still merged into `tag_missed_notes` by `ConfigManager`
         { "segment_label": "*Dedicated", "start": "2026-03-28", "end": "2099-12-31" }
       ],
       "exhausted_policy": "unknown",
-      "parent_tag_segment": "Rotation"
+      "parent_tag_segment": "Block"
     },
     "actions": {
       "base": {

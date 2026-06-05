@@ -7,6 +7,8 @@ import re
 from datetime import datetime
 from typing import Any, List, Tuple
 
+from .utils import prompt_checkbox_option
+
 
 """
 Export Selected NIDs – helper module (Anki 2.1.60+ / 25.x, Qt6)
@@ -21,7 +23,7 @@ Usage from your __init__.py:
 Design:
 - No auto-injection. You control where/when to add the action.
 - Compatible with browser.selected_notes() (new) and selectedNotes() (old).
-- Saves a comma-separated NID list to your Desktop.
+- Copies a comma-separated NID list and can optionally save it to your Desktop.
 """
 
 
@@ -44,6 +46,11 @@ except Exception:
 _FNAME_SAFE = re.compile(r'[^\w\-. ]+', re.UNICODE)
 EXPORT_BASENAME = "selected_nids"  # user-tunable
 EXPORT_FOLDER_NAME = "NID export"  # user-tunable
+WRITE_TXT_TO_DESKTOP_DEFAULT = True  # user-tunable
+WRITE_TXT_TO_DESKTOP_LABEL = "Write .txt file to Desktop"  # user-tunable
+EXPORT_OPTIONS_TITLE = "Export Selected NIDs"  # user-tunable
+WRITE_TXT_TO_DESKTOP_MEMORY_SECTION = "global_config"  # user-tunable
+WRITE_TXT_TO_DESKTOP_MEMORY_KEY = "export_nids_write_txt_to_desktop"  # user-tunable
 
 
 def _sanitize_filename(name: str) -> str:
@@ -125,6 +132,18 @@ def _write_error_log(details: str) -> str:
         return ""
 
 
+def _prompt_write_txt_to_desktop(parent: Any) -> bool | None:
+    """Ask whether to write a Desktop .txt file. Returns None if canceled."""
+    return prompt_checkbox_option(
+        title=EXPORT_OPTIONS_TITLE,
+        checkbox_label=WRITE_TXT_TO_DESKTOP_LABEL,
+        checked=WRITE_TXT_TO_DESKTOP_DEFAULT,
+        remember_section=WRITE_TXT_TO_DESKTOP_MEMORY_SECTION,
+        remember_key=WRITE_TXT_TO_DESKTOP_MEMORY_KEY,
+        parent=parent,
+    )
+
+
 # ---------- Public entry point you call from __init__ ----------
 
 def create_export_nids_action(
@@ -137,7 +156,7 @@ def create_export_nids_action(
     """
     Create a QAction that:
     - Collects selected note IDs from the Browser
-    - Writes one file to your Desktop:
+    - Optionally writes one file to your Desktop:
         1) Comma-separated NIDs (e.g., "121451,441451,...")
         2) Uses an automatic filename (no prompt)
     - Copies the simple list to the clipboard
@@ -152,31 +171,33 @@ def create_export_nids_action(
             tooltip("No notes selected.")
             return
 
+        write_txt = _prompt_write_txt_to_desktop(browser)
+        if write_txt is None:
+            tooltip("Export canceled.")
+            return
+
         # 2) Use automatic base name (no prompt)
         base = _sanitize_filename(EXPORT_BASENAME)
 
         # 3) Build content string
         comma_str = ",".join(str(n) for n in nids)
-
-        # 4) Paths with user base name + timestamp (ensure export dir exists)
-        export_dir = _ensure_export_dir()
-        ts = datetime.now().strftime("%H-%M_%m-%d")
-        simple_path = os.path.join(export_dir, f"{base}_{ts}_simple.txt")
-
-        # 5) Write file
-        ok1, msg1 = _write_text_to_path(comma_str, simple_path)
-
-        # 6) Copy simple list to clipboard for convenience
         _copy_nids_to_clipboard(comma_str)
 
-        # 7) Report
-        if ok1:
-            tooltip(
-                f"Saved {len(nids)} NIDs.\n"
-                f"Saved to Desktop/{EXPORT_FOLDER_NAME}\n"
-                f"(Copied simple NID list to clipboard.)"
-            )
-        else:
+        # 4) Optionally write file
+        if write_txt:
+            export_dir = _ensure_export_dir()
+            ts = datetime.now().strftime("%H-%M_%m-%d")
+            simple_path = os.path.join(export_dir, f"{base}_{ts}_simple.txt")
+            ok1, msg1 = _write_text_to_path(comma_str, simple_path)
+
+            if ok1:
+                tooltip(
+                    f"Saved {len(nids)} NIDs.\n"
+                    f"Saved to Desktop/{EXPORT_FOLDER_NAME}\n"
+                    f"(Copied simple NID list to clipboard.)"
+                )
+                return
+
             details = msg1
             log_path = _write_error_log(details)
 
@@ -192,6 +213,15 @@ def create_export_nids_action(
                     tooltip(f"Export completed with errors.\nError log: {log_path}")
                 else:
                     tooltip("Export completed with errors (failed to write error log).")
+            return
+
+        # 5) Report (no file write)
+        tooltip(
+            f"Saved {len(nids)} NIDs.\n"
+            "Desktop .txt save skipped.\n"
+            "(Copied simple NID list to clipboard.)"
+        )
+        return
 
     # Connect on creation
     action.triggered.connect(_run)  # type: ignore[attr-defined]

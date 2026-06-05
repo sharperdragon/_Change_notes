@@ -2,7 +2,7 @@ from ..config_manager import ConfigManager
 from .merge_imgs import run_merge_images
 from .merge_tags import unify_tags_on_duplicates
 from .shared.defaults import IMG_TAGS_MERGE_DEFAULTS, clone_defaults
-from .utils import prompt_similarity_threshold
+from .utils import prompt_checkbox_option, prompt_similarity_threshold
 
 # pyright: reportMissingImports=false
 # mypy: disable_error_code=import
@@ -17,6 +17,11 @@ MERGE_IMAGES_AND_TAGS_DEFAULT_FUZZY = 0.99
 MERGE_IMAGES_AND_TAGS_MIN_FUZZY = 0.78
 MERGE_IMAGES_AND_TAGS_BASE_TAG = "Tag+IMG_MERGED"
 MERGE_IMAGES_AND_TAGS_LOG_FOLDER = ""
+PROMPT_LOG_EXPORT_CHECKBOX_DEFAULT = True
+PROMPT_LOG_EXPORT_CHECKBOX_LABEL = "Export log .txt to Desktop/subfolder"
+PROMPT_LOG_EXPORT_TITLE = "Merge Images + Tags Log Export"
+PROMPT_LOG_EXPORT_MEMORY_SECTION = "merge_images_and_tags_config"
+PROMPT_LOG_EXPORT_MEMORY_KEY = "export_log_to_desktop"
 
 CONFIG = {}
 
@@ -97,6 +102,18 @@ def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None 
     if not note_ids:
         QMessageBox.information(mw, "Unify Images + Tags", "No notes selected.")
         return
+
+    export_logs_to_desktop = prompt_checkbox_option(
+        title=PROMPT_LOG_EXPORT_TITLE,
+        checkbox_label=PROMPT_LOG_EXPORT_CHECKBOX_LABEL,
+        checked=PROMPT_LOG_EXPORT_CHECKBOX_DEFAULT,
+        remember_section=PROMPT_LOG_EXPORT_MEMORY_SECTION,
+        remember_key=PROMPT_LOG_EXPORT_MEMORY_KEY,
+        parent=browser,
+    )
+    if export_logs_to_desktop is None:
+        return
+
     # --- Decide thresholds (prompt once if needed) ---
     if threshold is None and tag_threshold is None:
         # Pull unified fuzzy settings from global_config.fuzzy_opts.
@@ -122,5 +139,33 @@ def merge_imgs_and_tags(selected=None, browser=None, *, threshold: float | None 
             threshold = tag_threshold
         if tag_threshold is None:
             tag_threshold = threshold
-    run_merge_images(note_ids, browser, threshold=threshold)
-    unify_tags_on_duplicates(browser, threshold=tag_threshold)
+    image_result = run_merge_images(
+        note_ids,
+        browser,
+        threshold=threshold,
+        export_log_to_desktop=export_logs_to_desktop,
+        show_summary_popup=False,
+    )
+    tag_result = unify_tags_on_duplicates(
+        browser,
+        threshold=tag_threshold,
+        export_log_to_desktop=export_logs_to_desktop,
+        show_summary_popup=False,
+    )
+
+    image_summary = (
+        image_result.get("summary_text")
+        if isinstance(image_result, dict)
+        else "Image merge summary unavailable."
+    )
+    tag_summary = (
+        tag_result.get("summary_text")
+        if isinstance(tag_result, dict)
+        else "Tag merge summary unavailable."
+    )
+
+    QMessageBox.information(
+        browser,
+        "Unify Images + Tags Summary",
+        f"{image_summary}\n\n{tag_summary}",
+    )

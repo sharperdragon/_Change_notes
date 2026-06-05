@@ -21,6 +21,7 @@ from .utils import (
     extract_images,
     extract_srcs,
     group_notes_by_similarity,
+    prompt_checkbox_option,
     prompt_similarity_threshold,
 )
 
@@ -32,6 +33,11 @@ ASK_THRESHOLD_EACH_TIME = True
 MERGE_WRAP_IMAGES_IN_DIV = True
 MERGE_INSERT_NEW_LINE_BETWEEN_IMAGES = True
 MERGE_APPEND_TO_EXISTING_FIELD = True
+PROMPT_LOG_EXPORT_CHECKBOX_DEFAULT = True
+PROMPT_LOG_EXPORT_CHECKBOX_LABEL = "Export log .txt to Desktop/subfolder"
+PROMPT_LOG_EXPORT_TITLE = "Merge Images Log Export"
+PROMPT_LOG_EXPORT_MEMORY_SECTION = "merge_images_config"
+PROMPT_LOG_EXPORT_MEMORY_KEY = "export_log_to_desktop"
 MERGE_INSERT_BR_BEFORE_APPENDED_DIV = True
 
 # Insertion policy (top-level for easy future edits).
@@ -429,11 +435,17 @@ def prompt_threshold(default, minimum, maximum, step=0.01, decimals=2):
     return None, False
 
 
-def run_merge_images(note_ids: list[int], browser=None, threshold: float | None = None):
+def run_merge_images(
+    note_ids: list[int],
+    browser=None,
+    threshold: float | None = None,
+    export_log_to_desktop: bool | None = None,
+    show_summary_popup: bool = True,
+):
     _reload_runtime_config()
     if not note_ids:
         QMessageBox.information(mw, "Unify Images", "No notes selected.")
-        return
+        return None
 
     # ! Threshold defaulting (UI prompt moved to merge_images_main)
     if threshold is None:
@@ -456,7 +468,11 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     unchanged_tag = cfg("tagging.add_to_unchanged", "IMG_Uni::same")
     donor_tag = cfg("tagging.add_to_donor", "IMG_Uni::donor")
     enable_popup = cfg("logging.enable_log_popup", True)
-    save_to_desktop = cfg("logging.save_log_to_desktop", False)
+    save_to_desktop_cfg = cfg("logging.save_log_to_desktop", False)
+    if export_log_to_desktop is None:
+        save_to_desktop = bool(save_to_desktop_cfg)
+    else:
+        save_to_desktop = bool(export_log_to_desktop)
     log_prefix = cfg("logging.log_filename_prefix", "merged_images_log_")
 
     note_groups = group_notes_by_similarity(candidates, threshold, "Text", has_excluded_tag)
@@ -761,14 +777,28 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     log_entries.insert(0, summary)
 
     if merged == 0:
-        if enable_popup and log_entries:
+        log_path = None
+        if save_to_desktop:
+            log_dir = Path.home() / "Desktop/anki_logs/Merged IMGs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = log_dir / f"{log_prefix}{int(time.time())}.txt"
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write("\n\n".join(log_entries))
+        if show_summary_popup and enable_popup and log_entries:
             show_log_window("\n\n".join(log_entries))
-        else:
-            tooltip(
-                "Merge Images: 0 merges. Popup disabled by config; see log output settings.",
-                period=3500,
-            )
-        return
+        msg = "Merge Images: 0 merges."
+        if log_path is not None:
+            msg += f" Log saved to: {log_path}"
+        elif not enable_popup:
+            msg += " Popup disabled by config; see log output settings."
+        tooltip(msg, period=3500)
+        return {
+            "merged": merged,
+            "tagged_same": len(same_tagged_nids),
+            "log_path": str(log_path) if log_path is not None else None,
+            "summary_text": summary.strip(),
+            "status_message": msg,
+        }
 
     # Write logs to Desktop or addon logs dir based on config
     if save_to_desktop:
@@ -783,13 +813,20 @@ def run_merge_images(note_ids: list[int], browser=None, threshold: float | None 
     with open(log_path, "w", encoding="utf-8") as f:
         f.write("\n\n".join(log_entries))
 
-        if enable_popup:
+        if show_summary_popup and enable_popup:
             show_log_window("\n\n".join(log_entries))
 
     tooltip(
         f"Merge Images complete: merged={merged}, tagged_same={len(same_tagged_nids)}.",
         period=3500,
     )
+    return {
+        "merged": merged,
+        "tagged_same": len(same_tagged_nids),
+        "log_path": str(log_path),
+        "summary_text": summary.strip(),
+        "status_message": f"Merge Images complete: merged={merged}, tagged_same={len(same_tagged_nids)}.",
+    }
 
 
 def show_log_window(log_text):
@@ -892,5 +929,21 @@ def merge_images_main(selected=None, browser=None):
     else:
         threshold = max(min(default_threshold, max_threshold), min_threshold)
 
+    export_logs_to_desktop = prompt_checkbox_option(
+        title=PROMPT_LOG_EXPORT_TITLE,
+        checkbox_label=PROMPT_LOG_EXPORT_CHECKBOX_LABEL,
+        checked=PROMPT_LOG_EXPORT_CHECKBOX_DEFAULT,
+        remember_section=PROMPT_LOG_EXPORT_MEMORY_SECTION,
+        remember_key=PROMPT_LOG_EXPORT_MEMORY_KEY,
+        parent=browser,
+    )
+    if export_logs_to_desktop is None:
+        return
+
     # Delegate
-    run_merge_images(note_ids, browser, threshold=threshold)
+    run_merge_images(
+        note_ids,
+        browser,
+        threshold=threshold,
+        export_log_to_desktop=export_logs_to_desktop,
+    )

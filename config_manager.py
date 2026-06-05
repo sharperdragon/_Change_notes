@@ -53,6 +53,8 @@ class ConfigManager:
     DEPRECATED_MERGE_SCHED_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
     MISSED_TAGS_ROTATION_KEY = "rotation"
     MISSED_TAGS_LEGACY_BLOCK_KEY = "block"
+    MISSED_CONTEXT_PARENT_TAG_SEGMENT = "Block"
+    LEGACY_MISSED_CONTEXT_PARENT_TAG_SEGMENT = "Rotation"
     MISSED_TAGS_CANONICAL_TOP_LEVEL_KEYS = (
         "ui",
         "date",
@@ -878,6 +880,16 @@ class ConfigManager:
         rotation_cfg = section.get(canonical_key)
         if not isinstance(rotation_cfg, dict):
             return changed
+
+        parent_tag_segment = cls._to_text(rotation_cfg.get("parent_tag_segment"), "")
+        parent_tag_parts = [part.strip() for part in parent_tag_segment.split("::") if part.strip()]
+        final_parent_tag_segment = parent_tag_parts[-1] if parent_tag_parts else parent_tag_segment
+        legacy_parent_segment = cls._normalize_tag_segment_for_match(
+            cls.LEGACY_MISSED_CONTEXT_PARENT_TAG_SEGMENT
+        )
+        if cls._normalize_tag_segment_for_match(final_parent_tag_segment) == legacy_parent_segment:
+            rotation_cfg["parent_tag_segment"] = cls.MISSED_CONTEXT_PARENT_TAG_SEGMENT
+            changed = True
 
         if "winter_break_label" in rotation_cfg:
             rotation_cfg.pop("winter_break_label", None)

@@ -16,6 +16,7 @@ from .assets.scrub_match import (
 )
 from .shared.defaults import MERGE_TAGS_DEFAULTS
 from .shared.parsing import parse_bool
+from .utils import prompt_checkbox_option
 
 DEBUG_MODE = False
 config = {}
@@ -28,6 +29,12 @@ EXCLUDED_TRANSFER_TAGS_LOWER = []
 MERGE_SELECT_ONLY = False
 
 MERGE_TAGS_LOG_FOLDER = "logs"
+MERGE_TAGS_DESKTOP_LOG_SUBFOLDER = Path("anki_logs") / "Merge Tags"
+PROMPT_LOG_EXPORT_CHECKBOX_DEFAULT = True
+PROMPT_LOG_EXPORT_CHECKBOX_LABEL = "Export log .txt to Desktop/subfolder"
+PROMPT_LOG_EXPORT_TITLE = "Merge Tags Log Export"
+PROMPT_LOG_EXPORT_MEMORY_SECTION = "merge_tags_config"
+PROMPT_LOG_EXPORT_MEMORY_KEY = "export_log_to_desktop"
 
 LOG_DIR = Path(mw.addonManager.addonsFolder()) / "_Change_notes" / MERGE_TAGS_LOG_FOLDER / "merge_tags"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -147,6 +154,33 @@ def log_debug(msg):
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(timestamped + "\n")
 
+
+def prompt_merge_tags_log_export(parent=None) -> bool | None:
+    """Ask whether to export a run log to Desktop/subfolder."""
+    return prompt_checkbox_option(
+        title=PROMPT_LOG_EXPORT_TITLE,
+        checkbox_label=PROMPT_LOG_EXPORT_CHECKBOX_LABEL,
+        checked=PROMPT_LOG_EXPORT_CHECKBOX_DEFAULT,
+        remember_section=PROMPT_LOG_EXPORT_MEMORY_SECTION,
+        remember_key=PROMPT_LOG_EXPORT_MEMORY_KEY,
+        parent=parent,
+    )
+
+
+def _write_desktop_run_log(lines: list[str]) -> Path | None:
+    """Write merge-tags run log to Desktop subfolder and return the path."""
+    if not lines:
+        return None
+    try:
+        desktop_dir = Path.home() / "Desktop" / MERGE_TAGS_DESKTOP_LOG_SUBFOLDER
+        desktop_dir.mkdir(parents=True, exist_ok=True)
+        out_path = desktop_dir / f"merge_tags_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
+        out_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+        return out_path
+    except Exception as e:
+        log_debug(f"Desktop log export failed: {e!r}")
+        return None
+
 # Log effective config (once per module import)
 _reload_runtime_config()
 log_debug(
@@ -172,11 +206,23 @@ def prompt_fuzzy_threshold(default=None, parent=None):
         return val / 100  # Normalize to 0.0–1.0 range
     return None
 
-def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
+def unify_tags_on_duplicates(
+    browser: Browser,
+    threshold: float | None = None,
+    export_log_to_desktop: bool = False,
+    show_summary_popup: bool = True,
+):
     _reload_runtime_config()
     skipped_by_parent_filter = 0
     skipped_by_excluded_transfer = 0
-    log_debug(
+    run_log_lines: list[str] = []
+
+    def _run_log(msg: str) -> None:
+        timestamped = f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {msg}"
+        run_log_lines.append(timestamped)
+        log_debug(msg)
+
+    _run_log(
         f"Run start — threshold={threshold}, MERGE_SELECT_ONLY={MERGE_SELECT_ONLY}, "
         f"parents={ALLOWED_PARENTS if MERGE_SELECT_ONLY else '(ignored)'}, "
         f"excluded_transfer={EXCLUDED_TRANSFER_TAGS or '(none)'}"
@@ -184,7 +230,7 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
 
     col = browser.mw.col
     selected_nids = browser.selectedNotes()
-    log_debug(f"Selected NIDs: {selected_nids}")
+    _run_log(f"Selected NIDs: {selected_nids}")
     field_name = config.get("comparison_field", MERGE_TAGS_DEFAULTS["comparison_field"])
 
     # Build map of normalized text -> NIDs
@@ -197,7 +243,7 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
             norm = normalize(raw)
             if norm:
                 nid_to_norm[nid] = norm
-    log_debug(f"Normalized NID Map: {nid_to_norm}")
+    _run_log(f"Normalized NID Map: {nid_to_norm}")
 
     clustered = []
     visited = set()
@@ -215,7 +261,7 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
                 group.append(nid2)
                 visited.add(nid2)
         clustered.append(group)
-    log_debug(f"Formed {len(clustered)} clusters with threshold {threshold}")
+    _run_log(f"Formed {len(clustered)} clusters with threshold {threshold}")
 
     updated = 0
     for group in clustered:
@@ -240,20 +286,37 @@ def unify_tags_on_duplicates(browser: Browser, threshold: float | None = None):
                 note.tags = sorted(disallowed_existing.union(all_tags).union({merged_tag}))
                 note.flush()
                 updated += 1
-                log_debug(f"Updated tags for note {note.id} -> Tags: {note.tags}")
+                _run_log(f"Updated tags for note {note.id} -> Tags: {note.tags}")
 
     mw.reset()
-    log_debug(
+    _run_log(
         f"Completed tag merge. Updated {updated} notes. "
         f"Skipped tags by parent filter: {skipped_by_parent_filter}. "
         f"Skipped tags by excluded-transfer filter: {skipped_by_excluded_transfer}"
     )
+    exported_path = None
+    if export_log_to_desktop:
+        exported_path = _write_desktop_run_log(run_log_lines)
+
     info_msg = f"Updated tags on {updated} duplicate notes."
     if MERGE_SELECT_ONLY:
         info_msg += f"\n(Parent filter active; skipped tags: {skipped_by_parent_filter})"
     if EXCLUDED_TRANSFER_TAGS:
         info_msg += f"\n(Excluded-transfer filter active; skipped tags: {skipped_by_excluded_transfer})"
-    showInfo(info_msg)
+    if export_log_to_desktop:
+        if exported_path:
+            info_msg += f"\n(Log exported to: {exported_path})"
+        else:
+            info_msg += "\n(Log export requested, but Desktop log write failed.)"
+    if show_summary_popup:
+        showInfo(info_msg)
+    return {
+        "updated": updated,
+        "skipped_by_parent_filter": skipped_by_parent_filter,
+        "skipped_by_excluded_transfer": skipped_by_excluded_transfer,
+        "log_path": str(exported_path) if exported_path else None,
+        "summary_text": info_msg,
+    }
 
 
 def unify_tags_main(browser: Browser | None = None):
@@ -284,4 +347,12 @@ def unify_tags_main(browser: Browser | None = None):
     else:
         threshold = max(min(default_fuzzy, max_fuzzy), min_fuzzy)
 
-    unify_tags_on_duplicates(browser, threshold=threshold)
+    export_logs_to_desktop = prompt_merge_tags_log_export(parent=browser)
+    if export_logs_to_desktop is None:
+        return
+
+    unify_tags_on_duplicates(
+        browser,
+        threshold=threshold,
+        export_log_to_desktop=export_logs_to_desktop,
+    )

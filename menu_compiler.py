@@ -24,7 +24,11 @@ from .modules.export_UW_qid_tags import run_export_for_selected_notes
 from .modules.img_tags_merge import merge_imgs_and_tags
 from .modules.merge_imgs import merge_images_main
 from .modules.merge_schedule import run_merge_scheduling
-from .modules.merge_tags import prompt_fuzzy_threshold, unify_tags_on_duplicates
+from .modules.merge_tags import (
+    prompt_fuzzy_threshold,
+    prompt_merge_tags_log_export,
+    unify_tags_on_duplicates,
+)
 from .modules.shared.menu_styles import (
     build_context_submenu_arrow_stylesheet,
     build_context_submenu_item_stylesheet,
@@ -99,7 +103,14 @@ def _apply_submenu_item_style(menu: QMenu) -> None:
 def _run_merge_tags_with_threshold(browser):
     threshold = prompt_fuzzy_threshold(parent=browser)
     if threshold is not None:
-        unify_tags_on_duplicates(browser, threshold)
+        export_logs_to_desktop = prompt_merge_tags_log_export(parent=browser)
+        if export_logs_to_desktop is None:
+            return
+        unify_tags_on_duplicates(
+            browser,
+            threshold,
+            export_log_to_desktop=export_logs_to_desktop,
+        )
 
 
 def _selected_note_type_count(browser, selected_nids: list[int]) -> int:
@@ -233,12 +244,12 @@ def compile_browser_context_menu(
     _apply_submenu_arrow_style(other_actions_menu)
     added_other_actions = False
 
-    # Export NIDs (adds one simple Desktop file + copies list to clipboard)
+    # Export NIDs (optional Desktop file + copies list to clipboard)
     export_action = create_export_nids_action(parent=browser, mw=mw, browser=browser)
     other_actions_menu.addAction(export_action)
     added_other_actions = True
 
-    # Export UWorld Step QID tags (deduped + sorted + clipboard + Desktop file)
+    # Export UWorld Step QID tags (deduped + sorted + clipboard + optional Desktop file)
     export_uw_qids_action = QAction(MENU_LABEL_EXPORT_UW_QIDS, browser)
     export_uw_qids_action.triggered.connect(lambda: run_export_for_selected_notes(browser))
     other_actions_menu.addAction(export_uw_qids_action)
