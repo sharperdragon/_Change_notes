@@ -30,4 +30,5 @@ Settings are read from the root add-on `config.json` section:
 ## Notes
 
 - Existing class attributes are preserved, but managed image-shape classes are replaced each run.
+- The `small` class can be added automatically, but existing `small` classes are preserved even when the image no longer matches `small_width`.
 - This module uses bundled Pillow in `modules/Add_img_class/vendor/`.

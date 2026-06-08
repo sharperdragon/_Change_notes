@@ -55,7 +55,7 @@ verification_class_re = re.compile(
     r"(?i)class\s*=\s*([\"'])[^\"']*(?:ultra-wide|img-landscape|img-tall|img-square|img-default|small|larger)[^\"']*\1"
 )
 
-MANAGED_IMG_CLASS_TAGS = {"ultra-wide", "img-landscape", "img-tall", "img-square", "img-default", "small"}
+MANAGED_IMG_CLASS_TAGS = {"ultra-wide", "img-landscape", "img-tall", "img-square", "img-default"}
 
 
 # -----------------------------
