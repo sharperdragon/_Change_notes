@@ -36,6 +36,8 @@ class ConfigManager:
     CUSTOM_TAGS_LEGACY_CHILD_RENAMES = {
         "add_custom_tags": CUSTOM_TAGS_PRIMARY_CHILD_SECTION,
     }
+    CUSTOM_TAGS_MENU_LABEL_KEY = "menu_label"
+    CUSTOM_TAGS_LEGACY_MENU_LABEL_KEY = "submenu_label"
     ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS = (
         "message_no_notes_selected",
         "message_applied_template",
@@ -193,6 +195,7 @@ class ConfigManager:
     @classmethod
     def _sanitize_custom_tags_leaf(cls, payload: Any) -> dict[str, Any]:
         sanitized = copy.deepcopy(payload) if isinstance(payload, dict) else {}
+        sanitized = cls._migrate_custom_tags_leaf_keys(sanitized)
         for key in cls.ADD_CUSTOM_TAGS_HARDCODED_OVERRIDE_KEYS:
             sanitized.pop(key, None)
         return sanitized
@@ -267,10 +270,24 @@ class ConfigManager:
     def _merge_custom_tags_child(existing_value: Any, incoming_value: Any) -> Any:
         """Merge child payloads with existing (canonical) values taking precedence."""
         if isinstance(incoming_value, dict):
+            incoming_value = ConfigManager._migrate_custom_tags_leaf_keys(incoming_value)
             if isinstance(existing_value, dict):
+                existing_value = ConfigManager._migrate_custom_tags_leaf_keys(existing_value)
                 return ConfigManager.deep_merge_dicts(incoming_value, existing_value)
             return copy.deepcopy(incoming_value)
         return copy.deepcopy(existing_value) if existing_value is not None else copy.deepcopy(incoming_value)
+
+    @classmethod
+    def _migrate_custom_tags_leaf_keys(cls, payload: Any) -> Any:
+        """Rename legacy custom-tags leaf keys to their canonical names."""
+        if not isinstance(payload, dict):
+            return copy.deepcopy(payload)
+
+        migrated = copy.deepcopy(payload)
+        legacy_menu_label = migrated.pop(cls.CUSTOM_TAGS_LEGACY_MENU_LABEL_KEY, None)
+        if cls.CUSTOM_TAGS_MENU_LABEL_KEY not in migrated and legacy_menu_label is not None:
+            migrated[cls.CUSTOM_TAGS_MENU_LABEL_KEY] = legacy_menu_label
+        return migrated
 
     @classmethod
     def _migrate_custom_tags_sections(cls, payload: dict) -> bool:
@@ -318,6 +335,12 @@ class ConfigManager:
             changed = True
             existing_child = canonical_cfg.get(child_key)
             canonical_cfg[child_key] = cls._merge_custom_tags_child(existing_child, legacy_value)
+
+        for child_key, child_value in list(canonical_cfg.items()):
+            migrated_child = cls._migrate_custom_tags_leaf_keys(child_value)
+            if migrated_child != child_value:
+                canonical_cfg[child_key] = migrated_child
+                changed = True
 
         if had_canonical_key or canonical_cfg:
             if payload.get(canonical_key) != canonical_cfg:

@@ -1,67 +1,157 @@
 {
-  "global_config": {
-    "default_note_type": "*Nord+",
-    "log_folder": "logs",
-    "fuzzy_opts": {
-      "default_fuzz": 0.97,
-      "min_fuzz": 0.55
-    },
-    "main_context_menu_separator_before": {
-      "missed_tags_menu": true,
-      "add_custom_tags_1": true,
-      "add_custom_tags_2": false,
-      "add_custom_tags_3": false,
-      "other_actions_menu": true,
-      "add_img_class_action": false,
-      "merge_menu": true,
-      "edit_menu": false
-    },
-    "main_context_menu_separator_after_edit_menu": true
+  "add_img_class": {
+    "landscape_ratio_min": 1.1900000001,
+    "small_width": 340,
+    "square_max": 1.19,
+    "square_min": 0.8999991,
+    "tall_ratio": 0.899999,
+    "ultra-wide_ratio": 1.89999999
   },
-  "merge_tags_config": {
-    "comparison_field": "Text",
-    "ask_fuzzy_each_time": true,
-    "base_tag": "DONE::TAGS_MERGED",
-    "merge_select_only": false,
-    "excluded_tags": [],
-    "merge_only_parents": ["#Zank::#Step2_v12", "#Zank__Step1_v12"]
+  "add_table_class": {
+    "apply_to_existing_classes": true,
+    "log_path": "~/Desktop/anki_logs/Add_table_class_log.txt"
   },
-  "merge_images_config": {
-    "allowed_models": [],
-    "excluded_tags": [
-      "First_Aid"
-    ],
-    "fields_to_scan_for_images": ["Extra","Button"],
-    "merge_behavior": {
-      "copy_sketchy_links": true
+  "batch_note_change_config": {
+    "allow_single_type_override": true,
+    "auto_confirm_mappings": false,
+    "backup_directory": "~/Anki_Backups/NoteTypeChange",
+    "batch_size": 200,
+    "enable_backup": true,
+    "field_mappings": {},
+    "hide_menu_when_one_type_selected": false,
+    "last_mapping_profile": "",
+    "last_target_model": "*Nord+",
+    "show_progress": true,
+    "tag_on_change": "NoteType::Changed"
+  },
+  "custom_tags_config": {
+    "add_custom_tags_1": {
+      "group_labels": {},
+      "menu_label": " 🎛️ Custom Tags",
+      "presets": [
+        {
+          "label": "Key 🔑",
+          "tags": [
+            "#Custom::#KEY"
+          ]
+        },
+        {
+          "label": "Key Basics ♟️",
+          "tags": [
+            "#Custom::#KEY::Basics"
+          ]
+        },
+        {
+          "label": "🌬️ D.O. Med",
+          "tags": [
+            "#Custom::DO_Med"
+          ]
+        },
+        {
+          "label": "📛 Risks+ ",
+          "tags": [
+            "#Custom::Random::Risk_Factors+"
+          ]
+        },
+        {
+          "label": "🧀 Suspend – basic",
+          "tags": [
+            "#Custom::zAuto_Suspend::basic"
+          ]
+        },
+        {
+          "label": "🩻 Imaging",
+          "tags": [
+            "#Custom::#Imaging"
+          ]
+        },
+        {
+          "label": "Neato",
+          "tags": [
+            "#Custom::z_Neato"
+          ]
+        }
+      ]
     },
-    "logging": {
-      "enable_log_popup": true,
-      "save_log_to_desktop": true,
-      "log_filename_prefix": "merged_images_log_"
+    "add_custom_tags_2": {
+      "group_labels": {},
+      "menu_label": " 🧠 + 💉 Tags",
+      "presets": [
+        {
+          "label": " 🧊 Principles",
+          "tags": [
+            "#Custom::*Memorize::Know_Numbers"
+          ]
+        },
+        {
+          "label": "🏥 Surgery",
+          "tags": [
+            "#Custom::Surgery_know"
+          ]
+        },
+        {
+          "label": " 🧮 Know Numbers",
+          "tags": [
+            "#Custom::*Memorize::Know_Numbers"
+          ]
+        },
+        {
+          "label": " ⛱️ General",
+          "tags": [
+            "#Custom::*Memorize::General"
+          ]
+        },
+        {
+          "label": " 🧬 Markers/Genes+",
+          "tags": [
+            "#Custom::*Memorize::Genes+Markers"
+          ]
+        },
+        {
+          "label": " 👾 Drug ADRs 😵",
+          "tags": [
+            "#Custom::Bugs+Drugs::Drugs::ADRs"
+          ]
+        },
+        {
+          "label": " 👾 Indication 💊",
+          "tags": [
+            "#Custom::Bugs+Drugs::Drugs::Indication"
+          ]
+        },
+        {
+          "label": " 👾 MoA ⚙️",
+          "tags": [
+            "#Custom::Bugs+Drugs::Drugs::MoA"
+          ]
+        }
+      ]
     },
-    "tagging": {
-      "add_to_merged": "DONE::IMG_Uni::received",
-      "add_to_donor": "DONE::IMG_Uni::donor",
-      "add_to_unchanged": "DONE::IMG_Uni::same",
-      "no_images_found": "DONE::IMG_Uni::no_images"
+    "add_custom_tags_3": {
+      "group_labels": {},
+      "menu_label": "🧰 Task-Tags",
+      "presets": [
+        {
+          "label": "💼 Management",
+          "tags": [
+            "#Custom::#Management::general",
+            "#Custom::Task::Diagnosis"
+          ]
+        },
+        {
+          "label": "Diagnosis 🎯",
+          "tags": [
+            "#Custom::Task::Diagnosis"
+          ]
+        },
+        {
+          "label": " 🥅 Screen+",
+          "tags": [
+            "#Custom::*Memorize::Screening+"
+          ]
+        }
+      ]
     }
-  },
-  "merge_images_and_tags_config": {},
-  "merge_scheduling": {
-    "merge_similarity_threshold": 85,
-    "merge_field_index": 0,
-    "scheduling_merge_log_path": "merged_scheduling.log",
-    "use_text_replacements": true,
-    "tag_on_merge": "DONE::Scheduling::Merged",
-    "multi_card_policy": "skip"
-  },
-  "tag_dupes_config": {
-    "comparison_field": "Text",
-    "base_tag": "Main_dupe",
-    "multi_tag_child": "multiple",
-    "tag_unmatched": true,
-    "unmatched_tag": "unmatched"
   },
   "delete_empty_notes_config": {
     "protected_notes": [
@@ -73,246 +163,218 @@
       "Image Occlusion Enhanced"
     ]
   },
-  "batch_note_change_config": {
-    "hide_menu_when_one_type_selected": false,
-    "allow_single_type_override": true,
-    "last_target_model": "*Nord+",
-    "field_mappings": {},
-    "batch_size": 200,
-    "show_progress": true,
-    "last_mapping_profile": "",
-    "auto_confirm_mappings": false,
-    "tag_on_change": "NoteType::Changed",
-    "enable_backup": true,
-    "backup_directory": "~/Anki_Backups/NoteTypeChange"
-  },
-  "custom_tags_config": {
-    "add_custom_tags_1": {
-      "submenu_label": " 🎛️ Custom Tags",
-      "group_labels": {},
-      "presets": [
-        {
-          "label": "Key 🔑",
-          "tags": ["#Custom::#KEY"]
-        },
-        {
-          "label": "Key Basics ♟️",
-          "tags": ["#Custom::#KEY::Basics"]
-        },
-        {
-          "label": "🌬️ D.O. Med",
-          "tags": ["#Custom::DO_Med"]
-        },
-        {
-          "label": "📛 Risks+ ",
-          "tags": ["#Custom::Random::Risk_Factors+"]
-        },
-        {
-          "label": "🧀 Suspend – basic",
-          "tags": ["#Custom::zAuto_Suspend::basic"]
-        },
-        {
-          "label": "🩻 Imaging",
-          "tags": ["#Custom::#Imaging"]
-        },
-        {
-          "label": "Neato",
-          "tags": ["#Custom::z_Neato"]
-        }
-      ]
+  "global_config": {
+    "default_note_type": "*Nord+",
+    "fuzzy_opts": {
+      "default_fuzz": 0.97,
+      "min_fuzz": 0.55
     },
-    "add_custom_tags_2": {
-      "submenu_label": " 🧠 + 💉 Tags",
-      "group_labels": {},
-      "presets": [
-        {
-          "label": "🏥 Surgery",
-          "tags": ["#Custom::Surgery_know"]
-        },
-        {
-          "label": " 🧮 Know Numbers",
-          "tags": ["#Custom::*Memorize::Know_Numbers"]
-        },
-        {
-          "label": " ⛱️ General",
-          "tags": ["#Custom::*Memorize::General"]
-        },
-        {
-          "label": " 🧬 Markers/Genes+",
-          "tags": ["#Custom::*Memorize::Genes+Markers"]
-        },
-        {
-          "label": " 👾 Drug ADRs 😵",
-          "tags": ["#Custom::Bugs+Drugs::Drugs::ADRs"]
-        },
-        {
-          "label": " 👾 Indication 💊",
-          "tags": ["#Custom::Bugs+Drugs::Drugs::Indication"]
-        },
-        {
-          "label": " 👾 MoA ⚙️",
-          "tags": ["#Custom::Bugs+Drugs::Drugs::MoA"]
-        }
-      ]
-    },
-    "add_custom_tags_3": {
-      "submenu_label": "🧰 Task-Tags",
-      "group_labels": {},
-      "presets": [
-        {
-          "label": "💼 Management",
-          "tags": ["#Custom::#Management::general"]
-        },
-        {
-          "label": "Diagnosis 🎯",
-          "tags": ["#Custom::Task::Diagnosis"]
-        },
-        {
-          "label": " 🥅 Screen+",
-          "tags": ["#Custom::*Memorize::Screening+"]
-        }
-      ]
+    "log_folder": "logs",
+    "main_context_menu_separator_after_edit_menu": true,
+    "main_context_menu_separator_before": {
+      "add_custom_tags_1": true,
+      "add_custom_tags_2": false,
+      "add_custom_tags_3": false,
+      "add_img_class_action": false,
+      "edit_menu": false,
+      "merge_menu": true,
+      "missed_tags_menu": true,
+      "other_actions_menu": true
     }
   },
+  "merge_images_and_tags_config": {},
+  "merge_images_config": {
+    "allowed_models": [],
+    "excluded_tags": [
+      "First_Aid"
+    ],
+    "fields_to_scan_for_images": [
+      "Extra",
+      "Button"
+    ],
+    "logging": {
+      "enable_log_popup": true,
+      "log_filename_prefix": "merged_images_log_",
+      "save_log_to_desktop": true
+    },
+    "merge_behavior": {
+      "copy_sketchy_links": true
+    },
+    "tagging": {
+      "add_to_donor": "DONE::IMG_Uni::{MM-DD}::donor",
+      "add_to_merged": "DONE::IMG_Uni::{MM-DD}::received",
+      "add_to_unchanged": "DONE::IMG_Uni::same",
+      "no_images_found": "DONE::IMG_Uni::no_images"
+    }
+  },
+  "merge_scheduling": {
+    "merge_field_index": 0,
+    "merge_similarity_threshold": 85,
+    "multi_card_policy": "skip",
+    "scheduling_merge_log_path": "merged_scheduling.log",
+    "tag_on_merge": "DONE::Scheduling::Merged",
+    "use_text_replacements": true
+  },
+  "merge_tags_config": {
+    "ask_fuzzy_each_time": true,
+    "base_tag": "DONE::TAGS_MERGED",
+    "comparison_field": "Text",
+    "excluded_tags": [],
+    "merge_only_parents": [
+      "#Zank::#Step2_v12",
+      "#Zank__Step1_v12"
+    ],
+    "merge_select_only": false
+  },
+  "tag_dupes_config": {
+    "base_tag": "Main_dupe",
+    "comparison_field": "Text",
+    "multi_tag_child": "multiple",
+    "tag_unmatched": true,
+    "unmatched_tag": "unmatched"
+  },
   "tag_missed_notes": {
-    "ui": {
-      "menu_label": "Missed Tags ❌"
+    "actions": {
+      "amboss": {
+        "add_missed_date_context": true,
+        "child_of_primary_missed": true,
+        "menu_label": "🦠 Amboss",
+        "prompt": {
+          "kind": "number",
+          "number_style": "number_only",
+          "show_correct_marked_checkbox": true
+        },
+        "tag_segment": "Amboss"
+      },
+      "base": {
+        "absolute_tags": [
+          "##Missed-Qs"
+        ],
+        "add_missed_date_context": false,
+        "child_of_primary_missed": false,
+        "menu_display": false,
+        "menu_label": "♦️ Base"
+      },
+      "correct_guess": {
+        "absolute_tags": [
+          "#Custom::correct_marked"
+        ],
+        "add_missed_date_context": false,
+        "child_of_primary_missed": false,
+        "include_rotation": true,
+        "menu_label": "Correct Guess 🎫",
+        "rotation_lowercase": true,
+        "unknown_segment": "unknown"
+      },
+      "correct_tag_missed": {
+        "add_missed_date_context": true,
+        "child_of_primary_missed": true,
+        "menu_label": "🍄 Correct + Missed Tag",
+        "tag_segment": "correct_marked"
+      },
+      "key_info": {
+        "absolute_tags": [
+          "#Custom::#KEY"
+        ],
+        "add_missed_date_context": false,
+        "child_of_primary_missed": false,
+        "menu_label": "Key Info 🗝️"
+      },
+      "multi_missed": {
+        "add_missed_date_context": true,
+        "child_of_primary_missed": true,
+        "menu_label": "2x Missed 📌",
+        "tag_segment": "*2x"
+      },
+      "nbme": {
+        "add_missed_date_context": true,
+        "child_of_primary_missed": true,
+        "menu_label": "🧠 NBME",
+        "prompt": {
+          "kind": "form",
+          "number_style": "number_only",
+          "show_correct_marked_checkbox": true
+        },
+        "tag_segment": "NBME"
+      },
+      "other": {
+        "actions": [
+          {
+            "menu_label": "Kaplan 🟣",
+            "prompt": {
+              "kind": "none"
+            },
+            "tag_segment": "Kaplan"
+          },
+          {
+            "menu_label": "True-Learn 🌀",
+            "prompt": {
+              "kind": "number",
+              "number_style": "rotation_then_number"
+            },
+            "tag_segment": "True-Learn"
+          }
+        ],
+        "submenu_bool": true,
+        "submenu_label": "Other",
+        "tagging": {
+          "add_missed_date_context": true,
+          "child_of_primary_missed": true,
+          "group_segment": "Other",
+          "tag_segment_group": true
+        }
+      },
+      "uworld": {
+        "add_missed_date_context": true,
+        "child_of_primary_missed": true,
+        "menu_label": "🛃 UWorld",
+        "prompt": {
+          "kind": "number",
+          "number_style": "range_then_number",
+          "parent_range_block_size": 50,
+          "range_block_size": 5,
+          "show_correct_marked_checkbox": true
+        },
+        "tag_segment": "*UW_Tests"
+      }
+    },
+    "block": {
+      "exhausted_policy": "unknown",
+      "parent_tag_segment": "Block",
+      "schedule": [
+        {
+          "end": "2026-05-26",
+          "segment_label": "*Dedicated",
+          "start": "2026-03-28"
+        },
+        {
+          "end": "2099-12-31",
+          "segment_label": "*Dedicated::IA",
+          "start": "2026-05-27"
+        }
+      ]
     },
     "date": {
       "include_day_segment": true,
       "split_weeks": true
     },
-    "block": {
-      "schedule": [
-        {
-          "segment_label": "*Dedicated",
-          "start": "2026-03-28",
-          "end": "2026-05-26"
-        },
-        {
-          "segment_label": "*Dedicated::IA",
-          "start": "2026-05-27",
-          "end": "2099-12-31"
-        }
-      ],
-      "exhausted_policy": "unknown",
-      "parent_tag_segment": "Block"
+    "ui": {
+      "menu_label": "Missed Tags ❌"
     },
-    "actions": {
-      "base": {
-        "menu_label": "♦️ Base",
-        "menu_display": false,
-        "child_of_primary_missed": false,
-        "absolute_tags": [
-          "##Missed-Qs"
-        ],
-        "add_missed_date_context": false
-      },
-      "uworld": {
-        "menu_label": "🛃 UWorld",
-        "child_of_primary_missed": true,
-        "tag_segment": "*UW_Tests",
-        "add_missed_date_context": true,
-        "prompt": {
-          "kind": "number",
-          "number_style": "range_then_number",
-          "range_block_size": 5,
-          "parent_range_block_size": 50,
-          "show_correct_marked_checkbox": true
-        }
-      },
-      "correct_tag_missed": {
-        "menu_label": "🍄 Correct + Missed Tag",
-        "child_of_primary_missed": true,
-        "tag_segment": "correct_marked",
-        "add_missed_date_context": true
-      },
-      "nbme": {
-        "menu_label": "🧠 NBME",
-        "child_of_primary_missed": true,
-        "tag_segment": "NBME",
-        "add_missed_date_context": true,
-        "prompt": {
-          "kind": "form",
-          "number_style": "number_only",
-          "show_correct_marked_checkbox": true
-        }
-      },
-      "amboss": {
-        "menu_label": "🦠 Amboss",
-        "child_of_primary_missed": true,
-        "tag_segment": "Amboss",
-        "add_missed_date_context": true,
-        "prompt": {
-          "kind": "number",
-          "number_style": "number_only",
-          "show_correct_marked_checkbox": true
-        }
-      },
-      "multi_missed": {
-        "menu_label": "2x Missed 📌",
-        "child_of_primary_missed": true,
-        "tag_segment": "*2x",
-        "add_missed_date_context": true
-      },
-      "key_info": {
-        "menu_label": "Key Info 🗝️",
-        "child_of_primary_missed": false,
-        "absolute_tags": [
-          "#Custom::#KEY"
-        ],
-        "add_missed_date_context": false
-      },
-      "correct_guess": {
-        "menu_label": "Correct Guess 🎫",
-        "child_of_primary_missed": false,
-        "absolute_tags": [
-          "#Custom::correct_marked"
-        ],
-        "add_missed_date_context": false,
-        "include_rotation": true,
-        "rotation_lowercase": true,
-        "unknown_segment": "unknown"
-      },
-      "other": {
-        "submenu_bool": true,
-        "submenu_label": "Other",
-        "tagging": {
-          "child_of_primary_missed": true,
-          "add_missed_date_context": true,
-          "tag_segment_group": true,
-          "group_segment": "Other"
-        },
-        "actions": [
-          {
-            "menu_label": "Kaplan 🟣",
-            "tag_segment": "Kaplan",
-            "prompt": {
-              "kind": "none"
-            }
-          },
-          {
-            "menu_label": "True-Learn 🌀",
-            "tag_segment": "True-Learn",
-            "prompt": {
-              "kind": "number",
-              "number_style": "rotation_then_number"
-            }
-          }
-        ]
+    "runtime":{
+      "last_prompt_inputs": {
+        "amboss_append_correct_marked": "0",
+        "amboss_test_prompt": "Top-200::**",
+        "append_correct_marked_nbme_form_prompt": "0",
+        "append_correct_marked_uw_test_prompt": "0",
+        "nbme_form_prompt": "",
+        "uw_correct_marked_input_amboss": "",
+        "uw_correct_marked_input_nbme": "",
+        "uw_correct_marked_input_other": "",
+        "uw_correct_marked_input_uworld": "",
+        "uw_correct_missed_source": "NBME",
+        "uw_test_prompt": "*UWSA1::Block_"
       }
-    }
-  },
-  "add_table_class": {
-    "apply_to_existing_classes": true,
-    "log_path": "~/Desktop/anki_logs/Add_table_class_log.txt"
-  },
-  "add_img_class": {
-    "small_width": 340,
-    "ultra-wide_ratio": 1.89999999,
-    "landscape_ratio_min": 1.1900000001,
-    "tall_ratio": 0.899999,
-    "square_min": 0.8999991,
-    "square_max": 1.19
   }
+}
 }

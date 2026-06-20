@@ -37,6 +37,7 @@ This tab groups all merge-related settings for tags, images, mixed merge logic, 
 - `merge_behavior`: HTML merge behavior toggles
 - `logging`: popup/file logging controls
 - `tagging`: tags for merged/donor/unchanged outcomes
+- `{MM-DD}` in an image result tag is replaced with the run date.
 
 ### `merge_images_and_tags_config`
 - Reserved for future combined merge workflow settings.

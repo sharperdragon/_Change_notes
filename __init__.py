@@ -25,7 +25,7 @@ from .menu_compiler import compile_browser_context_menu
 from .modules.add_table_class.main import add_class_main
 
 # ! --------------------------- USER-TUNABLE CONSTANTS ---------------------------
-# Set to None to use the first discovered section's `submenu_label` from config.
+# Set to None to use the first discovered section's `menu_label` from config.
 CUSTOM_TAGS_MENU_LABEL: Optional[str] = None
 CUSTOM_TAGS_MENU_HIDE_WHEN_NO_PRESETS = False
 ADDON_MODULE_NAME = __name__

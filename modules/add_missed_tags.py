@@ -33,6 +33,7 @@ from .missed_tags_constants import (
     PROMPT_DEFAULT_TITLE,
     PROMPT_KIND_FORM,
     PROMPT_KIND_NONE,
+    PROMPT_KIND_NUMBER,
     PROMPT_STYLE_NUMBER_ONLY,
     PROMPT_STYLE_RANGE_THEN_NUMBER,
     PROMPT_STYLE_ROTATION_THEN_NUMBER,
@@ -53,6 +54,7 @@ from .missed_tags_tag_utils import (
     _nbme_base_tag,
     _normalize_freeform_tag_path,
     _normalize_nbme_child_path,
+    _normalize_uworld_child_tag_path,
     _resolved_base_tag,
     _should_add_missed_date_context,
     _uw_base_tag,
@@ -599,6 +601,10 @@ def make_test_prompt_handler(
             try:
                 tn = int(test_num)
             except ValueError:
+                if action_key == "uw_test_prompt":
+                    freeform_path = _normalize_uworld_child_tag_path(test_num)
+                    if freeform_path:
+                        return f"{base_tag}::{freeform_path}"
                 if blank_behavior == PROMPT_BEHAVIOR_BASE_ONLY:
                     return f"{base_tag}"
                 return f"{base_tag}::{rotation_segment}"
@@ -617,7 +623,8 @@ def make_test_prompt_handler(
             try:
                 int(test_num)
             except ValueError:
-                pass
+                if action_key == "uw_test_prompt" and _normalize_uworld_child_tag_path(test_num):
+                    _save_prompt_input(action_key, test_num)
             else:
                 _save_prompt_input(action_key, test_num)
 

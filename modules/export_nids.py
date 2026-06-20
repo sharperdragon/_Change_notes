@@ -31,12 +31,13 @@ Design:
 # Anki / Qt imports (use Anki shims to stay version-tolerant)
 try:
     from aqt import mw
-    from aqt.qt import QAction, QApplication, QWidget
+    from aqt.qt import QAction, QApplication, QInputDialog, QWidget
     from aqt.utils import tooltip, showText
 except Exception:
     # Fallbacks if static checking; at runtime Anki provides these.
     mw = None  # type: ignore
     QApplication = None  # type: ignore
+    QInputDialog = None  # type: ignore
     QWidget = object  # type: ignore
 
     class QAction:  # type: ignore
@@ -49,6 +50,9 @@ EXPORT_FOLDER_NAME = "NID export"  # user-tunable
 WRITE_TXT_TO_DESKTOP_DEFAULT = True  # user-tunable
 WRITE_TXT_TO_DESKTOP_LABEL = "Write .txt file to Desktop"  # user-tunable
 EXPORT_OPTIONS_TITLE = "Export Selected NIDs"  # user-tunable
+EXPORT_FILENAME_PROMPT_TITLE = "Name NID Export File"  # user-tunable
+EXPORT_FILENAME_PROMPT_LABEL = "File name:"  # user-tunable
+EXPORT_FILENAME_PROMPT_WIDTH = 560  # user-tunable
 WRITE_TXT_TO_DESKTOP_MEMORY_SECTION = "global_config"  # user-tunable
 WRITE_TXT_TO_DESKTOP_MEMORY_KEY = "export_nids_write_txt_to_desktop"  # user-tunable
 
@@ -59,6 +63,13 @@ def _sanitize_filename(name: str) -> str:
     s = re.sub(r'__+', '_', s)            # collapse repeats
     s = s.strip('._ ')                    # trim noisy ends
     return s or "selected_nids"
+
+
+def _ensure_txt_filename(name: str) -> str:
+    filename = _sanitize_filename(name)
+    if not filename.lower().endswith(".txt"):
+        filename = f"{filename}.txt"
+    return filename
 
 # ---------- Core helpers ----------
 
@@ -144,6 +155,25 @@ def _prompt_write_txt_to_desktop(parent: Any) -> bool | None:
     )
 
 
+def _prompt_export_filename(parent: Any, default_filename: str) -> str | None:
+    """Ask for a Desktop export filename. Returns None if canceled."""
+    if QInputDialog is None:
+        return _ensure_txt_filename(default_filename)
+
+    dialog = QInputDialog(parent or mw)
+    dialog.setInputMode(QInputDialog.InputMode.TextInput)
+    dialog.setWindowTitle(EXPORT_FILENAME_PROMPT_TITLE)
+    dialog.setLabelText(EXPORT_FILENAME_PROMPT_LABEL)
+    dialog.setTextValue(default_filename)
+    dialog.setMinimumWidth(EXPORT_FILENAME_PROMPT_WIDTH)
+    dialog.resize(EXPORT_FILENAME_PROMPT_WIDTH, dialog.sizeHint().height())
+
+    if not bool(dialog.exec()):
+        return None
+
+    return _ensure_txt_filename(dialog.textValue())
+
+
 # ---------- Public entry point you call from __init__ ----------
 
 def create_export_nids_action(
@@ -156,10 +186,8 @@ def create_export_nids_action(
     """
     Create a QAction that:
     - Collects selected note IDs from the Browser
-    - Optionally writes one file to your Desktop:
-        1) Comma-separated NIDs (e.g., "121451,441451,...")
-        2) Uses an automatic filename (no prompt)
-    - Copies the simple list to the clipboard
+    - Optionally writes a comma-separated NID list to a named Desktop .txt file
+    - Copies the simple list to the clipboard only when Desktop .txt save is skipped
     - Shows a short tooltip summary
     """
     action = QAction(title, parent)
@@ -176,29 +204,35 @@ def create_export_nids_action(
             tooltip("Export canceled.")
             return
 
-        # 2) Use automatic base name (no prompt)
+        # 2) Build the default filename and optionally let the user rename it.
         base = _sanitize_filename(EXPORT_BASENAME)
+        ts = datetime.now().strftime("%H-%M_%m-%d")
+        filename = f"{base}_{ts}_simple.txt"
+        if write_txt:
+            prompted_filename = _prompt_export_filename(browser, filename)
+            if prompted_filename is None:
+                tooltip("Export canceled.")
+                return
+            filename = prompted_filename
 
         # 3) Build content string
         comma_str = ",".join(str(n) for n in nids)
-        _copy_nids_to_clipboard(comma_str)
 
         # 4) Optionally write file
         if write_txt:
             export_dir = _ensure_export_dir()
-            ts = datetime.now().strftime("%H-%M_%m-%d")
-            simple_path = os.path.join(export_dir, f"{base}_{ts}_simple.txt")
+            simple_path = os.path.join(export_dir, filename)
             ok1, msg1 = _write_text_to_path(comma_str, simple_path)
 
             if ok1:
                 tooltip(
                     f"Saved {len(nids)} NIDs.\n"
                     f"Saved to Desktop/{EXPORT_FOLDER_NAME}\n"
-                    f"(Copied simple NID list to clipboard.)"
+                    "Clipboard unchanged."
                 )
                 return
 
-            details = msg1
+            details = f"{msg1}\n\nClipboard unchanged."
             log_path = _write_error_log(details)
 
             extra = f"\n\nError log: {log_path}" if log_path else ""
@@ -216,10 +250,10 @@ def create_export_nids_action(
             return
 
         # 5) Report (no file write)
+        _copy_nids_to_clipboard(comma_str)
         tooltip(
-            f"Saved {len(nids)} NIDs.\n"
-            "Desktop .txt save skipped.\n"
-            "(Copied simple NID list to clipboard.)"
+            f"Copied {len(nids)} NIDs to clipboard.\n"
+            "Desktop .txt save skipped."
         )
         return
 

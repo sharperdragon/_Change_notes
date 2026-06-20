@@ -8,7 +8,7 @@ This tab configures preset tag actions shown in the Browser context menu.
 
 ## High-risk Fields
 - `custom_tags_config.add_custom_tags_<n>.presets`: Invalid shape (missing `label` or invalid `tags`) breaks menu actions.
-- `custom_tags_config.add_custom_tags_<n>.submenu_label`: Frequent renames can make menu navigation inconsistent.
+- `custom_tags_config.add_custom_tags_<n>.menu_label`: Frequent renames can make menu navigation inconsistent.
 - `custom_tags_config.add_custom_tags_<n>.group_labels`: Keys not matching `presets[].group` will not affect submenu labels.
 - `custom_tags_config.add_custom_tags_<n>.presets`: If empty, that menu stays hidden.
 
@@ -20,7 +20,7 @@ This tab configures preset tag actions shown in the Browser context menu.
 ## Field Reference
 
 ### Per menu section
-- `submenu_label`: Root menu label for custom tag presets.
+- `menu_label`: Root menu label for custom tag presets.
 - `group_labels`: Optional map from group key to displayed submenu label.
 - `presets`: Preset definitions.
 
@@ -39,7 +39,7 @@ No-selection and success toast messages are hardcoded in code and not editable i
 {
   "custom_tags_config": {
     "add_custom_tags_1": {
-      "submenu_label": "Custom Tags",
+      "menu_label": "Custom Tags",
       "group_labels": {
         "Drugs": "💊 Drugs"
       },
@@ -56,12 +56,12 @@ No-selection and success toast messages are hardcoded in code and not editable i
       ]
     },
     "add_custom_tags_2": {
-      "submenu_label": "Custom Tags 2",
+      "menu_label": "Custom Tags 2",
       "group_labels": {},
       "presets": []
     },
     "add_custom_tags_3": {
-      "submenu_label": "Custom Tags 3",
+      "menu_label": "Custom Tags 3",
       "group_labels": {},
       "presets": []
     }

@@ -170,7 +170,7 @@ Configuration can be edited using:
 {
   "custom_tags_config": {
     "add_custom_tags_1": {
-      "submenu_label": "Custom Tags",
+      "menu_label": "Custom Tags",
       "group_labels": {
         "Drugs": "💊 Drugs"
       },
@@ -196,12 +196,12 @@ Configuration can be edited using:
 {
   "custom_tags_config": {
     "add_custom_tags_2": {
-      "submenu_label": "Custom Tags 2",
+      "menu_label": "Custom Tags 2",
       "group_labels": {},
       "presets": []
     },
     "add_custom_tags_3": {
-      "submenu_label": "Custom Tags 3",
+      "menu_label": "Custom Tags 3",
       "group_labels": {},
       "presets": []
     }

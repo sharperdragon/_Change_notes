@@ -132,6 +132,7 @@ How images are found, matched, inserted, logged, and tagged during image merge w
 - `merge_behavior.append_to_existing_field`: appends instead of replacing.
 - `logging.enable_log_popup`, `logging.save_log_to_desktop`: run-log visibility.
 - `tagging.add_to_merged`, `tagging.add_to_donor`, `tagging.add_to_unchanged`, `tagging.no_images_found`: result tags.
+- Use `{MM-DD}` inside an image result tag to insert the run date, for example `DONE::IMG_Uni::{MM-DD}::donor`.
 
 #### When To Edit It
 
@@ -197,7 +198,7 @@ A browser preset-tag menu section. Any numbered section key (`add_custom_tags_1`
 
 #### Most Important Keys
 
-- `submenu_label`: top-level menu label for that section.
+- `menu_label`: top-level menu label for that section.
 - `group_labels`: optional display labels for groups.
 - `presets`: preset list with `label`, `tags`, and optional `group`.
 

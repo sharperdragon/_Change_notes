@@ -43,6 +43,22 @@ def _normalize_freeform_tag_path(raw: str) -> str:
     return "::".join(normalized)
 
 
+def _normalize_uworld_child_tag_path(raw: str) -> str:
+    """Normalize UWorld prompt text while preserving intentional starred tags."""
+    parts = str(raw or "").split("::")
+    normalized: list[str] = []
+    for part in parts:
+        seg = str(part).strip()
+        if not seg:
+            continue
+        seg = re.sub(r"\s+", "_", seg)
+        seg = re.sub(r"[^A-Za-z0-9_*+\-.]+", "-", seg)
+        seg = re.sub(r"_+", "_", seg).strip("_-")
+        if seg and seg != "*":
+            normalized.append(seg)
+    return "::".join(normalized)
+
+
 def _normalize_nbme_child_path(raw: str) -> str:
     """Accept either a positive form number or a freeform NBME child path."""
     value = str(raw or "").strip()

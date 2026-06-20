@@ -17,7 +17,8 @@ DEFAULT_HIDE_WHEN_NO_PRESETS = False
 # ! ------------------------------------------------------------------------
 
 # ! --------------------------- OPTIONAL CONFIG KEYS ---------------------------
-CONFIG_KEY_SUBMENU_LABEL = "submenu_label"
+CONFIG_KEY_MENU_LABEL = "menu_label"
+CONFIG_KEY_LEGACY_SUBMENU_LABEL = "submenu_label"
 CONFIG_KEY_GROUP_LABELS = "group_labels"
 CONFIG_KEY_PRESETS = "presets"
 CONFIG_KEY_GROUP = "group"
@@ -135,20 +136,23 @@ def _load_runtime_config(
     if not isinstance(section_cfg, dict):
         section_cfg = {}
 
-    configured_submenu_label = str(section_cfg.get(CONFIG_KEY_SUBMENU_LABEL, ""))
+    configured_menu_label = str(section_cfg.get(CONFIG_KEY_MENU_LABEL, ""))
+    legacy_submenu_label = str(section_cfg.get(CONFIG_KEY_LEGACY_SUBMENU_LABEL, ""))
     if isinstance(menu_label_override, str) and menu_label_override.strip():
-        submenu_label = menu_label_override
-    elif configured_submenu_label.strip():
-        submenu_label = configured_submenu_label
+        custom_menu_label = menu_label_override
+    elif configured_menu_label.strip():
+        custom_menu_label = configured_menu_label
+    elif legacy_submenu_label.strip():
+        custom_menu_label = legacy_submenu_label
     else:
-        submenu_label = ADD_CUSTOM_TAGS_DEFAULTS["submenu_label"]
+        custom_menu_label = ADD_CUSTOM_TAGS_DEFAULTS["menu_label"]
 
     group_labels = _normalize_group_labels(section_cfg.get(CONFIG_KEY_GROUP_LABELS, {}))
 
     # Presets come from config only; no hardcoded fallback presets.
     presets = _normalize_presets(section_cfg.get(CONFIG_KEY_PRESETS, []))
 
-    return submenu_label, group_labels, presets, MSG_NO_NOTES_SELECTED, MSG_APPLIED_TEMPLATE
+    return custom_menu_label, group_labels, presets, MSG_NO_NOTES_SELECTED, MSG_APPLIED_TEMPLATE
 
 
 def _add_tag_safe(note, tag: str):
@@ -246,7 +250,7 @@ def add_custom_tag_menu_items(
     root_cfg: dict[str, Any] | None = None,
 ) -> bool:
     (
-        submenu_label,
+        custom_menu_label,
         group_labels,
         presets,
         msg_no_notes_selected,
@@ -260,7 +264,7 @@ def add_custom_tag_menu_items(
     if hide_when_no_presets and not presets:
         return False
 
-    custom_menu = QMenu(submenu_label, browser)
+    custom_menu = QMenu(custom_menu_label, browser)
     _apply_menu_style(custom_menu)
 
     root_presets: list[dict[str, Any]] = []

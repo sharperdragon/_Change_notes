@@ -18,7 +18,7 @@ def clone_defaults(value: T) -> T:
 
 
 ADD_CUSTOM_TAGS_DEFAULTS = {
-    "submenu_label": "Custom Tags",
+    "menu_label": "Custom Tags",
 }
 
 
@@ -129,8 +129,8 @@ MERGE_IMAGES_DEFAULTS = {
         "log_filename_prefix": "merged_images_log_",
     },
     "tagging": {
-        "add_to_merged": "DONE::IMG_Uni::received",
-        "add_to_donor": "IMG_Uni::donor",
+        "add_to_merged": "DONE::IMG_Uni::{MM-DD}::received",
+        "add_to_donor": "DONE::IMG_Uni::{MM-DD}::donor",
         "add_to_unchanged": "IMG_Uni::same",
     },
 }

@@ -2,5 +2,8 @@
  "ruff.configuration": "",
  "workbench.iconTheme": "material-icon-theme",
  "workbench.colorTheme": "Dark Modern",
- "markdown.styles": [".vscode/markdown-preview.css"]
+ "markdown.styles": [".vscode/markdown-preview.css"],
+ "python.analysis.extraPaths": [
+  "./modules/Add_img_class/vendor"
+ ]
 }

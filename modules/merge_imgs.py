@@ -39,6 +39,8 @@ PROMPT_LOG_EXPORT_TITLE = "Merge Images Log Export"
 PROMPT_LOG_EXPORT_MEMORY_SECTION = "merge_images_config"
 PROMPT_LOG_EXPORT_MEMORY_KEY = "export_log_to_desktop"
 MERGE_INSERT_BR_BEFORE_APPENDED_DIV = True
+TAG_DATE_PLACEHOLDER = "{MM-DD}"
+TAG_DATE_FORMAT = "%m-%d"
 
 # Insertion policy (top-level for easy future edits).
 IMAGE_INSERT_POLICY = "append_only"
@@ -61,6 +63,12 @@ def cfg(path: str, default=None):
         else:
             return default
     return node
+
+
+def _resolve_tag_template(tag: str, tag_date: str) -> str:
+    if not isinstance(tag, str):
+        return tag
+    return tag.replace(TAG_DATE_PLACEHOLDER, tag_date)
 
 
 def _as_float(value, default: float) -> float:
@@ -464,9 +472,16 @@ def run_merge_images(
     # Apply model + tag gating from config
     candidates = [n for n in all_note_infos if is_model_allowed(n) and not has_excluded_tag(n)]
 
-    received_tag = cfg("tagging.add_to_merged", "DONE::IMG_Uni::received")
-    unchanged_tag = cfg("tagging.add_to_unchanged", "IMG_Uni::same")
-    donor_tag = cfg("tagging.add_to_donor", "IMG_Uni::donor")
+    tag_date = datetime.now().strftime(TAG_DATE_FORMAT)
+    received_tag = _resolve_tag_template(
+        cfg("tagging.add_to_merged", "DONE::IMG_Uni::{MM-DD}::received"),
+        tag_date,
+    )
+    unchanged_tag = _resolve_tag_template(cfg("tagging.add_to_unchanged", "IMG_Uni::same"), tag_date)
+    donor_tag = _resolve_tag_template(
+        cfg("tagging.add_to_donor", "IMG_Uni::{MM-DD}::donor"),
+        tag_date,
+    )
     enable_popup = cfg("logging.enable_log_popup", True)
     save_to_desktop_cfg = cfg("logging.save_log_to_desktop", False)
     if export_log_to_desktop is None:
@@ -741,7 +756,10 @@ def run_merge_images(
         note_to_srcs[note.id] = srcs
 
     # Tag notes with no images at all
-    no_images_tag = cfg("tagging.no_images_found", "IMG_Uni::no_images")
+    no_images_tag = _resolve_tag_template(
+        cfg("tagging.no_images_found", "IMG_Uni::no_images"),
+        tag_date,
+    )
     for note in all_note_infos:
         if not note_to_srcs.get(note.id):
             note.tags = list(set(note.tags) | {no_images_tag})
