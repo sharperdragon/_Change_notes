@@ -42,21 +42,15 @@ CORRECT_MISSED_DIALOG_MIN_WIDTH = 180
 CORRECT_MISSED_DIALOG_MIN_HEIGHT = 0
 
 
-def _as_dict(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-def _load_missed_tags_override_section() -> dict[str, Any]:
-    section_override = ConfigManager.get_override_section(CANONICAL_CONFIG_SECTION)
-    return section_override if isinstance(section_override, dict) else {}
-
-
 def _get_saved_prompt_input(prompt_key: str) -> str:
     if not prompt_key:
         return ""
-    section_override = _load_missed_tags_override_section()
-    runtime_cfg = _as_dict(section_override.get("runtime"))
-    last_inputs = _as_dict(runtime_cfg.get("last_prompt_inputs"))
-    value = last_inputs.get(prompt_key, "")
+    value = ConfigManager.get_runtime_value(
+        CANONICAL_CONFIG_SECTION,
+        "last_prompt_inputs",
+        prompt_key,
+        "",
+    )
     return value if isinstance(value, str) else ""
 
 
@@ -73,9 +67,10 @@ def _save_prompt_inputs(prompt_values: dict[str, str]) -> None:
         return
 
     try:
-        section_override = _load_missed_tags_override_section()
-        runtime_cfg = _as_dict(section_override.get("runtime"))
-        last_inputs = _as_dict(runtime_cfg.get("last_prompt_inputs"))
+        last_inputs = ConfigManager.get_runtime_bucket(
+            CANONICAL_CONFIG_SECTION,
+            "last_prompt_inputs",
+        )
 
         has_change = False
         for key, value in normalized_updates.items():
@@ -86,13 +81,11 @@ def _save_prompt_inputs(prompt_values: dict[str, str]) -> None:
         if not has_change:
             return
 
-        updated_override = ConfigManager.deep_merge_dicts({}, section_override)
-        updated_runtime_cfg = _as_dict(updated_override.get("runtime"))
-        updated_last_inputs = _as_dict(updated_runtime_cfg.get("last_prompt_inputs"))
-        updated_last_inputs.update(normalized_updates)
-        updated_runtime_cfg["last_prompt_inputs"] = updated_last_inputs
-        updated_override["runtime"] = updated_runtime_cfg
-        ConfigManager.save_section_override(CANONICAL_CONFIG_SECTION, updated_override)
+        ConfigManager.save_runtime_values(
+            CANONICAL_CONFIG_SECTION,
+            "last_prompt_inputs",
+            normalized_updates,
+        )
     except Exception:
         # Prompt memory should never block tagging behavior.
         return

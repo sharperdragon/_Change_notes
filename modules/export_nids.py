@@ -47,7 +47,7 @@ except Exception:
 _FNAME_SAFE = re.compile(r'[^\w\-. ]+', re.UNICODE)
 EXPORT_BASENAME = "selected_nids"  # user-tunable
 EXPORT_FOLDER_NAME = "NID export"  # user-tunable
-WRITE_TXT_TO_DESKTOP_DEFAULT = True  # user-tunable
+WRITE_TXT_TO_DESKTOP_DEFAULT = False  # user-tunable
 WRITE_TXT_TO_DESKTOP_LABEL = "Write .txt file to Desktop"  # user-tunable
 EXPORT_OPTIONS_TITLE = "Export Selected NIDs"  # user-tunable
 EXPORT_FILENAME_PROMPT_TITLE = "Name NID Export File"  # user-tunable

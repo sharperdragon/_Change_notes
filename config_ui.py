@@ -3,19 +3,32 @@ import html
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import markdown
 from aqt import mw
 from aqt.qt import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
     QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
+    QLineEdit,
     QPalette,
     QPushButton,
+    QScrollArea,
     QSplitter,
+    QSpinBox,
     Qt,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QTextEdit,
     QTimer,
     QVBoxLayout,
@@ -63,6 +76,36 @@ CANCEL_BUTTON_TEXT = "Cancel"
 SAVE_CLOSE_BUTTON_TEXT = "Save & Close"
 AUTO_SAVE_ON_RESTORE_ALL = True
 PRUNE_EMPTY_SECTION_OVERRIDES = True
+
+HYBRID_WINDOW_MARGIN = 120
+HYBRID_FIELD_MIN_WIDTH = 320
+HYBRID_TEXT_AREA_MIN_HEIGHT = 82
+HYBRID_CUSTOM_TAGS_MIN_ROWS = 3
+HYBRID_CUSTOM_TAGS_LABEL_COLUMN_WIDTH = 220
+HYBRID_CUSTOM_TAGS_GROUP_COLUMN_WIDTH = 80
+HYBRID_FORM_SECTION_KEYS = (
+    "global_config",
+    "tag_missed_notes",
+    "custom_tags_config",
+    "merge_tags_config",
+    "merge_images_config",
+    "merge_scheduling",
+    "add_table_class",
+    "add_img_class",
+    "delete_empty_notes_config",
+    "batch_note_change_config",
+    "tag_dupes_config",
+)
+
+HYBRID_SETTINGS_STATUS_TEXT = (
+    "Friendly settings save to Anki's add-on config. Use Advanced for full JSON."
+)
+HYBRID_RESTORE_CONFIRM_TEXT = "Restore defaults for all settings shown in this window?"
+HYBRID_RESTORE_SUCCESS_TEXT = "Restored defaults for the settings shown in this window."
+HYBRID_ADVANCED_DISCARD_CONFIRM_TEXT = (
+    "Opening Advanced will reload this settings window when it closes. "
+    "Discard unsaved changes in this window?"
+)
 
 CATEGORY_DOC_FILES: dict[str, str] = {
     "Global": "global.md",
@@ -182,6 +225,965 @@ class CategoryTabState:
     container: QWidget
     section_tabs: QTabWidget
     help_view: QWidget
+
+
+@dataclass
+class HybridFieldBinding:
+    section_key: str
+    path: tuple[str, ...]
+    widget: QWidget
+    kind: str
+
+
+@dataclass
+class HybridCustomTagsSection:
+    section_key: str
+    menu_label: QLineEdit
+    table: QTableWidget
+
+
+class HybridConfigDialog(QDialog):
+    """Friendly tabbed settings window backed by Anki add-on config overrides."""
+
+    def __init__(self, addon_name: str, config_manager_cls, parent=None):
+        # * Keep this dialog parented directly to Anki's main window so modality/focus works reliably.
+        parent_window = parent or mw
+        super().__init__(parent_window, Qt.WindowType.Window)
+        self.addon_name = addon_name
+        self.config_manager_cls = config_manager_cls
+        self.mgr = mw.addonManager
+        self.effective_config: dict[str, Any] = {}
+        self._last_loaded_form_sections: dict[str, dict[str, Any]] = {}
+        self._advanced_config_editor: QDialog | None = None
+        self._suppress_focus_restore = False
+        self.bindings: list[HybridFieldBinding] = []
+        self.custom_tag_sections: list[HybridCustomTagsSection] = []
+        self.rotation_schedule_table: QTableWidget | None = None
+
+        self.setWindowTitle(f"{addon_name} Settings")
+
+        # * ApplicationModal prevents the Add-ons window from trapping focus above this dialog.
+        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        screen = mw.app.primaryScreen().availableGeometry()
+        self.setGeometry(
+            screen.x() + HYBRID_WINDOW_MARGIN,
+            screen.y() + HYBRID_WINDOW_MARGIN,
+            screen.width() - 2 * HYBRID_WINDOW_MARGIN,
+            screen.height() - 2 * HYBRID_WINDOW_MARGIN,
+        )
+
+        self.main_layout = QVBoxLayout(self)
+        self.status_label = QLabel(HYBRID_SETTINGS_STATUS_TEXT)
+        self.status_label.setWordWrap(True)
+        self.main_layout.addWidget(self.status_label)
+
+        self.tabs = QTabWidget(self)
+        self._configure_tab_widget_for_full_labels(self.tabs)
+        self.main_layout.addWidget(self.tabs, stretch=1)
+
+        buttons_row = QHBoxLayout()
+        advanced_button = QPushButton("Advanced")
+        advanced_button.clicked.connect(self.open_advanced_editor)
+        buttons_row.addWidget(advanced_button)
+
+        restore_button = QPushButton("Restore Defaults")
+        restore_button.clicked.connect(self.restore_defaults)
+        buttons_row.addWidget(restore_button)
+
+        buttons_row.addStretch(1)
+
+        cancel_button = QPushButton(CANCEL_BUTTON_TEXT)
+        cancel_button.clicked.connect(self.reject)
+        buttons_row.addWidget(cancel_button)
+
+        save_button = QPushButton("Save")
+        save_button.clicked.connect(self.save_and_close)
+        save_button.setDefault(True)
+        buttons_row.addWidget(save_button)
+
+        self.main_layout.addLayout(buttons_row)
+        self.reload_from_config()
+
+    def _configure_tab_widget_for_full_labels(self, tab_widget: QTabWidget):
+        tab_bar = tab_widget.tabBar()
+        tab_bar.setElideMode(Qt.TextElideMode.ElideNone)
+        tab_bar.setExpanding(False)
+        tab_bar.setUsesScrollButtons(True)
+
+    def reload_from_config(self):
+        self.effective_config, errors = self.config_manager_cls.load_effective_config()
+        self._rebuild_tabs()
+        self._refresh_form_snapshot()
+        if errors:
+            self.status_label.setText(
+                HYBRID_SETTINGS_STATUS_TEXT + " Load warnings: " + "; ".join(errors[:MAX_STATUS_WARNINGS])
+            )
+        else:
+            self.status_label.setText(HYBRID_SETTINGS_STATUS_TEXT)
+
+    def showEvent(self, event):
+        """Bring the hybrid settings dialog to the front after Qt finishes showing it."""
+        super().showEvent(event)
+
+        # * Qt often needs one event-loop tick before activateWindow() works.
+        QTimer.singleShot(0, self._restore_dialog_focus)
+        QTimer.singleShot(100, self._restore_dialog_focus)
+
+    def _restore_dialog_focus(self):
+        """Raise and activate this dialog without forcing it above unrelated apps."""
+        if not self.isVisible() or self._suppress_focus_restore:
+            return
+
+        self.raise_()
+        self.activateWindow()
+
+    def _raise_advanced_editor(self):
+        advanced = self._advanced_config_editor
+        if advanced is None or not advanced.isVisible():
+            return
+        advanced.raise_()
+        advanced.activateWindow()
+
+    @staticmethod
+    def _as_dict(value: Any) -> dict[str, Any]:
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _as_list(value: Any) -> list[Any]:
+        return value if isinstance(value, list) else []
+
+    def _get_section(self, section_key: str) -> dict[str, Any]:
+        return self._as_dict(self.effective_config.get(section_key))
+
+    def _get_path(self, section_key: str, path: tuple[str, ...], fallback: Any = None) -> Any:
+        current: Any = self._get_section(section_key)
+        for part in path:
+            if not isinstance(current, dict) or part not in current:
+                return fallback
+            current = current[part]
+        return current
+
+    def _get_first_path(
+        self,
+        section_key: str,
+        paths: tuple[tuple[str, ...], ...],
+        fallback: Any = None,
+    ) -> Any:
+        for path in paths:
+            value = self._get_path(section_key, path, None)
+            if value is not None:
+                return value
+        return fallback
+
+    @staticmethod
+    def _set_path(section: dict[str, Any], path: tuple[str, ...], value: Any):
+        current = section
+        for part in path[:-1]:
+            child = current.get(part)
+            if not isinstance(child, dict):
+                child = {}
+                current[part] = child
+            current = child
+        current[path[-1]] = value
+
+    @staticmethod
+    def _split_lines(text: str) -> list[str]:
+        return [line.strip() for line in text.splitlines() if line.strip()]
+
+    @staticmethod
+    def _split_tags(text: str) -> list[str]:
+        normalized = text.replace(",", "\n")
+        return [line.strip() for line in normalized.splitlines() if line.strip()]
+
+    @staticmethod
+    def _join_lines(value: Any) -> str:
+        if isinstance(value, list):
+            return "\n".join(str(item) for item in value if item is not None)
+        if value is None:
+            return ""
+        return str(value)
+
+    @staticmethod
+    def _truthy(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    def _new_scroll_tab(self) -> tuple[QWidget, QVBoxLayout]:
+        outer = QWidget()
+        outer_layout = QVBoxLayout(outer)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        scroll.setWidget(content)
+        outer_layout.addWidget(scroll)
+        return outer, content_layout
+
+    def _add_group(self, parent_layout: QVBoxLayout, title: str) -> QFormLayout:
+        group = QGroupBox(title)
+        form = QFormLayout(group)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        parent_layout.addWidget(group)
+        return form
+
+    def _bind(self, section_key: str, path: tuple[str, ...], widget: QWidget, kind: str):
+        self.bindings.append(HybridFieldBinding(section_key, path, widget, kind))
+
+    def _add_line(
+        self,
+        form: QFormLayout,
+        label: str,
+        section_key: str,
+        path: tuple[str, ...],
+        fallback: str = "",
+    ) -> QLineEdit:
+        widget = QLineEdit()
+        widget.setMinimumWidth(HYBRID_FIELD_MIN_WIDTH)
+        widget.setText(str(self._get_path(section_key, path, fallback) or ""))
+        form.addRow(label, widget)
+        self._bind(section_key, path, widget, "line")
+        return widget
+
+    def _add_bool(
+        self,
+        form: QFormLayout,
+        label: str,
+        section_key: str,
+        path: tuple[str, ...],
+        fallback: bool = False,
+    ) -> QCheckBox:
+        widget = QCheckBox()
+        widget.setChecked(self._truthy(self._get_path(section_key, path, fallback)))
+        form.addRow(label, widget)
+        self._bind(section_key, path, widget, "bool")
+        return widget
+
+    def _add_int(
+        self,
+        form: QFormLayout,
+        label: str,
+        section_key: str,
+        path: tuple[str, ...],
+        minimum: int = 0,
+        maximum: int = 100000,
+        fallback: int = 0,
+    ) -> QSpinBox:
+        widget = QSpinBox()
+        widget.setRange(minimum, maximum)
+        try:
+            widget.setValue(int(self._get_path(section_key, path, fallback)))
+        except Exception:
+            widget.setValue(fallback)
+        form.addRow(label, widget)
+        self._bind(section_key, path, widget, "int")
+        return widget
+
+    def _add_float(
+        self,
+        form: QFormLayout,
+        label: str,
+        section_key: str,
+        path: tuple[str, ...],
+        minimum: float = 0.0,
+        maximum: float = 999.0,
+        decimals: int = 4,
+        step: float = 0.01,
+        fallback: float = 0.0,
+    ) -> QDoubleSpinBox:
+        widget = QDoubleSpinBox()
+        widget.setRange(minimum, maximum)
+        widget.setDecimals(decimals)
+        widget.setSingleStep(step)
+        try:
+            widget.setValue(float(self._get_path(section_key, path, fallback)))
+        except Exception:
+            widget.setValue(fallback)
+        form.addRow(label, widget)
+        self._bind(section_key, path, widget, "float")
+        return widget
+
+    def _add_combo(
+        self,
+        form: QFormLayout,
+        label: str,
+        section_key: str,
+        path: tuple[str, ...],
+        options: list[str],
+        fallback: str,
+    ) -> QComboBox:
+        widget = QComboBox()
+        widget.addItems(options)
+        value = str(self._get_path(section_key, path, fallback) or fallback)
+        if value not in options:
+            widget.addItem(value)
+        widget.setCurrentText(value)
+        form.addRow(label, widget)
+        self._bind(section_key, path, widget, "combo")
+        return widget
+
+    def _add_text_list(
+        self,
+        form: QFormLayout,
+        label: str,
+        section_key: str,
+        path: tuple[str, ...],
+        fallback: Any = None,
+    ) -> QTextEdit:
+        widget = QTextEdit()
+        widget.setAcceptRichText(False)
+        widget.setMinimumHeight(HYBRID_TEXT_AREA_MIN_HEIGHT)
+        widget.setPlainText(self._join_lines(self._get_path(section_key, path, fallback or [])))
+        form.addRow(label, widget)
+        self._bind(section_key, path, widget, "string_list")
+        return widget
+
+    def _make_table(self, columns: list[str]) -> QTableWidget:
+        table = QTableWidget(0, len(columns))
+        table.setHorizontalHeaderLabels(columns)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setAlternatingRowColors(True)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setMinimumHeight(150)
+        return table
+
+    def _configure_custom_tags_table_columns(self, table: QTableWidget):
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        table.setColumnWidth(0, HYBRID_CUSTOM_TAGS_LABEL_COLUMN_WIDTH)
+        table.setColumnWidth(1, HYBRID_CUSTOM_TAGS_GROUP_COLUMN_WIDTH)
+
+    def _add_table_row(self, table: QTableWidget, values: list[Any] | None = None):
+        row = table.rowCount()
+        table.insertRow(row)
+        values = values or []
+        for column in range(table.columnCount()):
+            text = str(values[column]) if column < len(values) and values[column] is not None else ""
+            table.setItem(row, column, QTableWidgetItem(text))
+
+    def _remove_selected_table_rows(self, table: QTableWidget):
+        rows = sorted({index.row() for index in table.selectedIndexes()}, reverse=True)
+        if not rows and table.rowCount() > 0:
+            rows = [table.rowCount() - 1]
+        for row in rows:
+            table.removeRow(row)
+
+    def _table_text(self, table: QTableWidget, row: int, column: int) -> str:
+        item = table.item(row, column)
+        return item.text().strip() if item else ""
+
+    def _rebuild_tabs(self):
+        self.tabs.clear()
+        self.bindings.clear()
+        self.custom_tag_sections.clear()
+        self.rotation_schedule_table = None
+
+        self.tabs.addTab(self._build_global_tab(), "Global")
+        self.tabs.addTab(self._build_missed_tags_tab(), "Missed Tags")
+        self.tabs.addTab(self._build_custom_tags_tab(), "Custom Tags")
+        self.tabs.addTab(self._build_merge_tab(), "Merge")
+        self.tabs.addTab(self._build_add_css_class_tab(), "Add CSS Class")
+        self.tabs.addTab(self._build_other_tab(), "Other")
+
+    def _build_global_tab(self) -> QWidget:
+        tab, layout = self._new_scroll_tab()
+        form = self._add_group(layout, "Shared Defaults")
+        self._add_line(form, "Default note type", "global_config", ("default_note_type",))
+        self._add_line(form, "Log folder", "global_config", ("log_folder",))
+        self._add_float(
+            form,
+            "Default fuzzy threshold",
+            "global_config",
+            ("fuzzy_opts", "default_fuzz"),
+            0.0,
+            1.0,
+            fallback=0.97,
+        )
+        self._add_float(
+            form,
+            "Minimum fuzzy threshold",
+            "global_config",
+            ("fuzzy_opts", "min_fuzz"),
+            0.0,
+            1.0,
+            fallback=0.55,
+        )
+
+        separator_form = self._add_group(layout, "Browser Context Menu Separators")
+        for key in (
+            "missed_tags_menu",
+            "add_custom_tags_1",
+            "add_custom_tags_2",
+            "add_custom_tags_3",
+            "other_actions_menu",
+            "add_img_class_action",
+            "merge_menu",
+            "edit_menu",
+        ):
+            self._add_bool(
+                separator_form,
+                key,
+                "global_config",
+                ("main_context_menu_separator_before", key),
+            )
+        self._add_bool(
+            separator_form,
+            "After Edit Menu",
+            "global_config",
+            ("main_context_menu_separator_after_edit_menu",),
+        )
+        layout.addStretch(1)
+        return tab
+
+    def _action_value(self, action_key: str, field: str, fallback: str = "") -> str:
+        return str(
+            self._get_first_path(
+                MISSED_TAGS_CANONICAL_SECTION,
+                (
+                    ("actions", action_key, field),
+                    ("actions", action_key, "menu_label" if field == "label" else field),
+                ),
+                fallback,
+            )
+            or ""
+        )
+
+    def _build_missed_tags_tab(self) -> QWidget:
+        tab, layout = self._new_scroll_tab()
+
+        general = self._add_group(layout, "Menu and Date")
+        self._add_line(general, "Menu label", MISSED_TAGS_CANONICAL_SECTION, ("ui", "menu_label"))
+        self._add_bool(
+            general,
+            "Include day segment",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("date", "include_day_segment"),
+            True,
+        )
+        self._add_bool(
+            general,
+            "Split days into weeks",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("date", "split_weeks"),
+            False,
+        )
+
+        rotation = self._add_group(layout, "Rotation")
+        self._add_line(
+            rotation,
+            "Parent tag segment",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("block", "parent_tag_segment"),
+            str(
+                self._get_first_path(
+                    MISSED_TAGS_CANONICAL_SECTION,
+                    (("rotation", "parent_tag_segment"), ("block", "parent_tag_segment")),
+                    "Block",
+                )
+            ),
+        )
+        exhausted = QComboBox()
+        exhausted.addItems(["unknown", "next"])
+        exhausted_value = str(
+            self._get_first_path(
+                MISSED_TAGS_CANONICAL_SECTION,
+                (("rotation", "exhausted_policy"), ("block", "exhausted_policy")),
+                "unknown",
+            )
+            or "unknown"
+        )
+        if exhausted_value not in {"unknown", "next"}:
+            exhausted_value = "unknown"
+        exhausted.setCurrentText(exhausted_value)
+        rotation.addRow("When outside schedule", exhausted)
+        self._bind(MISSED_TAGS_CANONICAL_SECTION, ("block", "exhausted_policy"), exhausted, "combo")
+
+        schedule_group = QGroupBox("Rotation Schedule")
+        schedule_layout = QVBoxLayout(schedule_group)
+        self.rotation_schedule_table = self._make_table(["Segment Label", "Start", "End"])
+        schedule = self._get_first_path(
+            MISSED_TAGS_CANONICAL_SECTION,
+            (("rotation", "schedule"), ("block", "schedule")),
+            [],
+        )
+        for item in self._as_list(schedule):
+            item_dict = self._as_dict(item)
+            self._add_table_row(
+                self.rotation_schedule_table,
+                [
+                    item_dict.get("segment_label", item_dict.get("label", "")),
+                    item_dict.get("start", ""),
+                    item_dict.get("end", ""),
+                ],
+            )
+        if self.rotation_schedule_table.rowCount() == 0:
+            self._add_table_row(self.rotation_schedule_table, ["", "", ""])
+        schedule_layout.addWidget(self.rotation_schedule_table)
+        schedule_buttons = QHBoxLayout()
+        add_button = QPushButton("Add Row")
+        add_button.clicked.connect(lambda: self._add_table_row(self.rotation_schedule_table))
+        schedule_buttons.addWidget(add_button)
+        remove_button = QPushButton("Remove Selected")
+        remove_button.clicked.connect(lambda: self._remove_selected_table_rows(self.rotation_schedule_table))
+        schedule_buttons.addWidget(remove_button)
+        schedule_buttons.addStretch(1)
+        schedule_layout.addLayout(schedule_buttons)
+        layout.addWidget(schedule_group)
+
+        actions = self._add_group(layout, "Core Actions")
+        for action_key, label_text, segment_text in (
+            ("uworld", "UWorld label", "UWorld tag segment"),
+            ("nbme", "NBME label", "NBME tag segment"),
+            ("amboss", "Amboss label", "Amboss tag segment"),
+            ("multi_missed", "2x missed label", "2x missed tag segment"),
+            ("correct_tag_missed", "Correct + missed label", "Correct + missed tag segment"),
+        ):
+            label = QLineEdit(self._action_value(action_key, "label"))
+            label.setMinimumWidth(HYBRID_FIELD_MIN_WIDTH)
+            actions.addRow(label_text, label)
+            self._bind(MISSED_TAGS_CANONICAL_SECTION, ("actions", action_key, "menu_label"), label, "line")
+
+            segment = QLineEdit(self._action_value(action_key, "tag_segment"))
+            segment.setMinimumWidth(HYBRID_FIELD_MIN_WIDTH)
+            actions.addRow(segment_text, segment)
+            self._bind(MISSED_TAGS_CANONICAL_SECTION, ("actions", action_key, "tag_segment"), segment, "line")
+
+        self._add_line(
+            actions,
+            "Key info label",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("actions", "key_info", "menu_label"),
+            self._action_value("key_info", "label"),
+        )
+        self._add_text_list(
+            actions,
+            "Key info tags",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("actions", "key_info", "absolute_tags"),
+            self._get_first_path(
+                MISSED_TAGS_CANONICAL_SECTION,
+                (("actions", "key_info", "absolute_tags"), ("actions", "key_info", "tags")),
+                [],
+            ),
+        )
+        self._add_line(
+            actions,
+            "Correct guess label",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("actions", "correct_guess", "menu_label"),
+            self._action_value("correct_guess", "label"),
+        )
+        self._add_text_list(
+            actions,
+            "Correct guess tags",
+            MISSED_TAGS_CANONICAL_SECTION,
+            ("actions", "correct_guess", "absolute_tags"),
+            self._get_first_path(
+                MISSED_TAGS_CANONICAL_SECTION,
+                (("actions", "correct_guess", "absolute_tags"), ("actions", "correct_guess", "tags")),
+                [],
+            ),
+        )
+        layout.addStretch(1)
+        return tab
+
+    def _build_custom_tags_tab(self) -> QWidget:
+        tab, layout = self._new_scroll_tab()
+        custom_cfg = self._as_dict(self.effective_config.get(CUSTOM_TAGS_CANONICAL_SECTION))
+        section_keys = self.config_manager_cls.discover_custom_tags_sections(self.effective_config)
+        for section_key in section_keys:
+            section_cfg = self._as_dict(custom_cfg.get(section_key))
+            group = QGroupBox(section_key)
+            group_layout = QVBoxLayout(group)
+            form = QFormLayout()
+            menu_label = QLineEdit(str(section_cfg.get("menu_label", "")))
+            menu_label.setMinimumWidth(HYBRID_FIELD_MIN_WIDTH)
+            form.addRow("Menu label", menu_label)
+            group_layout.addLayout(form)
+
+            table = self._make_table(["Label", "Group", "Tags"])
+            self._configure_custom_tags_table_columns(table)
+            table.setMinimumHeight(max(150, HYBRID_CUSTOM_TAGS_MIN_ROWS * 34))
+            for preset in self._as_list(section_cfg.get("presets")):
+                preset_dict = self._as_dict(preset)
+                self._add_table_row(
+                    table,
+                    [
+                        preset_dict.get("label", ""),
+                        preset_dict.get("group", ""),
+                        self._join_lines(preset_dict.get("tags", [])),
+                    ],
+                )
+            if table.rowCount() == 0:
+                self._add_table_row(table, ["", "", ""])
+            group_layout.addWidget(table)
+
+            buttons = QHBoxLayout()
+            add_button = QPushButton("Add Preset")
+            add_button.clicked.connect(lambda _checked=False, target=table: self._add_table_row(target))
+            buttons.addWidget(add_button)
+            remove_button = QPushButton("Remove Selected")
+            remove_button.clicked.connect(
+                lambda _checked=False, target=table: self._remove_selected_table_rows(target)
+            )
+            buttons.addWidget(remove_button)
+            buttons.addStretch(1)
+            group_layout.addLayout(buttons)
+            layout.addWidget(group)
+            self.custom_tag_sections.append(HybridCustomTagsSection(section_key, menu_label, table))
+
+        layout.addStretch(1)
+        return tab
+
+    def _build_merge_tab(self) -> QWidget:
+        tab, layout = self._new_scroll_tab()
+
+        merge_tags = self._add_group(layout, "Merge Tags")
+        self._add_line(merge_tags, "Result tag", "merge_tags_config", ("base_tag",))
+        self._add_line(merge_tags, "Comparison field", "merge_tags_config", ("comparison_field",))
+        self._add_bool(merge_tags, "Only selected notes", "merge_tags_config", ("merge_select_only",))
+        self._add_bool(merge_tags, "Ask fuzzy threshold each time", "merge_tags_config", ("ask_fuzzy_each_time",))
+        self._add_text_list(merge_tags, "Only merge parent tags", "merge_tags_config", ("merge_only_parents",))
+        self._add_text_list(merge_tags, "Excluded tags", "merge_tags_config", ("excluded_tags",))
+
+        merge_images = self._add_group(layout, "Merge Images")
+        self._add_text_list(merge_images, "Allowed note types", "merge_images_config", ("allowed_models",))
+        self._add_text_list(
+            merge_images,
+            "Fields to scan for images",
+            "merge_images_config",
+            ("fields_to_scan_for_images",),
+        )
+        self._add_text_list(merge_images, "Excluded tags", "merge_images_config", ("excluded_tags",))
+        self._add_bool(
+            merge_images,
+            "Copy Sketchy links",
+            "merge_images_config",
+            ("merge_behavior", "copy_sketchy_links"),
+            True,
+        )
+        self._add_bool(
+            merge_images,
+            "Show log popup",
+            "merge_images_config",
+            ("logging", "enable_log_popup"),
+            True,
+        )
+        self._add_bool(
+            merge_images,
+            "Save log to desktop",
+            "merge_images_config",
+            ("logging", "save_log_to_desktop"),
+            True,
+        )
+        self._add_line(
+            merge_images,
+            "Log filename prefix",
+            "merge_images_config",
+            ("logging", "log_filename_prefix"),
+        )
+        for key, label in (
+            ("add_to_merged", "Merged tag"),
+            ("add_to_donor", "Donor tag"),
+            ("add_to_unchanged", "Unchanged tag"),
+            ("no_images_found", "No images found tag"),
+        ):
+            self._add_line(merge_images, label, "merge_images_config", ("tagging", key))
+
+        scheduling = self._add_group(layout, "Merge Scheduling")
+        self._add_int(
+            scheduling,
+            "Similarity threshold",
+            "merge_scheduling",
+            ("merge_similarity_threshold",),
+            0,
+            100,
+            85,
+        )
+        self._add_int(scheduling, "Merge field index", "merge_scheduling", ("merge_field_index",), 0, 100, 0)
+        self._add_combo(
+            scheduling,
+            "Multi-card policy",
+            "merge_scheduling",
+            ("multi_card_policy",),
+            ["skip", "first", "all"],
+            "skip",
+        )
+        self._add_bool(scheduling, "Use text replacements", "merge_scheduling", ("use_text_replacements",), True)
+        self._add_line(scheduling, "Log path", "merge_scheduling", ("scheduling_merge_log_path",))
+        self._add_line(scheduling, "Tag on merge", "merge_scheduling", ("tag_on_merge",))
+        layout.addStretch(1)
+        return tab
+
+    def _build_add_css_class_tab(self) -> QWidget:
+        tab, layout = self._new_scroll_tab()
+
+        table_class = self._add_group(layout, "Tables")
+        self._add_bool(table_class, "Apply to existing classes", "add_table_class", ("apply_to_existing_classes",), True)
+        self._add_line(table_class, "Log path", "add_table_class", ("log_path",))
+
+        image_class = self._add_group(layout, "Images")
+        self._add_int(image_class, "Small width", "add_img_class", ("small_width",), 1, 10000, 340)
+        self._add_float(image_class, "Square min ratio", "add_img_class", ("square_min",), 0.0, 10.0, fallback=0.9)
+        self._add_float(image_class, "Square max ratio", "add_img_class", ("square_max",), 0.0, 10.0, fallback=1.19)
+        self._add_float(image_class, "Tall ratio", "add_img_class", ("tall_ratio",), 0.0, 10.0, fallback=0.9)
+        self._add_float(
+            image_class,
+            "Landscape min ratio",
+            "add_img_class",
+            ("landscape_ratio_min",),
+            0.0,
+            10.0,
+            fallback=1.19,
+        )
+        self._add_float(
+            image_class,
+            "Ultra-wide ratio",
+            "add_img_class",
+            ("ultra-wide_ratio",),
+            0.0,
+            10.0,
+            fallback=1.9,
+        )
+        layout.addStretch(1)
+        return tab
+
+    def _build_other_tab(self) -> QWidget:
+        tab, layout = self._new_scroll_tab()
+
+        delete_notes = self._add_group(layout, "Delete Empty Notes")
+        self._add_text_list(
+            delete_notes,
+            "Protected note types",
+            "delete_empty_notes_config",
+            ("protected_notes",),
+        )
+
+        batch = self._add_group(layout, "Batch Note Change")
+        self._add_bool(batch, "Allow single type override", "batch_note_change_config", ("allow_single_type_override",), True)
+        self._add_bool(
+            batch,
+            "Hide menu when one type selected",
+            "batch_note_change_config",
+            ("hide_menu_when_one_type_selected",),
+        )
+        self._add_bool(batch, "Auto-confirm mappings", "batch_note_change_config", ("auto_confirm_mappings",))
+        self._add_bool(batch, "Show progress", "batch_note_change_config", ("show_progress",), True)
+        self._add_bool(batch, "Enable backup", "batch_note_change_config", ("enable_backup",), True)
+        self._add_int(batch, "Batch size", "batch_note_change_config", ("batch_size",), 1, 100000, 200)
+        self._add_line(batch, "Backup directory", "batch_note_change_config", ("backup_directory",))
+        self._add_line(batch, "Last target model", "batch_note_change_config", ("last_target_model",))
+        self._add_line(batch, "Last mapping profile", "batch_note_change_config", ("last_mapping_profile",))
+        self._add_line(batch, "Tag on change", "batch_note_change_config", ("tag_on_change",))
+
+        dupes = self._add_group(layout, "Tag Duplicates")
+        self._add_line(dupes, "Base tag", "tag_dupes_config", ("base_tag",))
+        self._add_line(dupes, "Comparison field", "tag_dupes_config", ("comparison_field",))
+        self._add_line(dupes, "Multiple tag child", "tag_dupes_config", ("multi_tag_child",))
+        self._add_bool(dupes, "Tag unmatched", "tag_dupes_config", ("tag_unmatched",), True)
+        self._add_line(dupes, "Unmatched tag", "tag_dupes_config", ("unmatched_tag",))
+        layout.addStretch(1)
+        return tab
+
+    def _binding_value(self, binding: HybridFieldBinding) -> Any:
+        widget = binding.widget
+        if binding.kind == "line":
+            return widget.text().strip() if isinstance(widget, QLineEdit) else ""
+        if binding.kind == "bool":
+            return bool(widget.isChecked()) if isinstance(widget, QCheckBox) else False
+        if binding.kind == "int":
+            return int(widget.value()) if isinstance(widget, QSpinBox) else 0
+        if binding.kind == "float":
+            return float(widget.value()) if isinstance(widget, QDoubleSpinBox) else 0.0
+        if binding.kind == "combo":
+            return widget.currentText().strip() if isinstance(widget, QComboBox) else ""
+        if binding.kind == "string_list":
+            return self._split_lines(widget.toPlainText()) if isinstance(widget, QTextEdit) else []
+        return None
+
+    def _validate_date(self, value: str, label: str, show_errors: bool = True) -> bool:
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+            return True
+        except Exception:
+            if show_errors:
+                showInfo(f"{label} must use YYYY-MM-DD.")
+            return False
+
+    def _collect_rotation_schedule(self, show_errors: bool = True) -> list[dict[str, str]] | None:
+        table = self.rotation_schedule_table
+        if table is None:
+            return []
+
+        schedule: list[dict[str, str]] = []
+        for row in range(table.rowCount()):
+            segment_label = self._table_text(table, row, 0)
+            start = self._table_text(table, row, 1)
+            end = self._table_text(table, row, 2)
+            if not segment_label and not start and not end:
+                continue
+            if not segment_label or not start or not end:
+                if show_errors:
+                    showInfo("Each rotation schedule row needs Segment Label, Start, and End.")
+                return None
+            if not self._validate_date(start, f"Rotation row {row + 1} start", show_errors):
+                return None
+            if not self._validate_date(end, f"Rotation row {row + 1} end", show_errors):
+                return None
+            if start > end:
+                if show_errors:
+                    showInfo(f"Rotation row {row + 1} starts after it ends.")
+                return None
+            schedule.append({"segment_label": segment_label, "start": start, "end": end})
+        return schedule
+
+    def _collect_custom_tags(self, sections: dict[str, dict[str, Any]], show_errors: bool = True):
+        custom_cfg = sections.setdefault(CUSTOM_TAGS_CANONICAL_SECTION, {})
+        for custom_section in self.custom_tag_sections:
+            existing = self._as_dict(custom_cfg.get(custom_section.section_key))
+            updated = copy.deepcopy(existing)
+            updated["menu_label"] = custom_section.menu_label.text().strip()
+            presets: list[dict[str, Any]] = []
+            table = custom_section.table
+            for row in range(table.rowCount()):
+                label = self._table_text(table, row, 0)
+                group = self._table_text(table, row, 1)
+                tags = self._split_tags(self._table_text(table, row, 2))
+                if not label and not group and not tags:
+                    continue
+                if not label or not tags:
+                    if show_errors:
+                        showInfo(
+                            f"Custom tag section '{custom_section.section_key}' row {row + 1} needs a label and at least one tag."
+                        )
+                    return False
+                preset: dict[str, Any] = {"label": label, "tags": tags}
+                if group:
+                    preset["group"] = group
+                presets.append(preset)
+            updated["presets"] = presets
+            custom_cfg[custom_section.section_key] = updated
+        return True
+
+    def _collect_sections_from_form(self, show_errors: bool = True) -> dict[str, dict[str, Any]] | None:
+        sections: dict[str, dict[str, Any]] = {}
+        for section_key in HYBRID_FORM_SECTION_KEYS:
+            sections[section_key] = copy.deepcopy(self._get_section(section_key))
+
+        for binding in self.bindings:
+            section = sections.setdefault(binding.section_key, {})
+            self._set_path(section, binding.path, self._binding_value(binding))
+
+        missed = sections.setdefault(MISSED_TAGS_CANONICAL_SECTION, {})
+        if "rotation" in missed:
+            rotation_cfg = missed.pop("rotation")
+            block_cfg = self._as_dict(missed.get("block"))
+            missed["block"] = self.config_manager_cls.deep_merge_dicts(
+                self._as_dict(rotation_cfg),
+                block_cfg,
+            )
+
+        schedule = self._collect_rotation_schedule(show_errors)
+        if schedule is None:
+            return None
+        self._set_path(missed, ("block", "schedule"), schedule)
+
+        if not self._collect_custom_tags(sections, show_errors):
+            return None
+
+        global_cfg = sections.get("global_config", {})
+        fuzzy = self._as_dict(global_cfg.get("fuzzy_opts"))
+        if float(fuzzy.get("min_fuzz", 0)) > float(fuzzy.get("default_fuzz", 1)):
+            if show_errors:
+                showInfo("Minimum fuzzy threshold cannot be greater than the default fuzzy threshold.")
+            return None
+
+        img_cfg = sections.get("add_img_class", {})
+        if float(img_cfg.get("square_min", 0)) > float(img_cfg.get("square_max", 0)):
+            if show_errors:
+                showInfo("Image square min ratio cannot be greater than square max ratio.")
+            return None
+
+        return sections
+
+    def _refresh_form_snapshot(self):
+        sections = self._collect_sections_from_form(show_errors=False)
+        self._last_loaded_form_sections = sections if sections is not None else {}
+
+    def _has_unsaved_form_changes(self) -> bool:
+        sections = self._collect_sections_from_form(show_errors=False)
+        if sections is None:
+            return True
+        return sections != self._last_loaded_form_sections
+
+    def save_and_close(self):
+        sections = self._collect_sections_from_form()
+        if sections is None:
+            return
+        try:
+            for section_key in HYBRID_FORM_SECTION_KEYS:
+                self.config_manager_cls.save_section_override(section_key, sections.get(section_key, {}))
+        except Exception as exc:
+            showInfo(f"Failed to save settings: {exc}")
+            return
+        self.accept()
+
+    def restore_defaults(self):
+        if not askUser(HYBRID_RESTORE_CONFIRM_TEXT):
+            return
+        try:
+            for section_key in HYBRID_FORM_SECTION_KEYS:
+                self.config_manager_cls.clear_section_override(section_key)
+        except Exception as exc:
+            showInfo(f"Failed to restore defaults: {exc}")
+            return
+        self.reload_from_config()
+        showInfo(HYBRID_RESTORE_SUCCESS_TEXT)
+
+    def open_advanced_editor(self):
+        """Open Anki's built-in JSON config editor and close this friendly window."""
+        if self._has_unsaved_form_changes() and not askUser(HYBRID_ADVANCED_DISCARD_CONFIRM_TEXT):
+            return
+
+        try:
+            from aqt.addons import ConfigEditor
+        except Exception as exc:
+            showInfo(f"Could not open Anki's default config editor: {exc}")
+            return
+
+        try:
+            current_config = mw.addonManager.getConfig(self.addon_name) or {}
+            advanced = ConfigEditor(self, self.addon_name, current_config)
+        except Exception as exc:
+            showInfo(f"Could not open Anki's default config editor: {exc}")
+            return
+
+        self._advanced_config_editor = advanced
+        self._suppress_focus_restore = True
+        mw._change_notes_advanced_config_editor = advanced
+        mw._change_notes_hybrid_config_dialog = self
+
+        def _on_advanced_finished(_result: int):
+            self._suppress_focus_restore = False
+            self._advanced_config_editor = None
+            if getattr(mw, "_change_notes_advanced_config_editor", None) is advanced:
+                delattr(mw, "_change_notes_advanced_config_editor")
+            if getattr(mw, "_change_notes_hybrid_config_dialog", None) is self:
+                delattr(mw, "_change_notes_hybrid_config_dialog")
+            self.deleteLater()
+
+        advanced.finished.connect(_on_advanced_finished)
+        advanced.show()
+        QTimer.singleShot(0, self._raise_advanced_editor)
+        QTimer.singleShot(100, self._raise_advanced_editor)
+        QTimer.singleShot(300, self._raise_advanced_editor)
+        QTimer.singleShot(0, self.accept)
 
 
 class ConfigDialog(QDialog):

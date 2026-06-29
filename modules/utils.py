@@ -168,9 +168,6 @@ def prompt_checkbox_option(
     parent=None,
 ) -> bool | None:
     """Show an OK/Cancel dialog with one checkbox; returns None when canceled."""
-    def _as_dict(value):
-        return value if isinstance(value, dict) else {}
-
     def _to_optional_bool(value):
         if isinstance(value, bool):
             return value
@@ -186,10 +183,12 @@ def prompt_checkbox_option(
         if ConfigManager is None:
             return None
         try:
-            section_override = ConfigManager.get_override_section(section_name)
-            runtime_cfg = _as_dict(section_override.get("runtime"))
-            states = _as_dict(runtime_cfg.get("last_checkbox_states"))
-            return _to_optional_bool(states.get(state_key))
+            value = ConfigManager.get_runtime_value(
+                section_name,
+                "last_checkbox_states",
+                state_key,
+            )
+            return _to_optional_bool(value)
         except Exception:
             return None
 
@@ -197,20 +196,22 @@ def prompt_checkbox_option(
         if ConfigManager is None:
             return
         try:
-            section_override = ConfigManager.get_override_section(section_name)
-            runtime_cfg = _as_dict(section_override.get("runtime"))
-            states = _as_dict(runtime_cfg.get("last_checkbox_states"))
-            existing_state = _to_optional_bool(states.get(state_key))
+            existing_state = _to_optional_bool(
+                ConfigManager.get_runtime_value(
+                    section_name,
+                    "last_checkbox_states",
+                    state_key,
+                )
+            )
             if existing_state == state_value:
                 return
 
-            updated_override = ConfigManager.deep_merge_dicts({}, section_override)
-            updated_runtime_cfg = _as_dict(updated_override.get("runtime"))
-            updated_states = _as_dict(updated_runtime_cfg.get("last_checkbox_states"))
-            updated_states[state_key] = bool(state_value)
-            updated_runtime_cfg["last_checkbox_states"] = updated_states
-            updated_override["runtime"] = updated_runtime_cfg
-            ConfigManager.save_section_override(section_name, updated_override)
+            ConfigManager.save_runtime_value(
+                section_name,
+                "last_checkbox_states",
+                state_key,
+                bool(state_value),
+            )
         except Exception:
             return
 

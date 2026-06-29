@@ -30,7 +30,7 @@ ADD_MISSED_TAGS_DEFAULTS = {
         "include_day_segment": True,
         "split_weeks": False,
     },
-    "rotation": {
+    "block": {
         "schedule": [
             {"segment_label": "*Dedicated", "start": "2026-03-28", "end": "2099-12-31"},
         ],

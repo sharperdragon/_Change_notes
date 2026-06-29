@@ -1,11 +1,11 @@
 {
   "add_img_class": {
-    "landscape_ratio_min": 1.1900000001,
+    "landscape_ratio_min": 1.19,
     "small_width": 340,
     "square_max": 1.19,
-    "square_min": 0.8999991,
-    "tall_ratio": 0.899999,
-    "ultra-wide_ratio": 1.89999999
+    "square_min": 0.9,
+    "tall_ratio": 0.9,
+    "ultra-wide_ratio": 1.9
   },
   "add_table_class": {
     "apply_to_existing_classes": true,
@@ -360,21 +360,6 @@
     },
     "ui": {
       "menu_label": "Missed Tags ❌"
-    },
-    "runtime":{
-      "last_prompt_inputs": {
-        "amboss_append_correct_marked": "0",
-        "amboss_test_prompt": "Top-200::**",
-        "append_correct_marked_nbme_form_prompt": "0",
-        "append_correct_marked_uw_test_prompt": "0",
-        "nbme_form_prompt": "",
-        "uw_correct_marked_input_amboss": "",
-        "uw_correct_marked_input_nbme": "",
-        "uw_correct_marked_input_other": "",
-        "uw_correct_marked_input_uworld": "",
-        "uw_correct_missed_source": "NBME",
-        "uw_test_prompt": "*UWSA1::Block_"
-      }
+    }
   }
-}
 }

@@ -92,16 +92,32 @@ except ImportError:
     pass  # Older Anki versions don't support addon menu hook
 
 
-def _clear_stale_config_action():
-    """Ensure Anki uses the built-in config editor for this add-on."""
+def open_settings_dialog(*_args, **_kwargs):
+    """Open the friendly settings dialog from Anki's Add-ons Config button."""
+    from .config_manager import ConfigManager
+    from .config_ui import HybridConfigDialog
+
+    dialog = HybridConfigDialog(ADDON_MODULE_NAME, ConfigManager, mw)
+    dialog.exec()
+
+
+def _register_config_action():
+    """Register a custom settings window for Anki's add-on Config button."""
     addon_manager = getattr(mw, "addonManager", None)
     if addon_manager is None:
         return
 
+    set_config_action = getattr(addon_manager, "setConfigAction", None)
+    if callable(set_config_action):
+        set_config_action(ADDON_MODULE_NAME, open_settings_dialog)
+        return
+
+    # Compatibility fallback for older Anki builds that predate setConfigAction.
     for attr_name in ("_configActions", "_config_actions"):
         config_actions = getattr(addon_manager, attr_name, None)
         if isinstance(config_actions, dict):
-            config_actions.pop(ADDON_MODULE_NAME, None)
+            config_actions[ADDON_MODULE_NAME] = open_settings_dialog
+            return
 
 
-_clear_stale_config_action()
+_register_config_action()

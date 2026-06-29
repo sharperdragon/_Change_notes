@@ -15,6 +15,7 @@ class ConfigManager:
     """Load, migrate, and expose add-on configuration state."""
 
     ROOT_ADDON_NAME = "_Change_notes"
+    RUNTIME_SECTION = "runtime"
 
     # Legacy section keys that now map to canonical section keys.
     LEGACY_SECTION_RENAMES = {
@@ -53,8 +54,10 @@ class ConfigManager:
     DEPRECATED_MERGE_TAGS_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
     DEPRECATED_MERGE_IMAGES_THRESHOLD_KEYS = ("default_threshold", "min_threshold")
     DEPRECATED_MERGE_SCHED_THRESHOLD_KEYS = ("default_fuzzy", "min_fuzzy")
-    MISSED_TAGS_ROTATION_KEY = "rotation"
-    MISSED_TAGS_LEGACY_BLOCK_KEY = "block"
+    # Persist the schedule context under `block`, matching config.json. Runtime
+    # loading still accepts legacy `rotation` and normalizes it internally.
+    MISSED_TAGS_ROTATION_KEY = "block"
+    MISSED_TAGS_LEGACY_BLOCK_KEY = "rotation"
     MISSED_CONTEXT_PARENT_TAG_SEGMENT = "Block"
     LEGACY_MISSED_CONTEXT_PARENT_TAG_SEGMENT = "Rotation"
     MISSED_TAGS_CANONICAL_TOP_LEVEL_KEYS = (
@@ -235,6 +238,43 @@ class ConfigManager:
                 changed = True
 
         return migrated, changed
+
+    @classmethod
+    def _migrate_section_runtime_to_root(cls, payload: dict[str, Any]) -> bool:
+        """Move legacy `<section>.runtime` blocks under top-level `runtime`."""
+        if not isinstance(payload, dict):
+            return False
+
+        changed = False
+        runtime_root = payload.get(cls.RUNTIME_SECTION)
+        if not isinstance(runtime_root, dict):
+            runtime_root = {}
+
+        for section_key, section_value in list(payload.items()):
+            if section_key == cls.RUNTIME_SECTION or not isinstance(section_value, dict):
+                continue
+            legacy_runtime = section_value.pop(cls.RUNTIME_SECTION, None)
+            if not isinstance(legacy_runtime, dict):
+                if legacy_runtime is not None:
+                    changed = True
+                continue
+
+            existing_runtime = runtime_root.get(section_key)
+            if isinstance(existing_runtime, dict):
+                runtime_root[section_key] = cls.deep_merge_dicts(legacy_runtime, existing_runtime)
+            else:
+                runtime_root[section_key] = copy.deepcopy(legacy_runtime)
+            changed = True
+
+        if runtime_root:
+            if payload.get(cls.RUNTIME_SECTION) != runtime_root:
+                payload[cls.RUNTIME_SECTION] = runtime_root
+                changed = True
+        elif cls.RUNTIME_SECTION in payload:
+            payload.pop(cls.RUNTIME_SECTION, None)
+            changed = True
+
+        return changed
 
     @classmethod
     def _merge_legacy_into_canonical(
@@ -423,7 +463,7 @@ class ConfigManager:
             if isinstance(canonical_rotation, dict):
                 # Prefer block syntax when overlapping with rotation keys.
                 subset[cls.MISSED_TAGS_ROTATION_KEY] = cls.deep_merge_dicts(
-                    canonical_rotation, legacy_rotation
+                    legacy_rotation, canonical_rotation
                 )
             elif cls.MISSED_TAGS_ROTATION_KEY not in subset:
                 subset[cls.MISSED_TAGS_ROTATION_KEY] = copy.deepcopy(legacy_rotation)
@@ -879,7 +919,7 @@ class ConfigManager:
 
     @classmethod
     def _migrate_missed_tags_rotation_key(cls, payload: dict[str, Any]) -> bool:
-        """Canonicalize missed-tags rotation config key from legacy `block`."""
+        """Canonicalize missed-tags schedule config key from legacy `rotation`."""
         section = payload.get(cls.MISSED_TAGS_CANONICAL_SECTION)
         if not isinstance(section, dict):
             return False
@@ -894,7 +934,7 @@ class ConfigManager:
             if isinstance(legacy_value, dict):
                 if isinstance(canonical_value, dict):
                     # Prefer block syntax when both keys are present.
-                    section[canonical_key] = cls.deep_merge_dicts(canonical_value, legacy_value)
+                    section[canonical_key] = cls.deep_merge_dicts(legacy_value, canonical_value)
                 elif canonical_key not in section:
                     section[canonical_key] = copy.deepcopy(legacy_value)
             elif canonical_key not in section:
@@ -1179,6 +1219,7 @@ class ConfigManager:
         cls._migrate_merge_tags_parent_keys(migrated)
         cls._remove_hardcoded_threshold_max_keys(migrated)
         cls._remove_deprecated_per_section_threshold_keys(migrated)
+        cls._migrate_section_runtime_to_root(migrated)
         return migrated
 
     @classmethod
@@ -1239,6 +1280,76 @@ class ConfigManager:
         overrides = cls.load_raw_overrides()
         data = overrides.get(section, {})
         return copy.deepcopy(data) if isinstance(data, dict) else {}
+
+    @classmethod
+    def get_runtime_section(cls, section: str) -> dict:
+        """Return runtime state for a section from the centralized runtime root."""
+        overrides, _, _ = cls.migrate_overrides_once()
+        runtime_root = overrides.get(cls.RUNTIME_SECTION)
+        if not isinstance(runtime_root, dict):
+            return {}
+        data = runtime_root.get(section, {})
+        return copy.deepcopy(data) if isinstance(data, dict) else {}
+
+    @classmethod
+    def get_runtime_bucket(cls, section: str, bucket: str) -> dict:
+        runtime_section = cls.get_runtime_section(section)
+        data = runtime_section.get(bucket, {})
+        return copy.deepcopy(data) if isinstance(data, dict) else {}
+
+    @classmethod
+    def get_runtime_value(cls, section: str, bucket: str, key: str, default=None):
+        bucket_data = cls.get_runtime_bucket(section, bucket)
+        return copy.deepcopy(bucket_data.get(key, default))
+
+    @classmethod
+    def save_runtime_values(cls, section: str, bucket: str, values: dict[str, Any]) -> None:
+        if not isinstance(values, dict):
+            raise ValueError("Runtime values must be a JSON object.")
+
+        normalized_section = str(section or "").strip()
+        normalized_bucket = str(bucket or "").strip()
+        if not normalized_section or not normalized_bucket:
+            raise ValueError("Runtime section and bucket are required.")
+
+        updates: dict[str, Any] = {}
+        for raw_key, value in values.items():
+            key = str(raw_key or "").strip()
+            if key:
+                updates[key] = copy.deepcopy(value)
+        if not updates:
+            return
+
+        overrides, _, _ = cls.migrate_overrides_once()
+        updated = copy.deepcopy(overrides)
+        runtime_root = updated.get(cls.RUNTIME_SECTION)
+        if not isinstance(runtime_root, dict):
+            runtime_root = {}
+        runtime_section = runtime_root.get(normalized_section)
+        if not isinstance(runtime_section, dict):
+            runtime_section = {}
+        runtime_bucket = runtime_section.get(normalized_bucket)
+        if not isinstance(runtime_bucket, dict):
+            runtime_bucket = {}
+
+        changed = False
+        for key, value in updates.items():
+            if runtime_bucket.get(key) != value:
+                runtime_bucket[key] = copy.deepcopy(value)
+                changed = True
+        if not changed:
+            return
+
+        runtime_section[normalized_bucket] = runtime_bucket
+        runtime_root[normalized_section] = runtime_section
+        updated[cls.RUNTIME_SECTION] = runtime_root
+        updated, _ = cls.prune_redundant_overrides(updated)
+        if updated != overrides:
+            mw.addonManager.writeConfig(cls.ROOT_ADDON_NAME, updated)
+
+    @classmethod
+    def save_runtime_value(cls, section: str, bucket: str, key: str, value: Any) -> None:
+        cls.save_runtime_values(section, bucket, {key: value})
 
     @classmethod
     def get_effective_section(cls, section: str) -> dict:
