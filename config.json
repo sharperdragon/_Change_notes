@@ -222,7 +222,7 @@
     "excluded_tags": [],
     "merge_only_parents": [
       "#Zank::#Step2_v12",
-      "#Zank__Step1_v12"
+      "Zank__Step1_v12"
     ],
     "merge_select_only": false
   },
@@ -343,14 +343,19 @@
       "parent_tag_segment": "Block",
       "schedule": [
         {
-          "end": "2026-05-26",
-          "segment_label": "*Dedicated",
-          "start": "2026-03-28"
+          "end": "2026-08-02",
+          "segment_label": "*PCOM",
+          "start": "2026-07-06"
         },
         {
-          "end": "2099-12-31",
-          "segment_label": "*Dedicated::IA",
-          "start": "2026-05-27"
+          "end": "2026-08-30",
+          "segment_label": "*AStVin",
+          "start": "2026-08-03"
+        },
+        {
+          "end": "2026-09-26",
+          "segment_label": "*AGH",
+          "start": "2026-08-31"
         }
       ]
     },

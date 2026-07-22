@@ -938,7 +938,7 @@ def load_runtime_config() -> MissedTagsConfig:
         default_show_correct_marked_checkbox=PROMPT_SHOW_CORRECT_MARKED_CHECKBOX_DEFAULT,
     )
 
-    default_rotation_schedule_raw = _default_value(("rotation", "schedule"))
+    default_rotation_schedule_raw = _default_value(("block", "schedule"))
     schedule_raw = rotation_cfg.get("schedule", default_rotation_schedule_raw)
     rotation_schedule = _normalize_rotation_schedule(schedule_raw)
     if not rotation_schedule:
@@ -946,7 +946,7 @@ def load_runtime_config() -> MissedTagsConfig:
 
     valid_schedule_policies = {SCHEDULE_POLICY["unknown"], SCHEDULE_POLICY["next"]}
     default_schedule_exhausted_policy = _default_text(
-        ("rotation", "exhausted_policy"),
+        ("block", "exhausted_policy"),
         SCHEDULE_POLICY["unknown"],
     ).lower()
     if default_schedule_exhausted_policy not in valid_schedule_policies:
@@ -961,7 +961,7 @@ def load_runtime_config() -> MissedTagsConfig:
         schedule_exhausted_policy = SCHEDULE_POLICY["unknown"]
 
     default_rotation_parent_tag_segment = _normalize_missed_context_parent_tag_segment(
-        _default_text(("rotation", "parent_tag_segment"), MISSED_CONTEXT_PARENT_TAG_SEGMENT),
+        _default_text(("block", "parent_tag_segment"), MISSED_CONTEXT_PARENT_TAG_SEGMENT),
     )
     resolved_other_suffix = _read_text(other_cfg, "tag_suffix", default_other_suffix)
     other_default_add_context = _read_action_add_missed_date_context(
