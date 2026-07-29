@@ -36,18 +36,6 @@
           ]
         },
         {
-          "label": "Key Basics ♟️",
-          "tags": [
-            "#Custom::#KEY::Basics"
-          ]
-        },
-        {
-          "label": "🌬️ D.O. Med",
-          "tags": [
-            "#Custom::DO_Med"
-          ]
-        },
-        {
           "label": "📛 Risks+ ",
           "tags": [
             "#Custom::Random::Risk_Factors+"
@@ -63,12 +51,6 @@
           "label": "🩻 Imaging",
           "tags": [
             "#Custom::#Imaging"
-          ]
-        },
-        {
-          "label": "Neato",
-          "tags": [
-            "#Custom::z_Neato"
           ]
         }
       ]
