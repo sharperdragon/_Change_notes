@@ -93,6 +93,7 @@ class MissedTagsConfig:
     include_day_segment: bool
     split_weeks: bool
     action_add_missed_date_context: dict[str, bool]
+    menu_display_order_by_action: dict[str, int | None]
     show_base_plain_action: bool
     action_label_base: str
     action_label_multi_missed: str
@@ -148,6 +149,15 @@ def _to_positive_int(value: Any, fallback: int) -> int:
         return parsed if parsed > 0 else fallback
     except Exception:
         return fallback
+
+
+def _to_optional_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
 
 
 def _to_string_list(value: Any, fallback: list[str]) -> list[str]:
@@ -211,6 +221,10 @@ def _read_positive_int(data: dict[str, Any], key: str, fallback: int) -> int:
 
 def _read_string_list(data: dict[str, Any], key: str, fallback: list[str]) -> list[str]:
     return _to_string_list(data.get(key, fallback), fallback=fallback)
+
+
+def _read_optional_int(data: dict[str, Any], key: str) -> int | None:
+    return _to_optional_int(data.get(key))
 
 
 def _read_action_add_missed_date_context(action_cfg: dict[str, Any], fallback: bool) -> bool:
@@ -1092,6 +1106,20 @@ def load_runtime_config() -> MissedTagsConfig:
             action_spec.action_key,
             other_add_context,
         )
+    menu_display_order_by_action = {
+        action_key: _read_optional_int(_as_dict(action_cfg_by_section.get(action_key)), "menu_display_order")
+        for action_key in (
+            "base",
+            "uworld",
+            "nbme",
+            "amboss",
+            "multi_missed",
+            "key_info",
+            "correct_guess",
+            CANONICAL_CORRECT_TAG_MISSED_ACTION_KEY,
+            "other",
+        )
+    }
 
     return MissedTagsConfig(
         base_missed_tag=resolved_base_missed_tag,
@@ -1128,6 +1156,7 @@ def load_runtime_config() -> MissedTagsConfig:
         include_day_segment=_read_bool(date_cfg, "include_day_segment", default_include_day_segment),
         split_weeks=_read_bool(date_cfg, "split_weeks", default_split_weeks),
         action_add_missed_date_context=action_add_missed_date_context,
+        menu_display_order_by_action=menu_display_order_by_action,
         show_base_plain_action=_read_bool(
             base_cfg,
             "menu_display",

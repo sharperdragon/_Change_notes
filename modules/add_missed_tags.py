@@ -308,18 +308,35 @@ def add_missed_tag_menu_items(browser, menu):
     tag_menu = QMenu(cfg.missed_tags_menu_label, browser)
     tag_menu.setStyleSheet(build_missed_tags_menu_stylesheet())
 
-    add_uworld_tags(browser, tag_menu, cfg)
-    add_uworld_correct_missed_tag(browser, tag_menu, cfg)
-    add_nbme_tag(browser, tag_menu, cfg)
-    add_amboss_tag(browser, tag_menu, cfg)
-    if cfg.show_base_plain_action:
-        add_base_plain_action(browser, tag_menu, cfg)
+    action_builders = {
+        "uworld": lambda: add_uworld_tags(browser, tag_menu, cfg),
+        "correct_tag_missed": lambda: add_uworld_correct_missed_tag(browser, tag_menu, cfg),
+        "nbme": lambda: add_nbme_tag(browser, tag_menu, cfg),
+        "amboss": lambda: add_amboss_tag(browser, tag_menu, cfg),
+        "base": lambda: add_base_plain_action(browser, tag_menu, cfg),
+        "multi_missed": lambda: add_multi_tag(browser, tag_menu, cfg),
+        "key_info": lambda: add_key_info_action(browser, tag_menu, cfg),
+        "correct_guess": lambda: add_correct_guess_action(browser, tag_menu, cfg),
+        "other": lambda: _add_other_resources_menu(browser, tag_menu, cfg),
+    }
+    if not cfg.show_base_plain_action:
+        del action_builders["base"]
 
-    add_multi_tag(browser, tag_menu, cfg)
-    add_key_info_action(browser, tag_menu, cfg)
+    for action_key in sorted(action_builders, key=lambda key: _top_level_menu_sort_key(cfg, key)):
+        action_builders[action_key]()
 
-    add_correct_guess_action(browser, tag_menu, cfg)
+    if tag_menu.actions():
+        menu.addMenu(tag_menu)
 
+
+def _top_level_menu_sort_key(cfg: MissedTagsConfig, action_key: str) -> tuple[int, int, str]:
+    display_order = cfg.menu_display_order_by_action.get(action_key)
+    if display_order is None:
+        return (1, 0, action_key)
+    return (0, display_order, action_key)
+
+
+def _add_other_resources_menu(browser, tag_menu, cfg: MissedTagsConfig) -> None:
     if cfg.other_submenu_enabled:
         submenu_label = str(cfg.other_submenu_label).strip() or "Other"
         other_menu = QMenu(submenu_label, browser)
@@ -327,11 +344,9 @@ def add_missed_tag_menu_items(browser, menu):
         add_other_resources_actions(browser, other_menu, cfg)
         if other_menu.actions():
             tag_menu.addMenu(other_menu)
-    else:
-        add_other_resources_actions(browser, tag_menu, cfg)
+        return
 
-    if tag_menu.actions():
-        menu.addMenu(tag_menu)
+    add_other_resources_actions(browser, tag_menu, cfg)
 
 
 def add_nbme_tag(browser, menu, cfg: MissedTagsConfig):

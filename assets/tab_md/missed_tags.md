@@ -50,6 +50,7 @@ Legacy section names are still merged into `tag_missed_notes` by `ConfigManager`
 ### `actions`
 - Shared standardized keys:
 - `menu_label`: Action label shown in the menu.
+- `menu_display_order`: Optional integer for top-level `tag_missed_notes.actions.<key>` ordering. Lower numbers appear first; ties sort alphabetically by action key; unnumbered actions come afterward and also sort alphabetically by action key.
 - `child_of_primary_missed`: Build tags under the main missed root when `true`.
 - `tag_segment`: Segment used under the missed root.
 - `absolute_tags`: Full tags for actions that should not be child tags.

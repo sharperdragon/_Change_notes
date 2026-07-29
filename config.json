@@ -1,4 +1,4 @@
-{
+  {
   "add_img_class": {
     "landscape_ratio_min": 1.19,
     "small_width": 340,
@@ -295,7 +295,8 @@
           "number_style": "number_only",
           "show_correct_marked_checkbox": true
         },
-        "tag_segment": "NBME"
+        "tag_segment": "NBME",
+        "menu_display_order": 1
       },
       "other": {
         "actions": [
@@ -367,4 +368,4 @@
       "menu_label": "Missed Tags ❌"
     }
   }
-}
+  }

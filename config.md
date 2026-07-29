@@ -226,6 +226,7 @@ Menu labels and tagging behavior for missed-question workflows, including UWorld
 - `rotation.schedule`: rotation windows with `segment_label`, `start`, and `end` (`segment_label` is used directly as the final tag child segment).
 - `rotation.exhausted_policy`, `rotation.parent_tag_segment`: post-schedule behavior and tag path segment.
 - `actions.<action>.menu_label`: menu text for the action.
+- `actions.<action>.menu_display_order`: optional integer for top-level `tag_missed_notes.actions.<key>` ordering. Lower numbers render first; equal numbers sort alphabetically by action key; actions without a number render afterward and also sort alphabetically by action key.
 - `actions.base.menu_display`: show/hide the `Base` action row in the Missed Tags menu.
 - `actions.<action>.prompt.show_correct_marked_checkbox`: show/hide the `correct_marked` checkbox for that specific prompt action.
 - `actions.<action>.child_of_primary_missed`: when `true`, action tags are built under the main missed-tag root.
