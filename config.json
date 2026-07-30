@@ -30,28 +30,28 @@
       "menu_label": " 🎛️ Custom Tags",
       "presets": [
         {
+          "label": " 🧮 Know Numbers",
+          "tags": ["#Custom::*Memorize::Know_Numbers"]
+        },
+        {
+          "label": "🔪 Surg-decks Learn",
+          "tags": ["#Custom::SurgDecks::Learn"]
+        },
+        {
           "label": "Key 🔑",
-          "tags": [
-            "#Custom::#KEY"
-          ]
+          "tags": ["#Custom::#KEY"]
         },
         {
           "label": "📛 Risks+ ",
-          "tags": [
-            "#Custom::Random::Risk_Factors+"
-          ]
+          "tags": ["#Custom::Random::Risk_Factors+"]
         },
         {
           "label": "🧀 Suspend – basic",
-          "tags": [
-            "#Custom::zAuto_Suspend::basic"
-          ]
+          "tags": ["#Custom::zAuto_Suspend::basic"]
         },
         {
           "label": "🩻 Imaging",
-          "tags": [
-            "#Custom::#Imaging"
-          ]
+          "tags": ["#Custom::#Imaging"]
         }
       ]
     },
@@ -69,12 +69,6 @@
           "label": "🏥 Surgery",
           "tags": [
             "#Custom::Surgery_know"
-          ]
-        },
-        {
-          "label": " 🧮 Know Numbers",
-          "tags": [
-            "#Custom::*Memorize::Know_Numbers"
           ]
         },
         {
