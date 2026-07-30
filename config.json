@@ -30,13 +30,23 @@
       "menu_label": " 🎛️ Custom Tags",
       "presets": [
         {
-          "label": " 🧮 Know Numbers",
-          "tags": ["#Custom::*Memorize::Know_Numbers"]
-        },
-        {
           "label": "🔪 Surg-decks Learn",
           "tags": ["#Custom::SurgDecks::Learn"]
         },
+        {
+          "label": "☕️ Surg-decks Priority",
+          "tags": ["#Custom::SurgDecks::Learn::Priority"]
+        },
+        {
+          "label": " 🧮 Know Numbers",
+          "tags": ["#Custom::*Memorize::Know_Numbers"]
+        }
+      ]
+    },
+    "add_custom_tags_2": {
+      "group_labels": {},
+      "menu_label": " 🧠 + 💉 Tags",
+      "presets": [
         {
           "label": "Key 🔑",
           "tags": ["#Custom::#KEY"]
@@ -52,13 +62,7 @@
         {
           "label": "🩻 Imaging",
           "tags": ["#Custom::#Imaging"]
-        }
-      ]
-    },
-    "add_custom_tags_2": {
-      "group_labels": {},
-      "menu_label": " 🧠 + 💉 Tags",
-      "presets": [
+        },
         {
           "label": " 🧊 Principles",
           "tags": [
