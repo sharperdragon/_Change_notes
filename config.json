@@ -40,6 +40,10 @@
         {
           "label": " 🧮 Know Numbers",
           "tags": ["#Custom::*Memorize::Know_Numbers"]
+        },
+        {
+          "label": "🫙 Surg-decks LOW",
+          "tags": ["#Custom::SurgDecks::LOW"]
         }
       ]
     },

@@ -94,20 +94,13 @@ _Change_notes/
     │   └── text_replacements.txt
     │
     ├── Add_img_class/
+    │   ├── __init__.py
     │   ├── config_manager.py
-    │   ├── config_ui.py
-    │   ├── config.json
-    │   ├── config.md
     │   ├── larger_helper.py
-    │   ├── larger_imgs.txt
     │   ├── logs/
     │   └── vendor/
     │
     └── add_table_class/
-        ├── config_manager.py
-        ├── config_ui.py
-        ├── config.json
-        ├── config.md
         └── main.py
 ```
 
@@ -132,7 +125,7 @@ _Change_notes/
 - `utils/` – shared helpers and safety checks  
 - `assets/` – static resources and scrub/replace rules  
 
-Each module includes configuration files and produces detailed logs to facilitate auditing and troubleshooting.
+Modules share the centralized root configuration system and produce detailed logs where applicable to facilitate auditing and troubleshooting.
 
 ---
 
